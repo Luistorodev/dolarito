@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.astro/
+.vercel/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Tests
+coverage/
+
+# Windows folder customization artifacts
+desktop.ini
+Thumbs.db
+folderico-*.ico

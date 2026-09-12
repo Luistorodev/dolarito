@@ -1,0 +1,21 @@
+{
+  "name": "dolarito",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Comparador de precios de compra y venta USD/COP para el mercado colombiano",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "pnpm -r --if-present run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.5",
+    "typescript": "5.9.3"
+  }
+}

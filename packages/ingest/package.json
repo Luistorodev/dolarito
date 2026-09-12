@@ -1,0 +1,8 @@
+{
+  "name": "@dolarito/ingest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Price ingestion: adapters, references, orchestrator",
+  "scripts": {}
+}
