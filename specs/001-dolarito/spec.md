@@ -178,6 +178,31 @@ Criterios de aceptación:
 - RF-09 — El sitio muestra rankings separados por modo y por dirección.
 - RF-10 — Cada fila declara su rail y su momento de captura.
 - RF-11 — Los datos desactualizados se marcan, nunca se ocultan ni se maquillan.
+- **RF-11b — Un precio que no es firme se declara como tal.** Si un proveedor
+  entrega una cotización con tolerancia de variación o vencimiento corto, la
+  interfaz lo dice en la fila. No basta con guardarlo: mostrarlo como una fila
+  más induce a error.
+
+  El caso concreto es **Eldorado**, y es el único de los ocho: sus cotizaciones
+  traen **tolerancia de deslizamiento del 2%** y **vencen a los 2 minutos**. Los
+  demás proveedores publican un precio de libro que vale para cualquiera en ese
+  momento.
+
+  Por qué es un requisito y no un detalle: **el 2% de tolerancia supera la
+  distancia que separa a varios proveedores del ranking.** Un usuario que ve a
+  Eldorado primero por un margen del 0,5% está mirando una comparación que la
+  tolerancia puede invertir sola, sin que nada haya fallado y sin que nadie haya
+  mentido. Presentarlo como equivalente a un precio firme convierte un ranking
+  correcto en una conclusión falsa — que es exactamente lo que el Artículo IV
+  existe para impedir.
+
+  Lo mismo vale para el vencimiento: con captura cada 15 minutos, una fila de
+  Eldorado está vencida 13 de cada 15. Sigue siendo una observación real de lo
+  que valía en su momento, y por eso se guarda; lo que no puede es presentarse
+  como un precio tomable ahora.
+
+  Esto no es recomendar ni desaconsejar a nadie (§7): es declarar una diferencia
+  de naturaleza entre dos cosas que la tabla pone una al lado de la otra.
 - RF-12 — El sitio funciona en móvil como caso principal.
 - RF-13 — Todo el sitio queda tras contraseña hasta que se decida abrirlo.
 
