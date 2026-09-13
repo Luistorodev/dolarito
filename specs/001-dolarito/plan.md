@@ -165,6 +165,27 @@ Artículo I.3. Es la única tabla donde ambas fechas difieren: en `quotes` y
 **`raw` es `not null`.** Coherente con lo anterior: solo escriben las
 observaciones, y toda observación tiene respuesta cruda.
 
+**`market_history` no tiene `raw`, y es una decisión, no un olvido.** La
+diferencia no es de rigor sino de naturaleza: `quotes` guarda lo que *esta*
+corrida observó, y el Artículo I.2 exige el crudo porque sin él no se pueden
+recalcular métricas nuevas sobre datos viejos ni auditar qué respondió cada
+fuente en cada ciclo. `market_history` es otra cosa — **contexto sembrado de una
+vez**, una serie que existía antes que el proyecto y que no se vuelve a consultar
+por ciclo. No hay "qué respondió esta corrida" que preservar, porque no hay
+corrida: hay una carga.
+
+Guardar el crudo igual costaría una copia de la respuesta completa repetida en
+cada una de las ~500 filas que salen de una sola llamada, para preservar un
+contexto idéntico quinientas veces. **El crudo se preserva donde corresponde: en
+el fixture de la siembra**, versionado en `fixtures/`, que es un archivo por
+carga y no una columna por fila.
+
+La consecuencia se acepta con los ojos abiertos: si la serie hay que
+reinterpretarla algún día —otra convención de fecha, otro campo de la respuesta—
+la fuente de verdad es ese fixture más una resiembra, y `loaded_at` es lo que
+permite distinguirla de la anterior. Para `quotes` esa salida no existe, y por
+eso ahí `raw` sí es obligatorio.
+
 **No hay `UPDATE` en `quotes`.** Solo inserciones. El índice único impide que una
 corrida repetida duplique filas, que sería incorregible.
 
