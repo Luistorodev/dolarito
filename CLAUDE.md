@@ -288,23 +288,47 @@ probado. Lo destapó una mutación, no el verde.
   código de salida es 1**: mirar el código de salida, no el conteo.
 
 
+- **T007 — Adapter falso.** `src/adapters/fake.ts`, en dos sabores, uno por cada
+  camino que separa el Art. I.2:
+  - `createFakeQuoteAdapter()` — ocho filas, dos direcciones × cuatro brackets.
+    El bracket de 1 USD sale `out_of_range` / `below_minimum` en ambas
+    direcciones, con el mínimo de 5 USD que imita el piso de Eldorado.
+  - `createThrowingQuoteAdapter()` — lanza. **Ninguna fila**: ni un array vacío,
+    ni una fila marcada como fallida. Nada. Si "no pudimos preguntar" dejara
+    rastro en `quotes`, la alerta de silencio de T019 quedaría sin sentido.
+
+  No inventa montos: pasa por `computeAmounts()` como cualquier adapter
+  `computed`, así que la forma que produce es la que T008 va a tener que
+  persistir de verdad. Un test lo ancla contra el caso dorado B de T006b, para
+  que el falso no pueda divergir de la función compartida en silencio.
+
+  `providerId` por defecto es `'__fake__'`, que **no** es ninguno de los ocho
+  sembrados: persistir estas filas violaría la clave foránea, que es lo
+  correcto. Una cotización falsa no tiene nada que hacer en `quotes`.
+
+  Verificado con cuatro mutaciones, las cuatro atrapadas y todas con salida 1:
+  montos en cero en `out_of_range`, el adapter caído devolviendo `[]` en vez de
+  lanzar, una sola dirección, e ignorar el mínimo. Además un test reemplaza
+  `globalThis.fetch` por una mina y exige las ocho filas igual — eso prueba que
+  no toca la red, cosa que una afirmación sobre los imports no probaría.
+
+
 ### Sigue
 
-**T007 — Adapter falso.** Filas fijas, sin red, con un caso `out_of_range` y uno
-que lanza, para cubrir los dos caminos del Art. I.2.
+**T008 — Orquestador.** `Promise.allSettled` sobre el registro: abre la fila en
+`runs`, resuelve primero los `ReferenceAdapter`, después los `QuoteAdapter`, y
+cierra con `sources_ok` y `sources_failed`.
 
-Después **T008 — orquestador**, donde entra N2: cuenta proveedores pero ejecuta
-adapters, y Wise es 1 adapter y 3 proveedores.
+Acá entra **N2**, que sigue sin resolver: el orquestador cuenta **proveedores**
+pero ejecuta **adapters**, y Wise es 1 adapter y 3 proveedores. Una falla suya
+apaga 3 de 8 y rompe la métrica de cobertura. Falta el mapeo adapter →
+proveedores antes de escribir el conteo.
 
-**Antes de cualquier adapter real hace falta un `INGEST_USER_AGENT` con contacto
-de verdad** — ver "A medias". No es opcional: el cliente se niega a salir.
+T007 dejó listo lo que T008 necesita para probarse sin red, salvo una pieza:
+**no hay `ReferenceAdapter` falso todavía**. Lo dejé fuera a propósito porque
+T007 pedía "un adapter"; es trivial y va con T008.
 
 ### A medias
-
-- **`INGEST_USER_AGENT` no está puesto, y el marcador de `.env.example` está
-  rechazado a propósito.** `http.ts` no deja salir ninguna petición sin un
-  contacto que resuelva. Hoy no bloquea nada —no hay adapter real— pero
-  **bloquea T010 en adelante**. Hace falta una URL o un correo reales.
 
 - **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
   Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,
@@ -334,6 +358,13 @@ de verdad** — ver "A medias". No es opcional: el cliente se niega a salir.
   `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` de libuv y el código
   de salida se pierde (3221226505). Todos los scripts usan `process.exitCode` y
   `return`. Mantenerlo así en los que vengan.
+- **Biome y `tsc` se contradicen en `process.env`.** Biome pide
+  `process.env.FOO`; `tsc` exige `process.env['FOO']` por
+  `noPropertyAccessFromIndexSignature` y si no falla con TS4111. Gana `tsc`: es
+  el que rompe el build. `useLiteralKeys` quedó en `off` en `biome.json`, **sin
+  comentario adjunto** porque `biome.json` no admite comentarios — sería
+  `.jsonc`, y renombrarlo no valía el ruido. El motivo vive acá.
+
 - **`pnpm typecheck` desde la raíz no corre.** El script hace `pnpm -r`, que
   invoca un `pnpm` que no está en el PATH — acá pnpm vive solo vía corepack.
   Correrlo por paquete: `corepack pnpm --filter @dolarito/ingest run typecheck`.
