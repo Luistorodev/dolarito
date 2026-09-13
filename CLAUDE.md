@@ -57,9 +57,24 @@ Toda migración va con su script de verificación en `supabase/tests/`, fuera de
 `migrations/` para que `db push` no lo levante nunca. El verificador no deja
 filas y no depende del manejo de transacciones del editor.
 
+### Tests negativos
+
+**Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que
+distinguir la defensa que se quiere probar de una credencial rota, un endpoint
+caído o un typo, porque los cuatro se ven igual desde afuera.
+
+Ya pasó una vez: la primera versión de `check-rls.ts` dio los seis chequeos en
+verde *antes* de que RLS existiera, porque el gateway rechazaba la `anon key`
+por inválida antes de que RLS entrara en juego. Ahora arranca con un preflight
+contra `/auth/v1/settings` —responde solo por validez de llave, no tiene RLS
+detrás— y sale 1 con `T005 INCONCLUSIVE` en vez de mentir.
+
+Aplica a **T019** (una fuente muda por estar caída no es lo mismo que una fuente
+muda por un bug de ingesta) y a todo test que afirme una ausencia.
+
 ## Estado actual
 
-**Fase 0 en curso.** Última actualización: 2026-09-13.
+**Fase 0 completa.** Última actualización: 2026-09-13.
 
 ### Completado
 
@@ -118,35 +133,94 @@ filas y no depende del manejo de transacciones del editor.
 
   De acá salió la convención de arriba sobre DDL y DML, y con ella el descarte
   de `SUPABASE_DB_PASSWORD` y `SUPABASE_ACCESS_TOKEN`.
+- **T004 — Sembrar el catálogo de proveedores.** Las 8 filas, con las
+  referencias deliberadamente fuera: TRM y mid-market viven en `runs`.
+  - `lib/providers.ts` — el catálogo como constante tipada. Es metadato escrito
+    a mano, no dato derivado de una fuente; ningún campo de acá es un precio.
+    `site_url` y las `notes` los redacté yo a partir de conocimiento general y
+    de lo que dicen T014 a T017 — **revisalos**, sobre todo las URL.
+  - `scripts/seed-providers.ts` — `upsert` con `onConflict: 'id'`, para que
+    recorrer el seed de nuevo sea inocuo. `providers` es catálogo, no bitácora
+    de observaciones: la regla de no-`UPDATE` protege a `quotes`, no a esta
+    tabla. Relee de la base en vez de confiar en la escritura.
+
+  Verificado: `pnpm seed:providers` sale 0 e imprime las 8 filas — 5 `local`
+  (eldorado, dolarapp, binance_p2p, bitso, buda) y 3 `remesa` (wise, instarem,
+  western_union), ninguna con `asset` o `channel` nulo.
+
+- **T005 — Políticas RLS.** `supabase/migrations/20260913171941_rls.sql`:
+  RLS activo en las cuatro tablas, **sin ninguna política**, que es el punto —
+  toda lectura ocurre en el servidor y toda escritura con la llave secreta, que
+  salta RLS por diseño.
+
+  Tres cosas van más allá del texto literal de `plan.md` §2.3, ninguna cambia el
+  contrato de datos:
+  - **`market_history` también lleva RLS.** §2.3 nombra solo `quotes`, `runs` y
+    `providers`; dejar la cuarta abierta expondría la serie sembrada a la
+    `anon key` y contradice HU-07.
+  - **`alter view latest_quotes set (security_invoker = on)`.** Una vista no
+    lleva RLS propio: sin esa opción corre con los permisos de su dueño y le
+    entrega a la `anon key` exactamente las filas que el RLS de abajo retiene.
+    Era el agujero que habría dejado sin efecto todo lo demás.
+  - **Se revocan los privilegios de `anon`** sobre los cinco objetos. RLS sin
+    políticas devuelve conjunto vacío, no error; el revoke lo vuelve error duro.
+    `authenticated` conserva sus grants y queda frenado por RLS, porque con qué
+    llave leerá el tier web sigue sin decidirse (N4).
+
+  Verificado con `pnpm check:rls`: los cinco objetos y el insert rechazados con
+  `permission denied`, y la llave secreta lee las 8 filas. **El preflight contra
+  `/auth/v1/settings` corre primero**, así que un verde ya no puede venir de una
+  llave inválida.
+
+  `supabase/tests/t005_rls_verify.sql` separa las dos capas, que `check:rls` no
+  puede distinguir: un `revoke` solo produce el mismo `permission denied` que
+  `revoke` + RLS. Lee del catálogo que RLS esté activo, que no haya políticas,
+  que `security_invoker` esté puesto y que `anon` no conserve privilegios.
+  **Sin correr todavía** — es DDL-adyacente, va por el SQL Editor.
 
 ### Sigue
 
-**T004 — Sembrar el catálogo de proveedores.** Las 8 filas con su `asset` y su
-`channel`. Es DML: va por código con la `service_role key`. Las referencias no
-van acá — TRM y mid-market viven en `runs`, no son proveedores.
+**T006 — `contract.ts`.** `Money`, `Quote`, `Reference`, `QuoteAdapter`,
+`ReferenceAdapter` y la unión `Adapter` de `plan.md` §3, sin cambios.
 
-Después **T005 — Políticas RLS**, que es DDL y por lo tanto vuelve a pasar por el
-SQL Editor, con su test negativo de `anon key` por código.
+Detrás viene **T006b**, que es barrera dura: ningún adapter puede escribirse
+antes de cerrarla (Art. VII.1). N3 la toca — los casos dorados tienen que fijar
+también la dirección inversa, no solo la directa.
 
 ### A medias
 
-- **Los secretos del repo de T002 no están puestos, y hoy no pueden estarlo:**
-  `git remote -v` no devuelve nada, no hay repositorio en GitHub todavía. El
-  *criterio de terminado* de T002 (script que conecta y lista tablas) sí está
-  cumplido; lo que falta es la otra mitad del enunciado. **Bloquea T018.**
+- **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**
+  El remoto existe: `origin` apunta a `https://github.com/Luistorodev/dolarito.git`
+  y `origin/001-dolarito` está en el commit de T002. La nota anterior de este
+  archivo decía que no había repositorio; quedó obsoleta durante la sesión del
+  2026-09-13. Falta cargar los tres secretos en el repo. **Bloquea T018.**
 - **El proyecto de Supabase arranca en frío.** La primera corrida del script en
   T002 devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint
   daba 401 estable, así que el gateway estaba arriba y lo que tardaba era la
-  base. El reintento inmediato funcionó, y las corridas de T003 ya no lo
+  base. El reintento inmediato funcionó, y las corridas de T003 a T005 ya no lo
   reprodujeron. No es un fallo del código, pero **el backoff de T006c debe cubrir
   504 además de 429 y 5xx**, o el primer ciclo tras una pausa del proyecto
   contará como fuente caída.
+- **`process.exit()` revienta en Windows con un fetch abierto.** Tira
+  `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` de libuv y el código
+  de salida se pierde (3221226505). Todos los scripts usan `process.exitCode` y
+  `return`. Mantenerlo así en los que vengan.
+- **`pnpm typecheck` desde la raíz no corre.** El script hace `pnpm -r`, que
+  invoca un `pnpm` que no está en el PATH — acá pnpm vive solo vía corepack.
+  Correrlo por paquete: `corepack pnpm --filter @dolarito/ingest run typecheck`.
+  Sin arreglar; no bloquea nada.
 
 ### Decisiones pendientes
 
-Ninguna bloquea T004 ni T005. Salieron de la revisión de specs y **aún no están
+Ninguna bloquea T006. Salieron de la revisión de specs y **aún no están
 reflejadas en los documentos de gobierno**. N5 salió de esta lista: quedó escrita
 en `plan.md` §2 y ya está implementada en la migración de T003.
+
+N4 se volvió más concreta con T005: el proyecto usa el sistema **nuevo** de API
+keys de Supabase, donde se pueden emitir varias llaves secretas con rol
+restringido. Eso da una salida real al problema de que `service_role` también
+escriba — el tier web puede tener su propia llave de solo lectura en vez de
+compartir la de ingesta.
 
 | # | Qué | Antes de |
 |---|---|---|

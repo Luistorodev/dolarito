@@ -6,7 +6,9 @@
   "description": "Price ingestion: adapters, references, orchestrator",
   "scripts": {
     "typecheck": "tsc",
-    "check:supabase": "node src/scripts/check-supabase.ts"
+    "check:supabase": "node src/scripts/check-supabase.ts",
+    "seed:providers": "node src/scripts/seed-providers.ts",
+    "check:rls": "node src/scripts/check-rls.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0"

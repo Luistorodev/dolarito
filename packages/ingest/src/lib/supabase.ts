@@ -21,3 +21,18 @@ export function createServiceRoleClient(): SupabaseClient {
     },
   });
 }
+
+/**
+ * A client using the anon key.
+ *
+ * Nothing in the ingest path uses this. It exists so T005 can prove the
+ * negative: with no anonymous read policy, this key must fail to read and fail
+ * to write (plan.md §2.3).
+ */
+export function createAnonClient(): SupabaseClient {
+  const env = readSupabaseEnv();
+
+  return createClient(env.url, env.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
