@@ -499,18 +499,58 @@ probado. Lo destapó una mutación, no el verde.
   correcta (Art. I.4).
 
 
+- **T011b — Histórico de mid-market sembrado.**
+  `src/references/market-history.ts` + `scripts/seed-market-history.ts`
+  (`pnpm seed:history`). **518 filas, 24 meses**, de 2024-09-11 a 2026-09-11.
+  Criterio cumplido con margen: pedía 6 meses.
+
+  **La trampa de zona horaria, que es el hallazgo de esta tarea.** Yahoo marca
+  cada barra diaria al *inicio* de la sesión en la zona de la bolsa, que para
+  `USDCOP=X` es Europe/London. Leído como UTC a secas, un año de datos sale con
+  **31 domingos y 22 viernes** — absurdo para una serie FX, y un absurdo que se
+  habría sembrado en silencio sobre el histórico entero.
+
+  Medido: de 524 barras, 152 están a 23:00Z y 110 a 00:00Z. Eso es BST y GMT, el
+  mismo inicio de sesión con seis meses de diferencia. Por eso **no se usa
+  `meta.gmtoffset`**, aunque en este tirón coincida en las 263 barras del último
+  año: coincide solo porque +1 h deja quieta una barra de 00:00Z y empuja una de
+  23:00Z al día siguiente, y esa coincidencia no es una propiedad en la que
+  apoyarse. La conversión es por barra en `Europe/London`.
+
+  La prueba de que está bien es **agregada, no fila por fila**: la serie cae
+  lunes a viernes con ~104 cada uno y **cero fines de semana**. Un error así es
+  invisible mirando filas sueltas.
+
+  Los 5 festivos vienen con `close: null` y **se saltan, no se rellenan** — el
+  hueco queda hueco (Art. I.4). La barra del día en curso también se excluye: una
+  sesión abierta no es un cierre.
+
+  Verificado aparte del script: 518 filas, `src` todas `yahoo_seed`, y **`runs` y
+  `quotes` siguen en 0**, que era la otra mitad del criterio.
+
+
 ### Sigue
 
-**T011b — Sembrar el histórico de mid-market** `[P]`. Carga única de la serie
-diaria de `USDCOP=X` en `market_history`. Nunca se mezcla con `runs` ni con
-`quotes`, y `market_history.loaded_at` separa el día del dato del día de la
-carga (N5).
+**Fase 3 — los seis adapters de cotización**, de simple a complejo, empezando por
+**T012 `bitso`**: `ask`/`bid` del ticker `usdt_cop`, ocho filas por corrida, la
+tasa no varía por monto y lo que varía es el lado variable vía
+`computeAmounts()`.
 
-Después arranca la **Fase 3**: seis adapters de cotización, de simple a complejo,
-empezando por `bitso`. Cada uno con su fixture real, su línea en `registry.ts` y
-su límite de tasa anotado en `http.ts`.
+Cada uno de los seis arrastra las mismas tres obligaciones: fixture real en
+`fixtures/`, línea en `registry.ts`, y el límite de tasa anotado en la tabla de
+`http.ts` — la cifra con su enlace, o constancia de que la fuente no publica
+ninguna.
 
 ### A medias
+
+- **`market_history.close` guarda menos precisión de la que manda Yahoo.**
+  Yahoo devuelve `4283.6298828125` —artefacto de coma flotante— y la columna es
+  `numeric(14,4)`, así que queda `4283.6299`. Es el esquema haciendo lo que
+  `plan.md` §2 define, no una invención, y 4 decimales sobre una tasa de ~4283
+  COP es precisión de sobra. Se anota porque es una transformación en el borde, y
+  porque **`market_history` no tiene columna `raw`**: a diferencia de `quotes`, no
+  guarda la respuesta original. Lo único que preserva el crudo es el fixture.
+
 
 - **Las cadencias de las dos referencias ya son cifras medidas, no descripción.**
   Yahoo manda `Cache-Control: public, max-age=10` —considera su propia respuesta

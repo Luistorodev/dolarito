@@ -11,7 +11,8 @@
     "check:rls": "node src/scripts/check-rls.ts",
     "check:db": "node src/scripts/check-db-roundtrip.ts",
     "check:references": "node src/scripts/check-references.ts",
-    "seed:providers": "node src/scripts/seed-providers.ts"
+    "seed:providers": "node src/scripts/seed-providers.ts",
+    "seed:history": "node src/scripts/seed-market-history.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0"
