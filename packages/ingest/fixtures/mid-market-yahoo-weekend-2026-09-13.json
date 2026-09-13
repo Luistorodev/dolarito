@@ -1,0 +1,137 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": {
+          "currency": "COP",
+          "symbol": "USDCOP=X",
+          "exchangeName": "CCY",
+          "fullExchangeName": "CCY",
+          "instrumentType": "CURRENCY",
+          "firstTradeDate": 1041465600,
+          "regularMarketTime": 1789329600,
+          "hasPrePostMarketData": false,
+          "gmtoffset": 3600,
+          "timezone": "BST",
+          "exchangeTimezoneName": "Europe/London",
+          "regularMarketPrice": 3079.23,
+          "regularMarketChangePercent": -0.0733,
+          "fulldayPrice": 3079.23,
+          "fulldayChange": -2.26,
+          "fulldayChangePercent": -0.0733,
+          "fiftyTwoWeekHigh": 3934.82,
+          "fiftyTwoWeekLow": 3035.33,
+          "regularMarketDayHigh": 3079.23,
+          "regularMarketDayLow": 3077.49,
+          "regularMarketVolume": 0,
+          "longName": "USD/COP",
+          "shortName": "USD/COP",
+          "chartPreviousClose": 3128.34,
+          "priceHint": 4,
+          "currentTradingPeriod": {
+            "pre": {
+              "timezone": "BST",
+              "start": 1789081200,
+              "end": 1789081200,
+              "gmtoffset": 3600
+            },
+            "regular": {
+              "timezone": "BST",
+              "start": 1789081200,
+              "end": 1789167540,
+              "gmtoffset": 3600
+            },
+            "post": {
+              "timezone": "BST",
+              "start": 1789167540,
+              "end": 1789167540,
+              "gmtoffset": 3600
+            }
+          },
+          "dataGranularity": "1d",
+          "range": "5d",
+          "validRanges": [
+            "1d",
+            "5d",
+            "1mo",
+            "3mo",
+            "6mo",
+            "1y",
+            "2y",
+            "5y",
+            "10y",
+            "ytd",
+            "max"
+          ]
+        },
+        "timestamp": [
+          1788735600,
+          1788822000,
+          1788908400,
+          1788994800,
+          1789081200,
+          1789329600
+        ],
+        "indicators": {
+          "quote": [
+            {
+              "open": [
+                3128.300048828125,
+                3126.300048828125,
+                3116.929931640625,
+                3108.969970703125,
+                3100.429931640625,
+                3077.489990234375
+              ],
+              "high": [
+                3138.25,
+                3135.43994140625,
+                3117.85009765625,
+                3133.169921875,
+                3101.860107421875,
+                3079.22998046875
+              ],
+              "low": [
+                3112.260009765625,
+                3118.60009765625,
+                3099.330078125,
+                3087.389892578125,
+                3081.659912109375,
+                3077.489990234375
+              ],
+              "close": [
+                3128.340087890625,
+                3126.2900390625,
+                3116.929931640625,
+                3109.510009765625,
+                3101.550048828125,
+                3079.22998046875
+              ],
+              "volume": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "adjclose": [
+            {
+              "adjclose": [
+                3128.340087890625,
+                3126.2900390625,
+                3116.929931640625,
+                3109.510009765625,
+                3101.550048828125,
+                3079.22998046875
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
+}

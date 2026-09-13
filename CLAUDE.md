@@ -461,16 +461,63 @@ probado. Lo destapó una mutación, no el verde.
   anotada — ver abajo, porque lo que anoté es un hueco, no una cifra.
 
 
+- **T011 — Adapter de tasa media de mercado.**
+  `src/references/mid-market.ts`. Yahoo `USDCOP=X` primaria,
+  `open.er-api.com` respaldo, y **`mid_market_src` registra siempre cuál
+  respondió** — porque no son la misma medición: Yahoo es intradía, er-api es
+  una foto diaria. Una serie de márgenes que las mezclara en silencio mostraría
+  escalones que son de la fuente y no del mercado. La corrida en vivo lo ilustra:
+  el dato de Yahoo tenía 0,4 h de antigüedad y el de er-api 20,3 h.
+
+  **Yahoo responde 200 con el `INGEST_USER_AGENT` tal cual.** Confirmado; no hace
+  falta simular navegador, y hacerlo violaría el Art. V.4.
+
+  **El respaldo está ejercido contra la red real, no solo con stubs.**
+  `scripts/check-references.ts` (`pnpm check:references`) falla a Yahoo **por
+  URL** y deja salir a er-api por la red de verdad. Verde: el respaldo se
+  alcanza, devuelve 3105.776374, y `mid_market_src` dice `er_api`. También cubre
+  que con las dos caídas el error nombre a ambas, o el log solo acusaría al
+  respaldo. Un respaldo que nunca corrió es una conjetura sobre el futuro.
+
+  Cuatro mutaciones, las cuatro atrapadas y compilando: el respaldo mintiendo
+  sobre su origen, `observed_at` pasando a ser el momento de la captura, quitar
+  el respaldo entero, y dejar pasar un precio en cero.
+
+  **Corrección a la premisa del enunciado, medida y no supuesta.** El dato de
+  Yahoo **no viene congelado en el cierre del viernes** cuando el mercado está
+  cerrado. El domingo 2026-09-13 el último punto venía marcado ese mismo domingo
+  a las 20:00Z, mientras la última sesión cerró el 2026-09-11T22:59Z. Y tampoco
+  es un reloj que corre: dos consultas con minutos de diferencia devolvieron el
+  mismo `regularMarketTime`; parece un valor agrupado por intervalo.
+
+  **Consecuencia, y toca a T019:** `mid_market_at` **por sí solo no distingue**
+  "mercado cerrado" de "ingesta colgada". Un fin de semana queda minutos detrás
+  de `captured_at`, no días. Lo que las separa es el par a lo largo de varias
+  corridas — una ingesta colgada repite el mismo `mid_market_at` **y** el mismo
+  valor, mientras un mercado cerrado puede avanzar la marca con el precio
+  quieto. Sea cual sea, no se interpola nada: una tasa congelada es la respuesta
+  correcta (Art. I.4).
+
+
 ### Sigue
 
-**T011 — Adapter de tasa media de mercado.** Yahoo Finance `USDCOP=X` como
-primaria, `open.er-api.com` como respaldo, y `mid_market_src` registrando cuál
-respondió. Mismo ciclo que todo lo demás, nunca en uno aparte (Art. III.5).
+**T011b — Sembrar el histórico de mid-market** `[P]`. Carga única de la serie
+diaria de `USDCOP=X` en `market_history`. Nunca se mezcla con `runs` ni con
+`quotes`, y `market_history.loaded_at` separa el día del dato del día de la
+carga (N5).
 
-Con las dos referencias en pie, **T011b** puede sembrar el histórico de
-`market_history`, y recién después arranca la Fase 3 de adapters.
+Después arranca la **Fase 3**: seis adapters de cotización, de simple a complejo,
+empezando por `bitso`. Cada uno con su fixture real, su línea en `registry.ts` y
+su límite de tasa anotado en `http.ts`.
 
 ### A medias
+
+- **Las cadencias de las dos referencias ya son cifras medidas, no descripción.**
+  Yahoo manda `Cache-Control: public, max-age=10` —considera su propia respuesta
+  fresca 10 segundos— y er-api `max-age=3600` más `time_next_update_unix` en el
+  cuerpo, apuntando ~24 h adelante. Contra eso, nuestros 15 minutos son 90×,
+  4× y 96× más lentos respectivamente. Eso ya no es un argumento desde nuestra
+  cadencia: es la dirección que exige el Art. V.3, con números de la fuente.
 
 - **El límite de tasa de datos.gov.co no está publicado en la respuesta.**
   Verificado el 2026-09-13 sobre un 200 en vivo: las únicas cabeceras
@@ -514,6 +561,12 @@ Con las dos referencias en pie, **T011b** puede sembrar el histórico de
   `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` de libuv y el código
   de salida se pierde (3221226505). Todos los scripts usan `process.exitCode` y
   `return`. Mantenerlo así en los que vengan.
+- **Biome no toca `fixtures/`.** Quería reformatear las respuestas guardadas, y
+  un fixture es dato capturado, no fuente. Quedó fuera de `includes` en
+  `biome.json`. Nota honesta: los fixtures están re-indentados al guardarlos, así
+  que fijan **forma y valores**, no los bytes originales — la misma distinción
+  que el Art. I.2 acota para `raw`.
+
 - **Biome y `tsc` se contradicen en `process.env`.** Biome pide
   `process.env.FOO`; `tsc` exige `process.env['FOO']` por
   `noPropertyAccessFromIndexSignature` y si no falla con TS4111. Gana `tsc`: es

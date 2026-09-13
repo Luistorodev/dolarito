@@ -51,7 +51,7 @@ describe('the registry today', () => {
     // line there and one number here, and nothing anywhere else.
     assert.deepEqual(
       ADAPTERS.map((adapter) => adapter.id),
-      ['trm'],
+      ['trm', 'mid_market'],
     );
   });
 
@@ -64,7 +64,7 @@ describe('the registry today', () => {
   });
 
   it('still reports all eight providers as uncovered', () => {
-    // TRM is a reference: it covers no provider and never enters a ranking
+    // Both references cover no provider and never enter a ranking
     // (Art. III.4). The eight only start shrinking with T012.
     const report = inspectRegistry();
     assert.equal(report.uncovered.length, 8);

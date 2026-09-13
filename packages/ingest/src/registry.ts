@@ -6,9 +6,9 @@
  * source cannot require a change anywhere in the orchestration path — and a
  * broken one cannot be reached by anything except `Promise.allSettled`.
  *
- * TRM is in (T010). Everything else is still ahead: T011 brings the second
- * reference, T012 to T017 the six quote adapters. Each of those tasks adds its
- * line here and changes nothing else.
+ * Both references are in (T010, T011). The six quote adapters are still ahead,
+ * T012 to T017, and each of those tasks adds its line here and changes nothing
+ * else.
  *
  * The fake adapters are deliberately absent. They exist to exercise the
  * orchestrator in tests, and a fake in the production registry would write
@@ -17,11 +17,12 @@
 
 import type { Adapter, QuoteAdapter, ReferenceAdapter } from './contract.ts';
 import { PROVIDERS } from './lib/providers.ts';
+import { createMidMarketAdapter } from './references/mid-market.ts';
 import { createTrmAdapter } from './references/trm.ts';
 
 export const ADAPTERS: Adapter[] = [
   createTrmAdapter(),
-  // T011 — mid_market     (reference)
+  createMidMarketAdapter(),
   // T012 — bitso          (quote, 1 provider)
   // T013 — dolarapp       (quote, 1 provider)
   // T014 — buda           (quote, 1 provider)

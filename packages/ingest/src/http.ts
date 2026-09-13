@@ -16,8 +16,8 @@
  * | Source | Declared cadence | Where that comes from |
  * |---|---|---|
  * | `trm` (datos.gov.co) | Daily, and each record states its own validity window in `vigenciadesde`/`vigenciahasta` — one rate governs until the next takes over, across weekends and holidays. Observed 2026-09-13: the live record ran Sat 12 → Mon 14, three days. | The data itself: the window is a field, not an inference (T010). |
- * | `mid_market` (Yahoo `USDCOP=X`) | Down to 1 minute. | plan.md §3.1. |
- * | `mid_market` fallback (`open.er-api.com`) | Daily. The response states its own next update. | plan.md §3.1 calls it "diaria"; the response field is the source's own declaration. |
+ * | `mid_market` (Yahoo `USDCOP=X`) | **`Cache-Control: public, max-age=10`** — Yahoo considers its own answer fresh for 10 seconds. Observed on a live 200, 2026-09-13. | The response header: the source stating its own refresh interval. |
+ * | `mid_market` fallback (`open.er-api.com`) | **`Cache-Control: public, max-age=3600`**, and the body carries `time_next_update_unix` — observed 2026-09-13 pointing ~24h ahead. Daily, declared twice over. | Both the header and a field in the payload. |
  *
  * **Everything below this line is NOT yet verified against the source, and must
  * be before its adapter ships.** No number is guessed here: where the cadence is
@@ -32,10 +32,14 @@
  * | `wise` | Comparison endpoint. **Cadence and rate limit unread** (T017). |
  *
  * 15 minutes is comfortably conservative against every cadence in the first
- * table — it is 96 polls a day against sources that change daily, and the one
- * minute-granularity source is the only one where our cadence is the coarser of
- * the two. It cannot yet be called conservative against the second table,
- * because there is nothing there to compare it to.
+ * table, and now against measured figures rather than description. Against
+ * Yahoo's own 10-second freshness window we poll 90x slower; against er-api's
+ * hour-long one, 4x slower; against a TRM that changes once a day, 96 polls
+ * against one update. In every case our cadence is the coarser of the two,
+ * which is the direction Art. V.3 requires.
+ *
+ * It cannot yet be called conservative against the second table, because there
+ * is nothing there to compare it to.
  */
 
 import { readIngestUserAgent } from './lib/env.ts';

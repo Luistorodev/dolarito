@@ -10,6 +10,7 @@
     "check:supabase": "node src/scripts/check-supabase.ts",
     "check:rls": "node src/scripts/check-rls.ts",
     "check:db": "node src/scripts/check-db-roundtrip.ts",
+    "check:references": "node src/scripts/check-references.ts",
     "seed:providers": "node src/scripts/seed-providers.ts"
   },
   "dependencies": {
