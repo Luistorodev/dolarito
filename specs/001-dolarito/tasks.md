@@ -127,22 +127,37 @@ definida en `plan.md` §2. Nunca se mezcla con `runs` ni con `quotes`.
 
 ## Fase 3 — Adapters, de simple a complejo
 
+> **Regla de fase, T012 a T017.** Cada tarea de adapter anota en la tabla de
+> cadencias de `packages/ingest/src/http.ts` el **límite de tasa real** que
+> publica esa fuente, con el enlace a dónde lo dice. Si la fuente **no publica
+> ninguno**, se anota eso mismo, con la fecha en que se buscó y dónde.
+>
+> Lo que no se puede es dejar el hueco sin marcar. Esa tabla es lo que sostiene
+> que nuestros 15 minutos son conservadores (Art. V.3), y una fila en blanco se
+> lee como "verificado" al mes siguiente. Inventar la cifra es peor todavía:
+> sería un dato fabricado usado para justificar nuestra propia cadencia.
+>
+> Ninguna tarea de esta fase está terminada con la tabla sin tocar.
+
 **T012 — `bitso`** `[P]`
 `ask`/`bid` del ticker `usdt_cop`. `asset: 'usdt'`, `channel: 'exchange'`. Dos
 direcciones × cuatro brackets. La tasa no varía por monto; lo que varía es el
 lado variable, vía `computeAmounts()`. `amounts_source: 'computed'`.
 *Terminado cuando:* 8 filas por corrida, todas con `fixed_side` correcto según
-dirección, y test con fixture.
+dirección, y test con fixture. Además, la tabla de cadencias de `http.ts` queda
+anotada para esta fuente.
 
 **T013 — `dolarapp`** `[P]`
 `ask`/`bid` de `v1/tickers?currencies=COP`. `asset: 'usdc'`, `channel: 'fintech'`.
 Sin comisión explícita: `fee_*` queda `undefined`, nunca cero (Artículo I.1).
-*Terminado cuando:* 8 filas y test con fixture.
+*Terminado cuando:* 8 filas y test con fixture. Además, la tabla de cadencias de
+`http.ts` queda anotada para esta fuente.
 
 **T014 — `buda`** `[P]`
 `min_ask`/`max_bid` de `USDT-COP`. `asset: 'usdt'`, `channel: 'exchange'`. Marcar
 en `notes` del proveedor que el libro es delgado y el spread ancho.
-*Terminado cuando:* 8 filas y test con fixture.
+*Terminado cuando:* 8 filas y test con fixture. Además, la tabla de cadencias de
+`http.ts` queda anotada para esta fuente.
 
 **T015 — `eldorado`**
 Un POST por bracket **y por método de pago**. Primero consultar `methods` para los
@@ -157,6 +172,7 @@ Mínimo de 5 USD: el bracket de 1 genera fila con `status: 'out_of_range'` y
 `limit_reason: 'below_minimum'`.
 *Terminado cuando:* genera filas por método; el bracket de 1 USD queda
 `out_of_range`; y un test confirma que `fee_pct` recibió `rate` y no `value`.
+Además, la tabla de cadencias de `http.ts` queda anotada para esta fuente.
 
 **T016 — `binance_p2p`**
 No hay precio único. Recorrer los anuncios acumulando `dynamicMaxSingleTrans*`
@@ -165,14 +181,16 @@ el top 10 crudo en `raw`. Dos llamadas: `BUY` y `SELL`. `asset: 'usdt'`,
 `channel: 'p2p'`. Si la liquidez no alcanza el bracket, `status: 'out_of_range'`
 con `limit_reason: 'insufficient_liquidity'`.
 *Terminado cuando:* un test con fixture verifica el cálculo ponderado contra un
-resultado calculado a mano.
+resultado calculado a mano. Además, la tabla de cadencias de `http.ts` queda
+anotada para esta fuente.
 
 **T017 — `wise`**
 Una llamada por bracket devuelve Wise, Instarem y Western Union. Produce 3 filas
 por bracket, todas con `mode: 'remesa'`. Mapear `fee` a `fee_fixed_usd` y
 `deliveryEstimation` a `eta_minutes`.
 *Terminado cuando:* 12 filas por corrida (3 proveedores × 4 brackets) y test con
-fixture.
+fixture. Además, la tabla de cadencias de `http.ts` queda anotada para esta
+fuente.
 
 **T017 — `wise`**, continuación: `amounts_source: 'provider'` — `receivedAmount`
 es el monto final de la fuente y no se recalcula. `fee` es absoluto en USD
