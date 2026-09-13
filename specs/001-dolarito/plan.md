@@ -382,7 +382,7 @@ entrega el monto final, el suyo manda** y se marca `amounts_source: 'provider'`.
 Requisito: tests dorados con al menos un caso por dirección, verificados a mano,
 antes de escribir ningún adapter que dependa de la función.
 
-**Reglas que todo adapter cumple:****Reglas que todo adapter cumple:**
+**Reglas que todo adapter cumple:**
 
 1. Si un bracket queda fuera de los límites del proveedor, devuelve la fila con
    `status: 'out_of_range'` y su `limit_reason`. Si la **consulta** falla
@@ -393,8 +393,38 @@ antes de escribir ningún adapter que dependa de la función.
 4. Usa el cliente HTTP compartido. No llama a `fetch` directamente: el
    User-Agent, el timeout y el backoff están centralizados ahí.
 5. Tiene un test con una respuesta real guardada en `fixtures/`.
+6. **Si cotiza las dos direcciones, comprar cuesta más de lo que rinde vender.**
+   Ver abajo: es una aserción por valor, obligatoria en el test de cada adapter.
 
-### 3.1 Notas por fuente
+#### La aserción del spread
+
+Para un mismo bracket y un mismo proveedor:
+
+```
+amount_in de cop_to_usd   >   amount_out de usd_to_cop
+   (pesos que pago             (pesos que recibo
+    por N dólares)              por N dólares)
+```
+
+Es la única defensa real contra un libro invertido, y **no hay test de estructura
+que la sustituya**. Cruzar `ask` y `bid`, o mapear al revés el lado de una API,
+produce ocho filas perfectamente bien formadas: los tipos pasan, `fixed_side`
+está correcto, las monedas están en su lugar, los montos escalan con el bracket.
+Lo único que cambia es que el proveedor aparece mejor de lo que es, en todas las
+filas a la vez y por un margen del orden del spread — chico para verse plausible
+fila por fila, suficiente para reordenar un ranking. Es exactamente el error que
+el Artículo I llama mentira financiera.
+
+La desigualdad es estricta. Igualdad significa spread cero y comisiones cero, que
+en la práctica no existe: si aparece, lo más probable es que el adapter esté
+usando **la misma tasa para las dos direcciones**, y eso se reporta, no se
+acomoda.
+
+**Dónde muerde más: `binance_p2p`.** El `tradeType` que se pide y el que trae el
+anuncio están invertidos por diseño — se pide `BUY` y los anuncios responden
+`SELL`, porque describen la operación desde el lado del anunciante y no del
+usuario. Ahí ninguna lectura del nombre del campo protege de nada: la única
+comprobación que distingue el mapeo correcto del invertido es la del valor.
 
 | Adapter | Particularidad |
 |---|---|

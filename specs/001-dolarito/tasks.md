@@ -155,6 +155,13 @@ definida en `plan.md` §2. Nunca se mezcla con `runs` ni con `quotes`.
 > sería un dato fabricado usado para justificar nuestra propia cadencia.
 >
 > Ninguna tarea de esta fase está terminada con la tabla sin tocar.
+>
+> **Segunda regla de fase: la aserción del spread** (`plan.md` §3). Todo adapter
+> que cotice las dos direcciones lleva en su test una comprobación **por valor**
+> de que, para un mismo bracket, los pesos que se pagan por N dólares superan a
+> los pesos que se reciben por N dólares. Un libro invertido produce filas
+> impecables —tipos, `fixed_side`, monedas, escalado— y solo cambia que el
+> proveedor aparece mejor de lo que es. Ningún test de estructura lo ve.
 
 **T012 — `bitso`** `[P]`
 `ask`/`bid` del ticker `usdt_cop`. `asset: 'usdt'`, `channel: 'exchange'`. Dos
@@ -162,19 +169,22 @@ direcciones × cuatro brackets. La tasa no varía por monto; lo que varía es el
 lado variable, vía `computeAmounts()`. `amounts_source: 'computed'`.
 *Terminado cuando:* 8 filas por corrida, todas con `fixed_side` correcto según
 dirección, y test con fixture. Además, la tabla de cadencias de `http.ts` queda
-anotada para esta fuente.
+anotada para esta fuente. Y el test incluye la aserción del spread por valor
+(`plan.md` §3).
 
 **T013 — `dolarapp`** `[P]`
 `ask`/`bid` de `v1/tickers?currencies=COP`. `asset: 'usdc'`, `channel: 'fintech'`.
 Sin comisión explícita: `fee_*` queda `undefined`, nunca cero (Artículo I.1).
 *Terminado cuando:* 8 filas y test con fixture. Además, la tabla de cadencias de
-`http.ts` queda anotada para esta fuente.
+`http.ts` queda anotada para esta fuente. Y el test incluye la aserción del
+spread por valor (`plan.md` §3).
 
 **T014 — `buda`** `[P]`
 `min_ask`/`max_bid` de `USDT-COP`. `asset: 'usdt'`, `channel: 'exchange'`. Marcar
 en `notes` del proveedor que el libro es delgado y el spread ancho.
 *Terminado cuando:* 8 filas y test con fixture. Además, la tabla de cadencias de
-`http.ts` queda anotada para esta fuente.
+`http.ts` queda anotada para esta fuente. Y el test incluye la aserción del
+spread por valor (`plan.md` §3).
 
 **T015 — `eldorado`**
 Un POST por bracket **y por método de pago**. Primero consultar `methods` para los
@@ -189,7 +199,8 @@ Mínimo de 5 USD: el bracket de 1 genera fila con `status: 'out_of_range'` y
 `limit_reason: 'below_minimum'`.
 *Terminado cuando:* genera filas por método; el bracket de 1 USD queda
 `out_of_range`; y un test confirma que `fee_pct` recibió `rate` y no `value`.
-Además, la tabla de cadencias de `http.ts` queda anotada para esta fuente.
+Además, la tabla de cadencias de `http.ts` queda anotada para esta fuente. Y el
+test incluye la aserción del spread por valor (`plan.md` §3).
 
 **T016 — `binance_p2p`**
 No hay precio único. Recorrer los anuncios acumulando `dynamicMaxSingleTrans*`
@@ -197,9 +208,18 @@ hasta cubrir el bracket, y calcular el **precio ponderado por volumen**. Guardar
 el top 10 crudo en `raw`. Dos llamadas: `BUY` y `SELL`. `asset: 'usdt'`,
 `channel: 'p2p'`. Si la liquidez no alcanza el bracket, `status: 'out_of_range'`
 con `limit_reason: 'insufficient_liquidity'`.
+
+**Atención al `tradeType`: el que se pide y el que trae el anuncio están
+invertidos por diseño.** Se pide `BUY` y los anuncios responden `SELL`, porque
+describen la operación desde el lado del anunciante, no del usuario. Leer el
+nombre del campo y confiar en él es exactamente cómo se introduce el error.
+Acá la aserción del spread por valor no es una comprobación más: **es la única
+defensa real**, porque el mapeo invertido produce filas perfectamente bien
+formadas.
 *Terminado cuando:* un test con fixture verifica el cálculo ponderado contra un
 resultado calculado a mano. Además, la tabla de cadencias de `http.ts` queda
-anotada para esta fuente.
+anotada para esta fuente. Y el test incluye la aserción del spread por valor
+(`plan.md` §3).
 
 **T017 — `wise`**
 Una llamada por bracket devuelve Wise, Instarem y Western Union. Produce 3 filas
@@ -207,7 +227,7 @@ por bracket, todas con `mode: 'remesa'`. Mapear `fee` a `fee_fixed_usd` y
 `deliveryEstimation` a `eta_minutes`.
 *Terminado cuando:* 12 filas por corrida (3 proveedores × 4 brackets) y test con
 fixture. Además, la tabla de cadencias de `http.ts` queda anotada para esta
-fuente.
+fuente. Y el test incluye la aserción del spread por valor (`plan.md` §3).
 
 **T017 — `wise`**, continuación: `amounts_source: 'provider'` — `receivedAmount`
 es el monto final de la fuente y no se recalcula. `fee` es absoluto en USD
