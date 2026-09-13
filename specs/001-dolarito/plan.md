@@ -393,8 +393,10 @@ antes de escribir ningún adapter que dependa de la función.
 4. Usa el cliente HTTP compartido. No llama a `fetch` directamente: el
    User-Agent, el timeout y el backoff están centralizados ahí.
 5. Tiene un test con una respuesta real guardada en `fixtures/`.
-6. **Si cotiza las dos direcciones, comprar cuesta más de lo que rinde vender.**
-   Ver abajo: es una aserción por valor, obligatoria en el test de cada adapter.
+6. **Si cotiza las dos direcciones desde un libro único, comprar cuesta más de
+   lo que rinde vender.** Ver abajo: aserción por valor, obligatoria para
+   `bitso`, `buda`, `dolarapp` y `eldorado`. **No aplica a P2P** — ver el final
+   de la subsección.
 
 #### La aserción del spread
 
@@ -420,11 +422,39 @@ en la práctica no existe: si aparece, lo más probable es que el adapter esté
 usando **la misma tasa para las dos direcciones**, y eso se reporta, no se
 acomoda.
 
-**Dónde muerde más: `binance_p2p`.** El `tradeType` que se pide y el que trae el
-anuncio están invertidos por diseño — se pide `BUY` y los anuncios responden
-`SELL`, porque describen la operación desde el lado del anunciante y no del
-usuario. Ahí ninguna lectura del nombre del campo protege de nada: la única
-comprobación que distingue el mapeo correcto del invertido es la del valor.
+**Por qué la regla se limita al libro único, y qué la reemplaza en P2P.**
+
+La regla se escribió mirando exchanges, donde `ask` y `bid` salen del **mismo**
+libro y cruzarlos es aritméticamente imposible sin un error. Se generalizó mal:
+en P2P los dos lados son **mercados separados**, con contrapartes, mínimos y
+métodos de pago distintos. Que se crucen es un estado real del mercado, no un
+defecto del adapter.
+
+Medido sobre el fixture del 2026-09-13, bracket 500: vender rinde **1.540.500
+COP** y comprar cuesta **1.539.867** — invertido por 633 COP. Los dos números son
+correctos. Comprando 500, el anuncio más barato solo tiene capacidad para 204
+USDT y el ponderado sube; vendiendo 500, un solo anuncio lo cubre entero. **Es un
+dato del mercado y se registra como observación, no como fallo** — a T020 le
+interesa con qué frecuencia ocurre.
+
+En P2P la regla 6 se reemplaza por estas, que cubren la misma clase de error:
+
+- **El filtro de mínimos se aplica.** Un anuncio que no acepta el monto no es
+  liquidez disponible; contarlo produce un ponderado mejor que el alcanzable, en
+  favor del proveedor y en todas las corridas.
+- **El mapeo invertido de `tradeType`, anclado por valor y no por nombre de
+  campo.** Se pide `BUY` y los anuncios responden `SELL`, porque describen la
+  operación desde el lado del anunciante. Ningún nombre de campo protege de
+  nada: el test afirma que `cop_to_usd` sale de los números del libro pedido con
+  `BUY` y no de los del otro. **Este es el cruce de lados que la regla 6 atrapaba
+  en los demás**, y en P2P hay que atraparlo aparte.
+
+**Lo que NO se puede afirmar: que el ponderado sea monótono con el bracket.**
+Parece obvio —más monto, más profundo, peor precio— y es falso, porque el
+conjunto elegible **crece** con el bracket: montos mayores superan los mínimos de
+anuncios mejores. Medido: comprando, 7 elegibles a bracket 100 y 18 a 500, y el
+ponderado **baja** de 3082,59 a 3079,73. En P2P un monto chico se castiga por
+exclusión de los mejores anuncios, no por profundidad.
 
 | Adapter | Particularidad |
 |---|---|

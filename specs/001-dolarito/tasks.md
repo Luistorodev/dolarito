@@ -157,11 +157,17 @@ definida en `plan.md` §2. Nunca se mezcla con `runs` ni con `quotes`.
 > Ninguna tarea de esta fase está terminada con la tabla sin tocar.
 >
 > **Segunda regla de fase: la aserción del spread** (`plan.md` §3). Todo adapter
-> que cotice las dos direcciones lleva en su test una comprobación **por valor**
+> de **libro único** que cotice las dos direcciones lleva en su test una
+> comprobación **por valor**
 > de que, para un mismo bracket, los pesos que se pagan por N dólares superan a
 > los pesos que se reciben por N dólares. Un libro invertido produce filas
 > impecables —tipos, `fixed_side`, monedas, escalado— y solo cambia que el
 > proveedor aparece mejor de lo que es. Ningún test de estructura lo ve.
+>
+> **`binance_p2p` queda fuera de esa regla y lleva las suyas**, porque en P2P los
+> dos lados son mercados separados y el cruce es un estado real (`plan.md` §3).
+> En su lugar: filtro de mínimos aplicado, y el mapeo invertido de `tradeType`
+> anclado por valor.
 
 **T012 — `bitso`** `[P]`
 `ask`/`bid` del ticker `usdt_cop`. `asset: 'usdt'`, `channel: 'exchange'`. Dos

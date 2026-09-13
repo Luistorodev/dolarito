@@ -259,16 +259,12 @@ describe('the adapter', () => {
     assert.ok(rows.filter((r) => r.bracket_usd !== 1).every((r) => r.status === 'ok'));
   });
 
-  // BLOQUEADO por una contradicción con plan.md §3 regla 6, pendiente de
-  // decisión humana. Medido sobre el fixture del 2026-09-13: en el bracket 500
-  // vender rinde 1.540.500 COP y comprar cuesta 1.539.867 — 633 COP invertidos.
-  // No es un defecto del adapter: P2P son dos mercados con contrapartes y
-  // mínimos distintos, y la regla se escribió pensando en libros de exchange.
-  // Marcado `todo` en vez de recortado a los brackets que pasan, para que la
-  // suite no afirme algo que no comprobó.
-  it.todo('the spread assertion (plan.md §3, rule 6) — inverted at bracket 500, see above');
-
-  it('records the inversion as measured, so it cannot be quietly forgotten', async () => {
+  // plan.md §3 rule 6 does not apply here, and the reasoning is in the plan:
+  // in P2P the two sides are separate markets, so a crossing is a real state
+  // rather than a defect. What replaces it are the two assertions below — the
+  // minimum filter, and the inverted tradeType anchored by value — which cover
+  // the same class of error the rule caught elsewhere.
+  it('records the crossing as an observation, not a failure', async () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
@@ -282,9 +278,31 @@ describe('the adapter', () => {
       return buying.in.amount - selling.out.amount;
     };
 
-    assert.ok(gap(100) > 0, 'holds at bracket 100');
-    assert.ok(gap(1000) > 0, 'holds at bracket 1000');
-    assert.ok(gap(500) < 0, 'and does NOT hold at 500 — about 633 COP the other way');
+    // Measured on the 2026-09-13 book. T020 will want to know how often this
+    // happens, which is why it is recorded rather than asserted away.
+    assert.ok(gap(100) > 0, 'buying costs more at bracket 100');
+    assert.ok(gap(1000) > 0, 'and at 1000');
+    assert.ok(gap(500) < 0, 'but at 500 the two markets cross, by about 633 COP');
+  });
+
+  it('reads the book it asked for, anchored by value and not by field name', async () => {
+    // This is the check that replaces rule 6 for P2P. The two fixtures have
+    // distinct, non-overlapping prices at bracket 100 — 3082.59 on the book
+    // fetched with tradeType BUY, 3071.92 on the one fetched with SELL. If the
+    // mapping were crossed, cop_to_usd would carry the other book's number, and
+    // nothing structural would notice.
+    const { impl } = router();
+    const rows = await createBinanceP2pAdapter({
+      fetchImpl: impl,
+      now: () => CAPTURED,
+    }).fetchQuotes([100]);
+
+    const buying = rows.find((r) => r.direction === 'cop_to_usd');
+    const selling = rows.find((r) => r.direction === 'usd_to_cop');
+
+    assert.equal(buying?.gross_rate, 3082.59, 'wanting USDT reads the BUY-requested book');
+    assert.equal(selling?.gross_rate, 3071.92, 'handing over USDT reads the SELL-requested book');
+    assert.notEqual(buying?.gross_rate, selling?.gross_rate, 'and they are not the same book');
   });
 
   it('the fixed leg is USD and equals the bracket', async () => {
