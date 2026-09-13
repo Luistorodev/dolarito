@@ -106,6 +106,22 @@ export interface QuoteAdapter {
   id: string;
   kind: 'quote';
   mode: 'local' | 'remesa';
+
+  /**
+   * Every provider this adapter is the only source for.
+   *
+   * One adapter is not one provider. `wise` is a single call that returns Wise,
+   * Instarem and Western Union, so it declares three; everyone else declares
+   * one. Without this the orchestrator can only count adapters, and counting
+   * adapters measures our code rather than the user's loss: one Wise failure
+   * darkens three of the eight names in the ranking while looking like a single
+   * source going quiet.
+   *
+   * This is the unit the coverage metric is denominated in — the provider the
+   * user cannot see, not the module that failed.
+   */
+  providerIds: string[];
+
   fetchQuotes(brackets: number[]): Promise<Quote[]>;
 }
 

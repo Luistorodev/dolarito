@@ -82,12 +82,29 @@ los `ReferenceAdapter` (pueblan `trm` y `mid_market` de esa misma fila), luego l
 `QuoteAdapter`, y cierra con `sources_ok` y `sources_failed`.
 Un adapter que lanza **no genera fila en `quotes`**: solo entra en
 `sources_failed` (Artículo I.2).
-Sale con código distinto de cero si falla más de la mitad de los **8 proveedores**,
-o si falla cualquiera de las **2 referencias** (su ausencia es incidente, no
-degradación).
+**La unidad del conteo es el proveedor perdido, no el adapter caído.** Seis
+adapters cubren ocho proveedores: `wise` es una llamada que devuelve tres. El
+orquestador suma los `providerIds` de los adapters que fallaron; no cuenta
+adapters. Contar adapters mediría nuestro código, no lo que el usuario deja de
+ver.
+
+Sale con código distinto de cero si ocurre **cualquiera** de las tres de
+`plan.md` §5.1:
+1. se perdieron **más de 4 de los 8 proveedores**;
+2. **algún modo quedó sin ningún proveedor** — Wise sola vacía Remesa, y un modo
+   vacío es indistinguible de que el sistema no exista para quien vino a eso;
+3. falló cualquiera de las **2 referencias** (incidente, no degradación).
+
 *Terminado cuando:* con un adapter sano y uno que lanza, las filas del sano se
 guardan, `sources_failed` registra el otro, y `quotes` no tiene ninguna fila del
-fallido.
+fallido. Además, dos tests fijan la unidad del conteo y la separación entre las
+reglas 1 y 2:
+- **un solo adapter caído que cubre 3 proveedores de un mismo modo dispara la
+  salida**, por la regla 2 y no por la 1 — son 3 perdidos, que no superan 4;
+- **cuatro adapters locales caídos, 4 proveedores perdidos, NO disparan**: no
+  superan 4 y los dos modos siguen con proveedores vivos. Con el conteo por
+  adapter esta corrida salía en rojo; con el conteo por proveedor no, y es
+  correcto que no.
 
 **T009 — Registro de adapters**
 `registry.ts` exporta el array de adapters activos. Agregar una fuente debe ser

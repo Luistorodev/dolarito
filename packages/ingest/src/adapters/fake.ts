@@ -35,6 +35,12 @@ export type FakeAdapterOptions = {
    * persist them passes a real provider id.
    */
   providerId?: string;
+  /**
+   * The providers this adapter is the only source for. Defaults to just
+   * `providerId`. Pass several to stand in for Wise, whose one call covers
+   * three providers — the shape the coverage metric has to survive.
+   */
+  providerIds?: string[];
   mode?: 'local' | 'remesa';
   asset?: 'usd' | 'usdt' | 'usdc';
   channel?: 'exchange' | 'p2p' | 'bank_transfer' | 'fintech';
@@ -56,6 +62,7 @@ function resolve(options: FakeAdapterOptions): Resolved {
   return {
     id: options.id ?? 'fake',
     providerId: options.providerId ?? '__fake__',
+    providerIds: options.providerIds ?? [options.providerId ?? '__fake__'],
     mode: options.mode ?? 'local',
     asset: options.asset ?? 'usdt',
     channel: options.channel ?? 'exchange',
@@ -129,6 +136,7 @@ export function createFakeQuoteAdapter(options: FakeAdapterOptions = {}): QuoteA
     id: config.id,
     kind: 'quote',
     mode: config.mode,
+    providerIds: config.providerIds,
     fetchQuotes: async (brackets: number[]): Promise<Quote[]> => {
       const wanted = FAKE_BRACKETS.filter((bracket) => brackets.includes(bracket));
 
@@ -161,6 +169,7 @@ export function createThrowingQuoteAdapter(options: FakeAdapterOptions = {}): Qu
     id: options.id ?? 'fake_failing',
     kind: 'quote',
     mode: config.mode,
+    providerIds: config.providerIds,
     fetchQuotes: async (): Promise<Quote[]> => {
       throw new FakeAdapterFailure('fake adapter: the source could not be reached');
     },

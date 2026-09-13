@@ -313,6 +313,29 @@ probado. Lo destapó una mutación, no el verde.
   no toca la red, cosa que una afirmación sobre los imports no probaría.
 
 
+- **N2 — RESUELTA.** `QuoteAdapter` declara `providerIds: string[]`; `wise` trae
+  tres, el resto uno. El orquestador suma proveedores perdidos, no adapters
+  caídos: contar adapters mide nuestro código, contar proveedores mide lo que el
+  usuario deja de ver.
+
+  El criterio de salida quedó en tres condiciones (`plan.md` §5.1), y la segunda
+  es la que el humano aportó: **más de 4 de 8 perdidos, o algún modo sin ningún
+  proveedor, o cualquiera de las 2 referencias caída.**
+
+  La regla del modo vacío existe porque el conteo solo no alcanzaba. Wise sola
+  pierde 3 —no supera 4, la regla 1 calla— pero esos 3 son *todo* Remesa. Para
+  quien vino a comparar una remesa, un modo vacío es indistinguible de que el
+  sistema no exista. Perder 4 proveedores repartidos es otra cosa: los dos
+  rankings siguen respondiendo la pregunta. Un conteo no los distingue porque
+  trata a los ocho como intercambiables, y pertenecen a dos productos distintos.
+
+  Se descartó bajar el umbral a 3 para que Wise cupiera: haría saltar la alarma
+  con cualquier tríada caída. La regla 2 ataca el caso por su causa real.
+
+  **Efecto lateral registrado:** con la unidad vieja, 4 adapters de un proveedor
+  caídos salían en rojo (4 > la mitad de 6); con la nueva no salen (4 no supera
+  4, y ambos modos viven). Es deliberado, y tiene test propio en T008.
+
 ### Sigue
 
 **T008 — Orquestador.** `Promise.allSettled` sobre el registro: abre la fila en
@@ -372,9 +395,10 @@ T007 pedía "un adapter"; es trivial y va con T008.
 
 ### Decisiones pendientes
 
-Ninguna bloquea T006. Salieron de la revisión de specs y **aún no están
-reflejadas en los documentos de gobierno**. N5 salió de esta lista: quedó escrita
-en `plan.md` §2 y ya está implementada en la migración de T003.
+Ninguna bloquea T008. Salieron de la revisión de specs. **N2 y N5 ya salieron de
+esta lista**, resueltas y escritas en los documentos: N5 en `plan.md` §2, N2 en
+`plan.md` §3 y §5.1 más el criterio de T008. Las que quedan **aún no están
+reflejadas en los documentos de gobierno**.
 
 N4 se volvió más concreta con T005: el proyecto usa el sistema **nuevo** de API
 keys de Supabase, donde se pueden emitir varias llaves secretas con rol
@@ -385,8 +409,7 @@ compartir la de ingesta.
 | # | Qué | Antes de |
 |---|---|---|
 | N1 | HU-01 quedó desfasada del Art. III.1: en `cop_to_usd` lo recibido es fijo, así que "el orden es por lo que recibo" ya no aplica. Reescribirla como "quién cobra menos pesos por los dólares que quiero". | T025 (conviene ya) |
-| N2 | El orquestador cuenta proveedores pero ejecuta adapters. Wise es 1 adapter y 3 proveedores: una falla apaga 3 de 8 y rompe la métrica de cobertura. Falta el mapeo adapter → proveedores. | T008 |
-| N3 | El orden canónico de `computeAmounts()` está descrito solo en directo. Con `fixed_side: 'out'` el cálculo corre al revés. Los casos dorados deben fijar la inversa. | T006b |
+| N3 | **Implementada y probada** en T006b: la inversa deshace la cadena al revés, y los casos dorados E y F la fijan en las dos direcciones. Lo que falta es documental: `plan.md` §3.1 sigue diciendo que el orden es "idéntico en ambas direcciones", que describe la directa y no la inversa. | Antes de T012 |
 | N4 | "Clave de servidor" sin definir. La única de fábrica en Supabase es `service_role`, que también escribe: le daría escritura al tier web. Marcado en `.env.example` como `SUPABASE_SERVER_READ_KEY`. | T023 |
 | — | Dominio. Único pendiente que ya venía en los specs. | T030 |
 

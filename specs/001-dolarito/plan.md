@@ -282,6 +282,7 @@ export interface QuoteAdapter {
   id: string;
   kind: 'quote';
   mode: 'local' | 'remesa';
+  providerIds: string[];      // wise declara tres; el resto, uno
   fetchQuotes(brackets: number[]): Promise<Quote[]>;
 }
 
@@ -293,6 +294,17 @@ export interface ReferenceAdapter {
 
 export type Adapter = QuoteAdapter | ReferenceAdapter;
 ```
+
+**Por qué `QuoteAdapter` declara `providerIds` y no solo un `id`.** Un adapter
+no es un proveedor. `wise` es **una** llamada que devuelve Wise, Instarem y
+Western Union: seis adapters cubren ocho proveedores.
+
+La consecuencia es sobre la métrica de cobertura. Contar adapters mide *nuestro
+código*; contar proveedores mide *lo que el usuario pierde*. Una caída de `wise`
+apaga tres de los ocho nombres del ranking mientras parece una sola fuente
+callándose. La unidad correcta es el proveedor que el usuario no puede ver, y
+`providerIds` es lo que permite sumarlos sin que el orquestador tenga que saber
+nada sobre qué adapter cubre qué.
 
 **Por qué `Quote` es una unión y no un tipo plano.** Con `in?` y `out?`
 opcionales, un quote que dice `status: 'ok'` sin montos es una forma válida para
@@ -400,12 +412,46 @@ dolarito/
 ## 5. Observabilidad
 
 - Cada corrida inserta una fila en `runs` con `sources_ok` y `sources_failed`.
-- El orquestador termina con código de salida distinto de cero si **más de la
-  mitad** de las fuentes falló, para que Actions lo marque en rojo.
 - **Alerta de silencio:** un job diario consulta si alguna fuente lleva más de 6
   horas sin una fila. Si la hay, falla ruidosamente.
 - Regla del Artículo VI: si una fuente no respondió, **no** se reescribe su
   último valor. El hueco queda.
+
+### 5.1 Cuándo la corrida sale en rojo
+
+El orquestador termina con código distinto de cero si ocurre **cualquiera** de
+estas tres, para que Actions lo marque:
+
+1. **Se perdieron más de 4 de los 8 proveedores.**
+2. **Algún modo quedó sin ningún proveedor.**
+3. **Falló cualquiera de las 2 referencias.** Su ausencia es incidente, no
+   degradación: sin TRM ni tasa media no hay con qué comparar, y los márgenes de
+   `latest_quotes` quedan nulos para toda la corrida.
+
+**La unidad es el proveedor perdido, no el adapter caído.** Seis adapters cubren
+ocho proveedores, porque `wise` es una llamada que devuelve Wise, Instarem y
+Western Union. Contar adapters mide nuestro código; contar proveedores mide lo
+que el usuario deja de ver. Por eso `QuoteAdapter` declara `providerIds` (§3):
+el orquestador suma los proveedores de los adapters que fallaron sin tener que
+saber qué adapter cubre a quién.
+
+**Por qué la regla 2 existe aparte de la 1.** La 1 sola no alcanza, y el caso que
+lo demuestra es Wise. Su caída pierde 3 proveedores —no supera 4, así que la
+regla 1 calla— pero esos 3 son *todo* el modo Remesa. Para quien vino a comparar
+una remesa, un modo vacío es indistinguible de que el sistema no exista: no ve un
+ranking incompleto, no ve ninguno.
+
+Eso es cualitativamente distinto de perder la misma cantidad de proveedores
+repartidos. Cuatro fuentes locales caídas dejan 4 proveedores perdidos y los dos
+rankings todavía sirven: con menos opciones, pero respondiendo la pregunta que el
+usuario hizo. Un conteo no distingue esos dos casos porque trata a los ocho
+proveedores como intercambiables, y no lo son: pertenecen a dos productos que se
+consultan por separado.
+
+De ahí que la regla 1 se quede en "más de la mitad" en vez de bajarse hasta que
+Wise quepa. Bajar el umbral a 3 haría saltar la alarma con cualquier tríada de
+fuentes caídas, que es ruido; la regla 2 ataca el caso concreto por su causa
+real, que es la cobertura de un modo, no la cantidad.
 
 ## 6. Orden de construcción
 
