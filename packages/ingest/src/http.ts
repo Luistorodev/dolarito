@@ -15,7 +15,7 @@
  *
  * | Source | Declared cadence | Where that comes from |
  * |---|---|---|
- * | `trm` (datos.gov.co) | Daily. Each row carries `vigenciadesde`/`vigenciahasta`, and one rate governs until the next takes over — across weekends and holidays. | The data itself: the validity window is a field, not an inference (plan.md §3.1, T010). |
+ * | `trm` (datos.gov.co) | Daily, and each record states its own validity window in `vigenciadesde`/`vigenciahasta` — one rate governs until the next takes over, across weekends and holidays. Observed 2026-09-13: the live record ran Sat 12 → Mon 14, three days. | The data itself: the window is a field, not an inference (T010). |
  * | `mid_market` (Yahoo `USDCOP=X`) | Down to 1 minute. | plan.md §3.1. |
  * | `mid_market` fallback (`open.er-api.com`) | Daily. The response states its own next update. | plan.md §3.1 calls it "diaria"; the response field is the source's own declaration. |
  *
@@ -27,6 +27,7 @@
  *
  * | Source | Status |
  * |---|---|
+ * | `trm` (datos.gov.co) | **No rate limit is stated in the response.** Checked 2026-09-13 on a live 200: the only `x-soda2-*` headers describe the dataset (fields, types, last modified); there is no `X-RateLimit-*`, `Retry-After` or `Cache-Control` of any kind. Socrata's platform documents an app-token scheme under which unauthenticated callers share a throttled pool per IP, but **the numeric limit was not verified and is not asserted here**. One request per 15 minutes against a dataset that changes once a day is not close to any plausible ceiling, but that is an argument from the cadence, not from a published figure. |
  * | `bitso`, `buda`, `binance_p2p`, `eldorado` | Order books and P2P listings. They change continuously rather than on a published cycle, so what constrains us is the documented rate limit, not a refresh interval. **Rate limits unread.** Each adapter task (T012, T014, T015, T016) must record the real figure here. |
  * | `wise` | Comparison endpoint. **Cadence and rate limit unread** (T017). |
  *

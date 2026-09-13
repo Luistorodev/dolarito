@@ -46,11 +46,13 @@ describe('the orchestration path imports no adapter', () => {
 });
 
 describe('the registry today', () => {
-  it('is empty, and honestly so', () => {
-    // Every real adapter is still ahead. This assertion is meant to be edited
-    // as T010 to T017 land, which is the point: adding a source is one line
-    // there and one number here.
-    assert.equal(ADAPTERS.length, 0);
+  it('holds exactly the adapters that have landed', () => {
+    // Edited as T011 to T017 land, which is the point: adding a source is one
+    // line there and one number here, and nothing anywhere else.
+    assert.deepEqual(
+      ADAPTERS.map((adapter) => adapter.id),
+      ['trm'],
+    );
   });
 
   it('contains no fake adapter', () => {
@@ -61,11 +63,14 @@ describe('the registry today', () => {
     );
   });
 
-  it('reports all eight providers as uncovered', () => {
+  it('still reports all eight providers as uncovered', () => {
+    // TRM is a reference: it covers no provider and never enters a ranking
+    // (Art. III.4). The eight only start shrinking with T012.
     const report = inspectRegistry();
     assert.equal(report.uncovered.length, 8);
     assert.deepEqual(report.uncovered, PROVIDERS.map((p) => p.id).sort());
-    assert.deepEqual(report.problems, [], 'empty is not incoherent');
+    assert.equal(report.coveredProviderCount, 0);
+    assert.deepEqual(report.problems, [], 'a registry of references alone is coherent');
   });
 });
 

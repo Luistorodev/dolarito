@@ -114,7 +114,7 @@ agregar una línea acá y nada más (Artículo II.4).
 ## Fase 2 — Referencias
 
 **T010 — Adapter de TRM** (`ReferenceAdapter`)
-Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC`.
+Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC`.
 Escribe `trm`, `trm_from` y `trm_to` en `runs`. **Usar `vigenciahasta`** del
 propio dato para saber hasta cuándo rige: resuelve fines de semana y festivos sin
 calcular calendario. Verificado: un viernes devuelve `vigenciahasta` del lunes.

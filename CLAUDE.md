@@ -424,17 +424,67 @@ probado. Lo destapó una mutación, no el verde.
   el compilador—, y quitar cada uno de los dos chequeos de coherencia.
 
 
+- **T010 — Adapter de TRM.** `src/references/trm.ts`, primer adapter real y
+  primera línea en `registry.ts`.
+
+  **La ventana de vigencia sale del dato, no de un calendario.** Cada registro
+  trae `vigenciadesde` y `vigenciahasta`, y una tasa rige hasta que la releva la
+  siguiente. Por eso fines de semana y festivos colombianos no son un problema:
+  **no hay ni debe haber una lista de festivos en este repo**, porque la fuente
+  ya dice cuánto dura su propio número.
+
+  Verificado contra el endpoint en vivo el 2026-09-13, con dos fixtures reales:
+
+  | vigenciadesde | vigenciahasta | días |
+  |---|---|---|
+  | 2026-09-12 (sáb) | 2026-09-14 (lun) | 3 |
+  | 2026-09-11 (vie) | 2026-09-11 (vie) | 1 |
+
+  **Corrección de un detalle del enunciado:** el 12 de septiembre de 2026 fue
+  **sábado**, no viernes. Lo que pasó es que el registro se *publicó* el viernes
+  11 a las 23:05 GMT (`x-soda2-truth-last-modified`) y *rige* desde el sábado 12.
+  Publicación y vigencia son fechas distintas, que es exactamente por qué leer la
+  ventana del registro gana sobre inferirla. La sustancia del enunciado era
+  correcta: el registro de fin de semana llega hasta el lunes 14.
+
+  El fixture de día hábil está como contraste, no de adorno: con
+  `vigenciadesde === vigenciahasta`, un adapter que asumiera "un registro = un
+  día" pasaría todos los días hábiles y estaría mal todos los sábados.
+
+  Cuatro mutaciones, las cuatro atrapadas y las cuatro compilando. La más
+  elocuente es la segunda: **calcular el día siguiente en vez de leer
+  `vigenciahasta` rompe el caso de fin de semana Y el de día hábil a la vez** —
+  que es la demostración de por qué el calendario está de más.
+
+  Cumplidas las tres obligaciones nuevas: fixture real en `fixtures/`
+  (Art. VII.3), línea en `registry.ts`, y la tabla de cadencias de `http.ts`
+  anotada — ver abajo, porque lo que anoté es un hueco, no una cifra.
+
+
 ### Sigue
 
-**T010 — Adapter de TRM**, el primer adapter real y la primera referencia.
-Endpoint de datos.gov.co; usar `vigenciahasta` del propio dato para saber hasta
-cuándo rige, que resuelve fines de semana y festivos sin calcular calendario.
+**T011 — Adapter de tasa media de mercado.** Yahoo Finance `USDCOP=X` como
+primaria, `open.er-api.com` como respaldo, y `mid_market_src` registrando cuál
+respondió. Mismo ciclo que todo lo demás, nunca en uno aparte (Art. III.5).
 
-Con él arrancan tres obligaciones nuevas: anotar el límite de tasa en la tabla de
-`http.ts`, agregar la línea en `registry.ts`, y guardar un fixture real en
-`fixtures/` (Art. VII.3).
+Con las dos referencias en pie, **T011b** puede sembrar el histórico de
+`market_history`, y recién después arranca la Fase 3 de adapters.
 
 ### A medias
+
+- **El límite de tasa de datos.gov.co no está publicado en la respuesta.**
+  Verificado el 2026-09-13 sobre un 200 en vivo: las únicas cabeceras
+  `x-soda2-*` describen el dataset —campos, tipos, última modificación— y **no
+  hay `X-RateLimit-*`, `Retry-After` ni `Cache-Control` de ningún tipo**.
+  Socrata documenta un esquema de app token donde quien no se autentica comparte
+  un pool limitado por IP, pero **la cifra no la verifiqué y no la afirmo**.
+
+  Anotado así en la tabla de `http.ts`, que es lo que pide la regla de fase: o la
+  cifra real con su enlace, o constancia de que no la publica, con fecha y dónde
+  se buscó. Una consulta cada 15 minutos contra un dataset que cambia una vez al
+  día no está cerca de ningún techo plausible, pero eso es un argumento desde
+  nuestra cadencia, no desde una cifra publicada.
+
 
 - **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
   Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,
@@ -498,8 +548,7 @@ compartir la de ingesta.
 
 ### Correcciones menores sin aplicar a los documentos
 
-La URL de datos.gov.co
-lleva un espacio sin codificar en `$order=vigenciadesde DESC`; `§3.1` se usa dos
+`§3.1` se usa dos
 veces como número de sección; `**Reglas que todo adapter cumple:**` está
 duplicado en la misma línea; T017 aparece dos veces; la estimación de "unas 64
 filas" no cuenta la multiplicación por método de pago de Eldorado (~76+, sigue

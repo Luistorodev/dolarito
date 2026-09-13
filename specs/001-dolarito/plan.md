@@ -383,7 +383,7 @@ antes de escribir ningún adapter que dependa de la función.
 | `bitso` | `ask`/`bid` del ticker. Spread estrecho, alta liquidez. |
 | `buda` | `min_ask`/`max_bid`. **Libro delgado en COP**: spread mucho más ancho. Se incluye, marcado. |
 | `wise` | Una llamada por bracket devuelve los tres proveedores de remesa. Produce 3 filas. `fee` (absoluto, USD) viene aparte de `rate`; `receivedAmount` es el monto final → `amounts_source: 'provider'`. |
-| `trm` | Referencia. Escribe en `runs`. Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC`. Devuelve `valor`, `vigenciadesde`, `vigenciahasta`. **Usar `vigenciahasta`** para saber hasta cuándo rige: resuelve fines de semana y festivos sin calcular calendario. |
+| `trm` | Referencia. Escribe en `runs`. Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC`. Devuelve `valor`, `vigenciadesde`, `vigenciahasta`. **Usar `vigenciahasta`** para saber hasta cuándo rige: resuelve fines de semana y festivos sin calcular calendario. |
 | `mid_market` | Referencia. Escribe en `runs`. Crítico para HU-08. Primaria: Yahoo Finance `USDCOP=X` (`query1.finance.yahoo.com/v8/finance/chart/`), granularidad hasta 1 minuto. Respaldo: `open.er-api.com` (diaria). Registrar siempre cuál respondió en `mid_market_src`. |
 
 ## 4. Estructura del repo
