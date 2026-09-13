@@ -227,7 +227,8 @@ ninguna otra cosa sobre él.
 ```ts
 export type Money = { amount: number; currency: 'COP' | 'USD' };
 
-export type Quote = {
+/** Lo que todo quote lleva, haya salido como haya salido. */
+type QuoteCommon = {
   provider_id: string;
   mode: 'local' | 'remesa';
   asset: 'usd' | 'usdt' | 'usdc';
@@ -237,11 +238,6 @@ export type Quote = {
   payment_method?: string;
 
   fixed_side: 'in' | 'out';
-  in?: Money;                 // lo que la persona entrega
-  out?: Money;                // lo que la persona recibe
-
-  status: 'ok' | 'out_of_range';
-  limit_reason?: 'below_minimum' | 'above_maximum' | 'insufficient_liquidity';
 
   gross_rate?: number;
   fee_pct?: number;
@@ -253,6 +249,24 @@ export type Quote = {
   raw: unknown;
   captured_at: string;        // ISO 8601
 };
+
+/** Observación real: el proveedor cotizó y ambos lados se conocen. */
+type QuoteOk = QuoteCommon & {
+  status: 'ok';
+  in: Money;                  // lo que la persona entrega
+  out: Money;                 // lo que la persona recibe
+  limit_reason?: never;       // no hay límite que reportar en un quote que salió
+};
+
+/** También observación real: sabemos que no opera a ese monto, y tenemos su crudo. */
+type QuoteOutOfRange = QuoteCommon & {
+  status: 'out_of_range';
+  limit_reason: 'below_minimum' | 'above_maximum' | 'insufficient_liquidity';
+  in?: Money;                 // el proveedor nunca los cotizó
+  out?: Money;
+};
+
+export type Quote = QuoteOk | QuoteOutOfRange;
 
 export type Reference = {
   kind: 'trm' | 'mid_market';
@@ -279,6 +293,37 @@ export interface ReferenceAdapter {
 
 export type Adapter = QuoteAdapter | ReferenceAdapter;
 ```
+
+**Por qué `Quote` es una unión y no un tipo plano.** Con `in?` y `out?`
+opcionales, un quote que dice `status: 'ok'` sin montos es una forma válida para
+el compilador. Esa forma escribiría una fila afirmando una observación que nunca
+hicimos, que es exactamente lo que el Artículo I prohíbe. La unión discriminada
+por `status` la vuelve irrepresentable en vez de meramente desaconsejada, y el
+estrechamiento por `status` da acceso a `in` y `out` sin cast.
+
+**Por qué el tipo es más estricto que el esquema.** En `quotes` (§2) las cuatro
+columnas `amount_*` y `limit_reason` son nulables, y el tipo de acá no lo
+permite en las combinaciones de arriba. No es una contradicción: son dos
+controles con alcances distintos.
+
+- El **esquema** es la última línea y tiene que admitir todo lo que legítimamente
+  llegue por cualquier vía, incluidas correcciones manuales y cargas históricas.
+  Un CHECK entre columnas que exigiera `amount_in is not null when status='ok'`
+  sería posible, pero rechazaría la fila **después** de la corrida, cuando ya no
+  hay a quién preguntarle y la fuente ya respondió.
+- El **tipo** ataja la misma clase de error en el único punto donde todavía se
+  puede corregir barato: al escribir el adapter, antes de que exista una corrida.
+
+El precio de la asimetría es que la capa de persistencia sigue siendo
+responsable de traducir `undefined` a `null` (§2.1). La ganancia es que ningún
+adapter puede *construir* la forma prohibida, así que esa traducción nunca
+recibe una fila incoherente.
+
+**`limit_reason` obligatorio en `out_of_range`** es la otra estrechez, y sale de
+§2.1: `out_of_range` escribe "con el motivo en `limit_reason`". Una fila que
+dice que el proveedor no opera a ese monto pero no dice por qué no es accionable
+—no distingue un mínimo de un techo ni de falta de liquidez, que es justo lo que
+T015 y T016 necesitan reportar—. El esquema la aceptaría; el tipo no.
 
 ### 3.1 Función única de montos
 
