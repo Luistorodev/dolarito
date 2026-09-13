@@ -6,9 +6,9 @@
  * source cannot require a change anywhere in the orchestration path — and a
  * broken one cannot be reached by anything except `Promise.allSettled`.
  *
- * Both references are in (T010, T011), and `bitso` is the first quote adapter
- * (T012). Five more to go, T013 to T017, each adding its line here and changing
- * nothing else.
+ * Both references are in (T010, T011), and three quote adapters: `bitso`,
+ * `dolarapp`, `buda` (T012-T014). Three to go — `eldorado`, `binance_p2p` and
+ * `wise` (T015-T017) — each adding its line here and changing nothing else.
  *
  * The fake adapters are deliberately absent. They exist to exercise the
  * orchestrator in tests, and a fake in the production registry would write
@@ -16,6 +16,8 @@
  */
 
 import { createBitsoAdapter } from './adapters/bitso.ts';
+import { createBudaAdapter } from './adapters/buda.ts';
+import { createDolarAppAdapter } from './adapters/dolarapp.ts';
 import type { Adapter, QuoteAdapter, ReferenceAdapter } from './contract.ts';
 import { PROVIDERS } from './lib/providers.ts';
 import { createMidMarketAdapter } from './references/mid-market.ts';
@@ -25,8 +27,8 @@ export const ADAPTERS: Adapter[] = [
   createTrmAdapter(),
   createMidMarketAdapter(),
   createBitsoAdapter(),
-  // T013 — dolarapp       (quote, 1 provider)
-  // T014 — buda           (quote, 1 provider)
+  createDolarAppAdapter(),
+  createBudaAdapter(),
   // T015 — eldorado       (quote, 1 provider)
   // T016 — binance_p2p    (quote, 1 provider)
   // T017 — wise           (quote, 3 providers)

@@ -1,0 +1,27 @@
+{
+  "ticker": {
+    "market_id": "USDT-COP",
+    "last_price": [
+      "3016.27",
+      "COP"
+    ],
+    "min_ask": [
+      "3102.89",
+      "COP"
+    ],
+    "max_bid": [
+      "3041.0",
+      "COP"
+    ],
+    "volume": [
+      "4509.469275",
+      "USDT"
+    ],
+    "quote_volume": [
+      "13796205.18",
+      "COP"
+    ],
+    "price_variation_24h": "-0.013",
+    "price_variation_7d": "-0.024"
+  }
+}

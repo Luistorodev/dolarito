@@ -570,18 +570,70 @@ probado. Lo destapó una mutación, no el verde.
   `exitCode` 0.
 
 
+- **La aserción del spread, ahora regla del contrato** (`plan.md` §3, regla 6) y
+  parte del criterio de terminado de T013–T017. Para un mismo bracket y
+  proveedor, los pesos que se pagan por N dólares deben superar a los que se
+  reciben por N dólares. Es la única defensa real contra un libro invertido:
+  cruzar los lados produce ocho filas impecables —tipos, `fixed_side`, monedas,
+  escalado— y lo único que cambia es que el proveedor aparece mejor de lo que es.
+  T016 lleva la advertencia específica del `tradeType` de Binance, invertido por
+  diseño.
+
+- **T013 — `dolarapp`** y **T014 — `buda`**, los dos `[P]` restantes del bloque
+  simple. Ocho filas cada uno, `amounts_source: 'computed'`, sin comisión
+  explícita en ninguno: `fee_*` queda `undefined`, nunca cero.
+  - `dolarapp`: `asset: 'usdc'`, `channel: 'fintech'`. Su `date` viene con
+    nanosegundos y **sin marca de zona**, así que es un timestamp flotante, no un
+    instante: se preserva en `raw` y **no se parsea**, porque adivinar la zona
+    sería inventar precisión que la fuente no dio.
+  - `buda`: `asset: 'usdt'`, `channel: 'exchange'`. Usa `min_ask`/`max_bid`, y
+    cada uno llega como **tupla `[valor, moneda]`**. La moneda se verifica, no se
+    saltea: una tupla que dejara de estar en COP se leería como pesos y estaría
+    mal por un tipo de cambio entero. **No trae timestamp propio** — a diferencia
+    de Bitso — así que para Buda no hay reloj de la fuente contra el cual
+    contrastar una respuesta vieja (nota para T019).
+
+  **El libro delgado de Buda, medido:** 2,03% de spread contra 0,46% de Bitso en
+  el mismo par el mismo minuto. Son 6.189 COP sobre una operación de 100 USD. Se
+  incluye marcado, no se esconde: un spread ancho es un precio real, y ocultarlo
+  favorecería al mercado.
+
+  Cuatro mutaciones, las cuatro atrapadas y compilando. **Cruzar los lados en
+  cualquiera de los dos dispara la aserción del spread**, que es exactamente para
+  lo que se subió a regla. También caen dejar de verificar la moneda de la tupla
+  de Buda y `fee_pct: 0` en dolarapp.
+
+  Cableado verificado en vivo con los cinco adapters y store en memoria: 24
+  filas, `sources_failed` vacío, `exitCode` 0, y la aserción del spread
+  sosteniéndose contra datos reales — bitso 0,15%, dolarapp 0,87%, buda 2,04%.
+
+
 ### Sigue
 
-**T013 — `dolarapp`** `[P]`. `ask`/`bid` de `v1/tickers?currencies=COP`,
-`asset: 'usdc'`, `channel: 'fintech'`. Sin comisión explícita: `fee_*` queda
-`undefined`, nunca cero.
+Quedan tres adapters, y son los tres complicados:
 
-Quedan cinco adapters (T013–T017). Los tres primeros están marcados `[P]`, así
-que pueden ir en cualquier orden. Cada uno arrastra las mismas tres
-obligaciones, y el patrón de `bitso` ya deja resueltos el mapeo de lados, la
-forma del tipo de respuesta externa y la batería de mutaciones a repetir.
+**T015 — `eldorado`**: un POST por bracket **y por método de pago**, el único que
+multiplica filas. `amounts_source: 'provider'` — su API ya usa `fixedSide`,
+`amountIn` y `amountOut`. Cuidado con `fees.total[].rate` (fracción → `fee_pct`)
+contra `.value` (absoluto → `fee_amount_usd`). Mínimo de 5 USD.
+
+**T016 — `binance_p2p`**: precio ponderado por volumen, y el `tradeType`
+invertido por diseño.
+
+**T017 — `wise`**: una llamada, tres proveedores, `amounts_source: 'provider'`.
+Es el que cierra la cobertura de los ocho y el que hace valer `providerIds`.
 
 ### A medias
+
+- **Tres adapters casi idénticos.** `bitso`, `dolarapp` y `buda` comparten la
+  misma forma: un par ask/bid → ocho filas. El mapeo dirección → lado del libro,
+  que es la parte que se invierte sola, está escrito tres veces. El Art. II pide
+  que cada adapter viva en su archivo sin conocer a los demás, y eso se respeta,
+  pero **un helper compartido haría el error estructuralmente imposible en vez de
+  solo detectable**, igual que `computeAmounts()`. No lo extraje: T015–T017 no
+  siguen este patrón, así que conviene decidirlo cuando estén los seis y se vea
+  cuánto se repite de verdad.
+
 
 - **El límite de tasa de Bitso tampoco viene en la respuesta.** Verificado el
   2026-09-13 sobre un 200 en vivo de `/v3/ticker/?book=usdt_cop`: sin
