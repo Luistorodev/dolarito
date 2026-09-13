@@ -719,9 +719,11 @@ fallos.
    selector de monto aporta poco y conviene saberlo antes de construirlo; si
    cambia, es el argumento central del producto y la interfaz debe destacarlo.
 
-6. **El defecto de `markup_vs_trm` — ver "A medias".** Con una semana se puede
-   medir cuánto se separa el margen anunciado del efectivo en los tres
-   proveedores con comisión fija.
+6. **Los dos defectos de los márgenes — ver "A medias".** La corrección ya está
+   decidida y escrita en `plan.md` §2.2; el 20 es implementarla. Lo que se mide
+   con la semana: cuánto se separa el margen anunciado del efectivo en los tres
+   proveedores con comisión fija, y **cuántas filas de `cop_to_usd` cambian de
+   signo** — que son todas, pero interesa la magnitud.
 
 ### Mientras tanto
 
@@ -750,9 +752,21 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   columna de margen dice lo contrario, y es la que HU-05 y la ficha de proveedor
   van a mostrar.
 
-  No lo arreglé: cambia la vista de `plan.md` §2.2 y hay más de una salida
-  razonable (margen efectivo calculado desde el monto, o mantener los dos y
-  etiquetarlos). **Decisión tuya antes de T024/T025.**
+  **Y hay un segundo defecto, más grande: el signo está invertido en
+  `cop_to_usd`, en los ocho proveedores.** La fórmula es la misma para las dos
+  direcciones, pero en una se reciben pesos y en la otra se pagan. Comprar 100
+  USD en DolarApp cuesta 319.426 COP —4% por encima de la TRM— y la columna
+  informa −0,0397, que se lee como descuento. Es la mitad de las filas de cada
+  proveedor, no solo las de los tres con comisión.
+
+  **Decisión tomada el 2026-09-13: el margen se calcula desde el monto efectivo,
+  nunca desde `gross_rate`, y positivo significa siempre peor que la
+  referencia.** Un solo par de márgenes, no dos columnas etiquetadas: si la tasa
+  anunciada no es base válida de comparación (Art. III.1), no se muestra.
+
+  **No implementado a propósito.** El SQL corregido está escrito en `plan.md`
+  §2.2; el 20 es aplicarlo, no volver a decidir. La espera es para medir con una
+  semana cuánto se separan las cifras antes y después.
 
 
 - **El riesgo de acceso de Eldorado, anotado en `plan.md` §7.1.** Es el único

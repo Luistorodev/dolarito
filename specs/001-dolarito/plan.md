@@ -223,6 +223,60 @@ Se exponen **dos márgenes**, no uno, porque responden preguntas distintas
 Ninguno de los dos se persiste: son derivables, y persistirlos crearía dos
 fuentes de verdad.
 
+#### ⚠️ Los dos márgenes están mal calculados — decisión tomada, implementación pendiente
+
+**Decidido en dirección el 2026-09-13; se implementa al cerrar T020 (2026-09-20).**
+La espera no es para volver a decidir: es para medir con una semana de datos
+cuánto se separan las cifras antes y después. Lo que sigue es el cambio a
+aplicar, no un menú de opciones.
+
+Hay **dos defectos independientes**, encontrados leyendo el primer ranking real.
+
+**Defecto 1 — se compara contra la tasa anunciada, que el Art. III.1 prohíbe.**
+`gross_rate` es lo que el proveedor publica; no incluye la comisión fija. Afecta
+a los tres que la cobran. Medido, vendiendo 100 USD:
+
+| Proveedor | `gross_rate` | fee USD | margen actual | tasa efectiva | puesto real |
+|---|---|---|---|---|---|
+| wise | 3087,23 | 9,16 | **−0,0049** | 2804,44 | **11 de 11** |
+| western_union | 2971,71 | 1,99 | 0,0327 | 2912,58 | 10 |
+
+Wise muestra el mejor margen de los once y entrega el peor monto, en la misma
+fila.
+
+**Defecto 2 — el signo está invertido en `cop_to_usd`, y este afecta a los ocho.**
+La fórmula actual es la misma para las dos direcciones, pero en una se **reciben**
+pesos (más es mejor) y en la otra se **pagan** (menos es mejor). Comprando 100 USD
+en DolarApp se pagan 319.426 COP —un 4% por encima de la TRM— y la columna
+informa **−0,0397**, que se lee como descuento. Es la mitad de las filas de cada
+proveedor.
+
+**La corrección.** El margen se calcula desde el **monto efectivo**, nunca desde
+`gross_rate`, y el signo se define para que **positivo signifique siempre peor que
+la referencia**:
+
+```sql
+-- Pesos por dólar realmente pagados o recibidos, esté el COP en el lado que esté.
+case when currency_out = 'COP' then amount_out / nullif(amount_in, 0)
+     else                           amount_in  / nullif(amount_out, 0)
+end as effective_rate
+
+-- Positivo = peor que la referencia, en ambas direcciones.
+case when direction = 'usd_to_cop' then (ref - effective_rate) / nullif(ref, 0)
+     else                               (effective_rate - ref) / nullif(ref, 0)
+end
+```
+
+aplicado igual con `trm` y con `mid_market` como `ref`.
+
+**Se sigue exponiendo un solo par de márgenes, no cuatro.** Dos columnas
+etiquetadas —"contra la tasa anunciada" y "contra la efectiva"— obligarían al
+usuario a entender por qué hay dos, y el Art. III.1 ya zanjó que la anunciada no
+es base válida de comparación. Si no es base válida, no se muestra.
+
+Nota: para los cinco proveedores sin comisión fija, `effective_rate` coincide con
+`gross_rate`, así que el defecto 1 no los mueve. El defecto 2 sí.
+
 ### 2.3 RLS
 
 Durante la fase privada **no hay lectura pública**. HU-07 exige que todo el
