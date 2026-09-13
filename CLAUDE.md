@@ -894,8 +894,25 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   único — exactamente los tres en cuestión. Detecta la inversión por valor en
   cada uno, y las mutaciones lo confirmaron en los tres.
 
-- **N4 — RESUELTA: el tier web lee como `web_reader`, no como `service_role`.**
-  Decidido el 2026-09-14.
+- **N4 — RIESGO ACEPTADO, no resuelta.** El dashboard de Supabase **no permite
+  atar una llave a un rol**: el formulario solo pide Name y Description, y avisa
+  que toda secret key da acceso elevado y salta RLS. Verificado el 2026-09-14.
+
+  **El tier web va a leer con `service_role`, que también escribe, borra y hace
+  DDL.** Un servidor comprometido podría vaciar `quotes`, y el histórico es lo
+  único irrecuperable del proyecto. Escrito sin suavizar en `plan.md` §2.3 y en
+  la tabla de riesgos de §7.
+
+  El rol `web_reader` **queda creado como preparación, inerte**, y se activa si
+  Supabase permite asociar llaves a roles **o** si el acceso pasa a Postgres
+  directo en vez de PostgREST — esta segunda no depende de que nadie cambie
+  nada, pero tiene costo de pool de conexiones.
+
+  **Dos mitigaciones a evaluar en T021**, ninguna de las cuales lo resuelve: que
+  el servidor solo consulte `latest_quotes`, y que la llave viva únicamente en
+  variables de entorno del hosting.
+
+  Lo que sigue debajo describe el rol y por qué está escrito así.
 
   El riesgo que cierra: `service_role` no solo lee — escribe, borra y hace DDL.
   Dárselo a un sitio que únicamente hace `SELECT` significa que una falla del

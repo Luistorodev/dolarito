@@ -289,6 +289,53 @@ el middleware, dejando la protección en nada.
   Ninguna clave llega al navegador.
 - Escritura: solo con la `service_role key`, en los secretos del workflow.
 
+#### N4 — RIESGO ACEPTADO: el tier web lee con `service_role`
+
+**Esto no es una decisión resuelta. Es un riesgo que se asume a sabiendas**,
+porque hoy no hay forma de evitarlo con la plataforma que usamos.
+
+Verificado el 2026-09-14: el formulario de *Create new secret API key* del
+dashboard de Supabase solo pide **Name** y **Description**. No permite asociar
+una llave a un rol de Postgres, y el propio texto advierte que **todas las secret
+keys dan acceso elevado y saltan RLS**.
+
+**Qué significa, sin suavizarlo.** El tier web va a leer con `service_role`, que
+además de leer **escribe, borra y hace DDL**. Un servidor web comprometido —o un
+bug que filtre la variable de entorno— podría **vaciar `quotes`**. El histórico
+es lo único irrecuperable de este proyecto: los precios de un momento que ya
+pasó no se pueden volver a capturar de ninguna fuente. Todo lo demás se
+reconstruye; eso no.
+
+Es desproporcionado y lo sabemos: una página que únicamente hace `SELECT` va a
+tener la llave que puede destruir el activo central.
+
+**El rol `web_reader` queda creado y documentado como preparación**, no como algo
+en uso. Concede `SELECT` sobre `latest_quotes`, `providers` y `market_history` y
+nada más. Hoy está inerte, porque ninguna llave puede asumirlo. Se activa si
+ocurre **cualquiera** de estas dos:
+
+1. **Supabase permite asociar llaves a roles.** Sería cambiar el valor de
+   `SUPABASE_SERVER_READ_KEY` y nada más: el rol, los grants y las políticas ya
+   están.
+2. **El acceso pasa a Postgres directo en vez de PostgREST.** Una conexión
+   normal sí puede autenticarse como `web_reader`, y ahí el rol funciona tal
+   como está escrito. Tiene costo —pool de conexiones desde funciones
+   serverless— y por eso no se hace ahora, pero es la salida que no depende de
+   que Supabase cambie nada.
+
+**Dos mitigaciones que sí están a nuestro alcance hoy. Evaluarlas en T021:**
+
+- **Que el servidor solo consulte `latest_quotes`.** No elimina el riesgo —la
+  llave sigue pudiendo todo— pero reduce la superficie a un único punto de
+  acceso, fácil de auditar de un vistazo. Si mañana aparece una consulta a
+  `quotes` en el código del tier web, se ve en una revisión.
+- **Que la llave viva únicamente en variables de entorno del hosting.** Nunca en
+  el repositorio, nunca en un archivo de configuración versionado, nunca en el
+  bundle del cliente. Con `.gitignore` ya cubriendo `.env`, lo que falta es la
+  disciplina en el despliegue.
+
+Ninguna de las dos convierte esto en resuelto. Acotan el daño; no lo evitan.
+
 **Consecuencia de diseño para T021:** el selector de bracket no puede consultar
 la base desde el cliente. El servidor envía las cotizaciones de los cuatro
 brackets en la carga inicial y el filtrado ocurre en el cliente sobre datos ya
@@ -729,7 +776,8 @@ real, que es la cobertura de un modo, no la cantidad.
 | Binance bloquea por IP | Backoff exponencial y reducción de cadencia. Si el bloqueo persiste, la fuente sale del alcance. **Prohibido rotar IPs o suplantar clientes** (Artículo V.6). |
 | Datos de Wise desfasados | Se marcan como estimaciones (HU-03) |
 | El bracket de 1 USD se ve vacío | Es intencional y está documentado en la UI |
-| **Eldorado cierra el acceso por los `quoteId` que nunca se operan** | Ver abajo. Si ocurre, **Art. V.6: se baja la cadencia o se retira la fuente**. Nunca rotar IPs ni suplantar clientes. |
+| **Eldorado cierra el acceso por los `quoteId` que nunca se operan** | Ver §7.1. Si ocurre, **Art. V.6: se baja la cadencia o se retira la fuente**. Nunca rotar IPs ni suplantar clientes. |
+| **El tier web tiene una llave que puede vaciar `quotes`** | Riesgo aceptado, §2.3. Mitigaciones parciales a evaluar en T021. **Sin resolver mientras Supabase no permita atar llaves a roles.** |
 
 ### 7.1 El riesgo de Eldorado, que es distinto de los demás
 
