@@ -1,8 +1,8 @@
 # Constitution — Comparador USD/COP
 
-**Versión:** 1.3.0
+**Versión:** 1.4.0
 **Ratificada:** 2026-09-12
-**Última enmienda:** 2026-09-13
+**Última enmienda:** 2026-09-14
 **Ubicación esperada en el repo:** `.specify/memory/constitution.md`
 
 Este documento define los principios no negociables del proyecto. Cualquier
@@ -63,9 +63,11 @@ sistema se diseña asumiendo que en cualquier corrida alguna va a fallar.
    (`amount_out` descendente). Si el lado fijo es la salida, gana quien cobra
    menos (`amount_in` ascendente). Una tasa mejor con una comisión peor es una
    oferta peor, y así debe aparecer.
-2. **Los rails no se mezclan sin marcarlos.** Stablecoin (USDC/USDT), P2P y
+2. **Los canales no se mezclan sin marcarlos.** Stablecoin (USDC/USDT), P2P y
    transferencia bancaria no son el mismo producto. Pueden verse juntos, pero
-   cada fila declara su rail de forma visible.
+   cada fila declara su `asset` y su `channel` de forma visible. *(Este artículo
+   decía "rail"; el esquema lo reemplazó por dos columnas porque una sola no
+   podía expresar que Binance P2P es p2p sobre USDT.)*
 3. **Toda comparación es a monto fijo.** No se compara "la tasa de A" contra "la
    tasa de B" sin un bracket declarado, porque el precio depende del monto.
 4. **Las fuentes de referencia (TRM, mid-market) nunca entran al ranking.** No
@@ -166,3 +168,9 @@ vivo de la persistencia en T008:
   serializaciones y falló, y el defecto estaba en la aserción, no en la
   persistencia. Se documenta el límite antes de que alguien apoye una afirmación
   de procedencia byte a byte sobre una columna que nunca lo prometió.
+
+**Versión 1.4.0** — una enmienda editorial al Artículo III.2, sin efecto
+funcional: "rail" pasa a `asset` + `channel`. El esquema hizo ese cambio en
+`plan.md` §2 porque una sola columna no podía expresar que Binance P2P es p2p
+sobre USDT, y el término viejo sobrevivía acá y en tres requisitos de `spec.md`.
+Se alinea antes de T029, que recorre este documento artículo por artículo.

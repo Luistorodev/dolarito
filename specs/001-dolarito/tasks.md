@@ -1,7 +1,7 @@
 # Tasks — Dolarito
 
 **Ubicación esperada en el repo:** `specs/001-dolarito/tasks.md`
-**Deriva de:** `plan.md` y `constitution.md` v1.3.0
+**Deriva de:** `plan.md` y `constitution.md` v1.4.0
 **Fecha:** 2026-09-12
 
 Convenciones:
@@ -261,19 +261,17 @@ anotada para esta fuente. Y el test incluye la aserción del spread por valor
 (`plan.md` §3).
 
 **T017 — `wise`**
-Una llamada por bracket devuelve Wise, Instarem y Western Union. Produce 3 filas
-por bracket, todas con `mode: 'remesa'`. Mapear `fee` a `fee_fixed_usd` y
-`deliveryEstimation` a `eta_minutes`.
+Una llamada por bracket devuelve **hasta** Wise, Instarem y Western Union: hasta
+3 filas por bracket, todas con `mode: 'remesa'`, `asset: 'usd'`,
+`channel: 'bank_transfer'`. Mapear `fee` —absoluto en USD— a `fee_fixed_usd`, y
+`deliveryEstimation` a `eta_minutes`. `amounts_source: 'provider'`:
+`receivedAmount` es el monto final de la fuente y **no se recalcula**.
 *Terminado cuando:* **hasta** 12 filas por corrida (3 proveedores × 4 brackets,
 según cuáles devuelva la API) y test con fixture. Verificado el 2026-09-13: en el
 bracket de 1 USD solo responde `instarem`, así que son 10. Un proveedor ausente
 **no genera fila** — la API no dice por qué falta y `below_minimum` sería
 inferirlo (`plan.md` §3.3). Además, la tabla de cadencias de `http.ts` queda anotada para esta
 fuente. Y el test incluye la aserción del spread por valor (`plan.md` §3).
-
-**T017 — `wise`**, continuación: `amounts_source: 'provider'` — `receivedAmount`
-es el monto final de la fuente y no se recalcula. `fee` es absoluto en USD
-(→ `fee_fixed_usd`). `asset: 'usd'`, `channel: 'bank_transfer'`.
 
 ## Fase 4 — Operación
 
@@ -393,7 +391,7 @@ minutos. Aviso si una fuente lleva tiempo muda (HU-06, RF-11).
 *Terminado cuando:* forzando un dato viejo, la marca aparece.
 
 **T027 — Fichas de proveedor** `[P]`
-Una página por proveedor: qué es, rail, modo, métodos de pago (RF-15).
+Una página por proveedor: qué es, `asset` y `channel`, modo, métodos de pago (RF-15).
 *Terminado cuando:* los 8 tienen página.
 
 **T028 — Contenido explicativo** `[P]`

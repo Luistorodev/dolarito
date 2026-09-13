@@ -779,15 +779,6 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   el Art. V.6 no admite creatividad: bajar cadencia o retirar la fuente.
 
 
-- **Tres adapters casi idénticos.** `bitso`, `dolarapp` y `buda` comparten la
-  misma forma: un par ask/bid → ocho filas. El mapeo dirección → lado del libro,
-  que es la parte que se invierte sola, está escrito tres veces. El Art. II pide
-  que cada adapter viva en su archivo sin conocer a los demás, y eso se respeta,
-  pero **un helper compartido haría el error estructuralmente imposible en vez de
-  solo detectable**, igual que `computeAmounts()`. No lo extraje: T015–T017 no
-  siguen este patrón, así que conviene decidirlo cuando estén los seis y se vea
-  cuánto se repite de verdad.
-
 
 - **El límite de tasa de Bitso tampoco viene en la respuesta.** Verificado el
   2026-09-13 sobre un 200 en vivo de `/v3/ticker/?book=usdt_cop`: sin
@@ -874,32 +865,104 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   Correrlo por paquete: `corepack pnpm --filter @dolarito/ingest run typecheck`.
   Sin arreglar; no bloquea nada.
 
+### Decisiones cerradas durante T020
+
+- **Helper compartido para los tres adapters simples — NO se extrae.** Decidido
+  el 2026-09-14 con los seis a la vista.
+
+  El bloque duplicado existe y es real: ~25 a 30 líneas casi idénticas en
+  `bitso`, `dolarapp` y `buda`. Pero **el criterio era que hiciera el error
+  imposible, no que ahorrara líneas**, y no lo logra.
+
+  El error que preocupa es invertir el mapeo dirección → lado del libro. Un
+  helper tendría que recibir los dos precios ya clasificados —`buyRate` y
+  `sellRate`—, así que la decisión de cuál campo del proveedor es cuál **sigue
+  en el adapter**: es conocimiento de la fuente y no puede vivir en otro lado.
+  El error no desaparecería, se mudaría al sitio de llamada.
+
+  Y lo que sí era mecánico **ya está centralizado**: `fixed_side` sale de
+  `computeAmounts()`, no de cada adapter. La prueba está medida — invertirlo ahí
+  voltea 10 tests, incluidos los seis casos dorados.
+
+  Lo que queda duplicado es armado de objeto: identidad del proveedor y un bucle
+  doble. Extraerlo serviría a 3 de 6 —`eldorado`, `binance_p2p` y `wise` no
+  siguen este patrón en nada— a cambio de un acoplamiento que el Art. II.2 pide
+  evitar.
+
+  **La defensa correcta ya está en su capa:** la aserción del spread, que es
+  regla del contrato (`plan.md` §3) y obligatoria para los adapters de libro
+  único — exactamente los tres en cuestión. Detecta la inversión por valor en
+  cada uno, y las mutaciones lo confirmaron en los tres.
+
+- **N4 — RESUELTA: el tier web lee como `web_reader`, no como `service_role`.**
+  Decidido el 2026-09-14.
+
+  El riesgo que cierra: `service_role` no solo lee — escribe, borra y hace DDL.
+  Dárselo a un sitio que únicamente hace `SELECT` significa que una falla del
+  servidor web puede vaciar `quotes`, y el histórico es lo único irrecuperable
+  del proyecto.
+
+  `supabase/migrations/20260913234154_web_reader_role.sql` crea el rol con
+  `SELECT` sobre **`latest_quotes`, `providers` y `market_history`**, y nada
+  más. `quotes` y `runs` quedan fuera a propósito: la interfaz nunca necesita
+  filas crudas —usa la vista, que ya aplica el corte de 24 h— y exponer `quotes`
+  expondría además cada `raw` que guardamos. Sin privilegios por defecto sobre
+  tablas futuras: una tabla nueva es invisible para este rol hasta que alguien
+  la conceda a propósito.
+
+  Como la vista corre con `security_invoker` (T005), el rol necesita políticas
+  RLS de solo lectura en las tablas de abajo o la vista le devolvería vacío.
+  Están en la migración, con el motivo escrito: acá no hay privacidad por fila
+  que imponer —toda fila es un precio público— y la protección del periodo
+  privado está en la puerta (HU-07), no por fila.
+
+  **Falta un paso que no es SQL:** crear la llave secreta y atarla al rol desde
+  el dashboard. Eso no lo puedo verificar yo. **Si el dashboard no ofrece atar
+  una llave a un rol**, el repliegue es seguir con `service_role` solo del lado
+  servidor y **anotarlo como riesgo aceptado**, no darlo por resuelto — la
+  diferencia importa porque cambia qué puede hacer un servidor comprometido.
+
+  `supabase/tests/n4_web_reader_verify.sql` comprueba las dos mitades: que el rol
+  **puede** leer la superficie de la UI y que **no puede** escribir en ningún
+  lado ni tocar las tablas crudas. Sin correr todavía — es DDL, va por el SQL
+  Editor.
+
 ### Decisiones pendientes
 
-Ninguna bloquea T008. Salieron de la revisión de specs. **N2 y N5 ya salieron de
-esta lista**, resueltas y escritas en los documentos: N5 en `plan.md` §2, N2 en
-`plan.md` §3 y §5.1 más el criterio de T008. Las que quedan **aún no están
-reflejadas en los documentos de gobierno**.
+**Las cinco numeradas están cerradas.** N1, N2, N3, N4 y N5 salieron de esta
+lista y están escritas en los documentos de gobierno, no solo acá:
 
-N4 se volvió más concreta con T005: el proyecto usa el sistema **nuevo** de API
-keys de Supabase, donde se pueden emitir varias llaves secretas con rol
-restringido. Eso da una salida real al problema de que `service_role` también
-escriba — el tier web puede tener su propia llave de solo lectura en vez de
-compartir la de ingesta.
+| # | Dónde quedó |
+|---|---|
+| N1 | `spec.md` HU-01, reescrita sobre el lado variable (Art. III.1) |
+| N2 | `plan.md` §3 y §5.1, más el criterio de T008 |
+| N3 | `plan.md` §3.1, que ahora describe la cadena inversa además de la directa |
+| N4 | `plan.md` §2.3 vía la migración de `web_reader`, y `.env.example` |
+| N5 | `plan.md` §2, implementada en la migración de T003 |
+
+Queda una sola, y venía de los specs originales:
 
 | # | Qué | Antes de |
 |---|---|---|
-| N1 | HU-01 quedó desfasada del Art. III.1: en `cop_to_usd` lo recibido es fijo, así que "el orden es por lo que recibo" ya no aplica. Reescribirla como "quién cobra menos pesos por los dólares que quiero". | T025 (conviene ya) |
-| N3 | **Implementada y probada** en T006b: la inversa deshace la cadena al revés, y los casos dorados E y F la fijan en las dos direcciones. Lo que falta es documental: `plan.md` §3.1 sigue diciendo que el orden es "idéntico en ambas direcciones", que describe la directa y no la inversa. | Antes de T012 |
-| N4 | "Clave de servidor" sin definir. La única de fábrica en Supabase es `service_role`, que también escribe: le daría escritura al tier web. Marcado en `.env.example` como `SUPABASE_SERVER_READ_KEY`. | T023 |
-| — | Dominio. Único pendiente que ya venía en los specs. | T030 |
+| — | Dominio. | T030 |
 
-### Correcciones menores sin aplicar a los documentos
+Las que se abrieron durante la implementación están arriba, en "A medias" y en
+la revisión de cierre de T020: la asimetría del ranking de Eldorado
+(`[NECESITA DECISIÓN]` en T025) y los dos defectos de los márgenes, ya decididos
+en dirección y pendientes de implementar el 20.
 
-`§3.1` se usa dos
-veces como número de sección; `**Reglas que todo adapter cumple:**` está
-duplicado en la misma línea; T017 aparece dos veces; la estimación de "unas 64
-filas" no cuenta la multiplicación por método de pago de Eldorado (~76+, sigue
-siendo trivial); y "rail" sobrevive en Art. III.2, RF-05, RF-10 y T027 aunque el
-esquema lo reemplazó por `asset` + `channel` — sin efecto funcional, pero T029
-recorre el constitution artículo por artículo.
+### Correcciones menores — todas aplicadas (2026-09-14)
+
+Ninguna pendiente. Se cerraron antes de T029, que recorre el constitution
+artículo por artículo:
+
+- `§3.1` duplicado como número de sección → la tabla por fuente pasó a
+  `#### Notas por fuente`, sin numerar, para no romper nueve referencias
+  cruzadas en documentos y código.
+- `**Reglas que todo adapter cumple:**` duplicado en la misma línea.
+- T017 aparecía dos veces en `tasks.md`; el bloque de continuación se fusionó.
+- La estimación de "unas 64 filas" → **74 medidas** en la primera corrida real.
+  La diferencia es Eldorado, que aporta 32 él solo.
+- "rail" sobrevivía en Art. III.2, RF-05, RF-10, RF-15 y T027 → `asset` +
+  `channel`. El constitution subió a **v1.4.0** por esa enmienda, que es
+  editorial y sin efecto funcional.

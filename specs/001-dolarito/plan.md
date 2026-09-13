@@ -1,7 +1,7 @@
 # Plan técnico — Dolarito
 
 **Ubicación esperada en el repo:** `specs/001-dolarito/plan.md`
-**Deriva de:** `spec.md` v1 y `constitution.md` v1.3.0
+**Deriva de:** `spec.md` v1 y `constitution.md` v1.4.0
 **Fecha:** 2026-09-12
 
 ---
@@ -291,8 +291,10 @@ el middleware, dejando la protección en nada.
 
 **Consecuencia de diseño para T021:** el selector de bracket no puede consultar
 la base desde el cliente. El servidor envía las cotizaciones de los cuatro
-brackets en la carga inicial —son unas 64 filas, trivial— y el filtrado ocurre en
-el cliente sobre datos ya entregados.
+brackets en la carga inicial y el filtrado ocurre en el cliente sobre datos ya
+entregados. **Medido en la primera corrida real (2026-09-13): 74 filas**, no las
+"unas 64" que este documento estimaba — la diferencia es Eldorado, que multiplica
+por método de pago y aporta 32 él solo. Sigue siendo trivial de enviar.
 
 ## 3. Contrato del adapter
 
@@ -427,9 +429,18 @@ export function computeAmounts(input: {
 }): { in: Money; out: Money; fixed_side: 'in' | 'out' };
 ```
 
-**Orden canónico de aplicación**, idéntico en ambas direcciones: las comisiones
-se aplican siempre sobre el lado en USD, primero la porcentual y después la
-fija, y la conversión a COP ocurre al final con `gross_rate`. Este orden es una
+**Orden canónico de aplicación:** las comisiones se aplican siempre sobre el lado
+en USD, primero la porcentual y después la fija, y la conversión a COP ocurre al
+final con `gross_rate`.
+
+**En `cop_to_usd` esa cadena corre al revés, y el orden inverso importa.** Para
+terminar con N dólares hay que **sumar la comisión fija primero y dividir por la
+porcentual después** — `(bracket + fija) / (1 − pct)` —, no al revés. Hacerlo en
+orden directo subestima lo que la persona paga, y la diferencia es
+`fija × pct × rate`: chica, silenciosa, y suficiente para reordenar un ranking.
+Los casos dorados E y F de T006b la fijan en las dos direcciones, y una mutación
+que invierta cualquiera de las dos hace fallar exactamente el caso de esa
+dirección. Este orden es una
 convención del proyecto, no una verdad universal — y por eso **cuando la fuente
 entrega el monto final, el suyo manda** y se marca `amounts_source: 'provider'`.
 
@@ -509,6 +520,12 @@ conjunto elegible **crece** con el bracket: montos mayores superan los mínimos 
 anuncios mejores. Medido: comprando, 7 elegibles a bracket 100 y 18 a 500, y el
 ponderado **baja** de 3082,59 a 3079,73. En P2P un monto chico se castiga por
 exclusión de los mejores anuncios, no por profundidad.
+
+#### Notas por fuente
+
+*(Sin numerar a propósito: esta tabla llevaba un `§3.1` que ya usaba la sección
+de montos, y renumerar hubiera roto nueve referencias cruzadas en documentos y
+código.)*
 
 | Adapter | Particularidad |
 |---|---|
@@ -755,6 +772,7 @@ pero nada impide que empecemos nosotros.
   que es lo que HU-08 busca medir.
   *Riesgo aceptado:* el endpoint de Yahoo no está documentado oficialmente y
   puede cambiar. Por eso el respaldo y la columna `mid_market_src`.
-- `[RESUELTO]` Constitution enmendado a v1.3.0. v1.1.0 tocó III.1 y III.5;
+- `[RESUELTO]` Constitution enmendado a v1.4.0. v1.1.0 tocó III.1 y III.5;
   v1.2.0, III.1, el corolario de I.2 y V.6; v1.3.0 acotó el alcance de "cruda"
-  en I.2 tras verificar la persistencia contra la base real.
+  en I.2 tras verificar la persistencia contra la base real; v1.4.0 alineó
+  III.2, que decía "rail", con las columnas `asset` + `channel` del esquema.

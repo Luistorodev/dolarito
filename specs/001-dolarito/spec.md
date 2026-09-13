@@ -68,12 +68,20 @@ contexto.
 
 ### HU-01 — Ver el mejor precio para comprar dólares (modo Local)
 **Como** alguien que quiere convertir pesos a dólares,
-**quiero** ver qué proveedor me entrega más dólares por mi monto,
+**quiero** ver **quién me cobra menos pesos por los dólares que quiero**,
 **para** no perder dinero por elegir mal.
 
+> Redactada así a propósito, y no como "quién me entrega más dólares por mi
+> monto". Toda comparación fija el lado en dólares y deja variar el otro
+> (Art. III.1): "quiero 100 dólares" es una pregunta que todos los proveedores
+> responden igual, mientras "tengo 400.000 pesos" depende de una tasa de
+> conversión no especificada y distinta en cada corrida. Comprando, lo que varía
+> es lo que pago.
+
 Criterios de aceptación:
-- Dado un monto, veo una lista ordenada de proveedores.
-- El orden es por lo que efectivamente recibo, no por la tasa anunciada.
+- Dado un monto **en dólares**, veo una lista ordenada de proveedores.
+- El orden es **por el lado variable de la operación** —acá, los pesos que
+  pago, de menor a mayor— y nunca por la tasa anunciada (Art. III.1).
 - Cada entrada muestra: proveedor, tasa, comisión, monto final, y cuándo se
   capturó el dato.
 - La diferencia contra la mejor opción se expresa en pesos, no solo en
@@ -168,7 +176,7 @@ Criterios de aceptación:
 - RF-03 — Cada captura registra el bracket de monto al que aplica el precio.
 - RF-04 — Cada captura registra, en el mismo momento, la tasa media de mercado y
   la TRM vigente.
-- RF-05 — Cada fila declara su modo (Local o Remesa) y su rail.
+- RF-05 — Cada fila declara su modo (Local o Remesa), su `asset` y su `channel`.
 - RF-06 — La falla de una fuente no impide registrar las demás.
 - RF-07 — Cada corrida deja constancia de qué fuentes respondieron y cuáles no.
 
@@ -176,7 +184,7 @@ Criterios de aceptación:
 - RF-08 — El sitio muestra la TRM vigente como contexto, con explicación, en
   ambos modos.
 - RF-09 — El sitio muestra rankings separados por modo y por dirección.
-- RF-10 — Cada fila declara su rail y su momento de captura.
+- RF-10 — Cada fila declara su `asset`, su `channel` y su momento de captura.
 - RF-11 — Los datos desactualizados se marcan, nunca se ocultan ni se maquillan.
 - **RF-11b — Un precio que no es firme se declara como tal.** Si un proveedor
   entrega una cotización con tolerancia de variación o vencimiento corto, la
@@ -228,7 +236,7 @@ Criterios de aceptación:
 **Contenido**
 - RF-14 — Existe una explicación accesible de qué es la TRM y por qué difiere de
   lo que ofrecen las apps.
-- RF-15 — Cada proveedor tiene una ficha con qué es, qué rail usa, en qué modo
+- RF-15 — Cada proveedor tiene una ficha con qué es, qué `asset` y `channel` usa, en qué modo
   opera y qué métodos de pago acepta cuando aplica.
 
 ## 6. Fuentes incluidas (alcance congelado)
