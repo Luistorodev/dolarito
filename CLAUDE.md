@@ -74,7 +74,7 @@ muda por un bug de ingesta) y a todo test que afirme una ausencia.
 
 ## Estado actual
 
-**Fase 0 completa.** Última actualización: 2026-09-13.
+**Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-13.
 
 ### Completado
 
@@ -180,14 +180,44 @@ muda por un bug de ingesta) y a todo test que afirme una ausencia.
   volviera a otorgar privilegios a `anon`, RLS sin políticas sigue devolviendo
   conjunto vacío.
 
+- **T006 — `contract.ts`.** `Money`, `Quote`, `Reference`, `QuoteAdapter`,
+  `ReferenceAdapter` y `Adapter` en `packages/ingest/src/contract.ts`, en la ruta
+  que pide `plan.md` §4.
+
+  **`Quote` quedó como unión discriminada por `status`, no como el tipo plano
+  del listado de `plan.md` §3.** Es la única forma de cumplir el criterio de
+  T006: el tipo plano, con `in?` y `out?` opcionales, no puede rechazar un quote
+  que dice `status: 'ok'` sin montos — justo la forma que escribiría una fila
+  afirmando una observación que nunca hicimos. El contrato de datos no cambia:
+  mismos nombres, mismos tipos, misma opcionalidad en todo campo que el listado
+  dejaba opcional. Cambia qué *combinaciones* acepta TypeScript.
+
+  Dos consecuencias, ambas apoyadas en la prosa de `plan.md` §2.1 pero **más
+  estrictas que el listado de §3**:
+  - `status: 'ok'` exige `in` y `out`, y prohíbe `limit_reason`.
+  - `status: 'out_of_range'` exige `limit_reason` —una fila sin motivo no es
+    accionable— y deja `in`/`out` opcionales, porque el proveedor nunca los
+    cotizó. `undefined`, nunca cero (Art. I.1).
+
+  Verificado con dos sondas desechables, borradas después: una con las formas
+  válidas compila limpio y estrecha `q.out` sin cast tras `q.status === 'ok'`;
+  la otra confirma que `tsc` rechaza los cinco casos malos —`ok` sin montos,
+  `ok` con un solo lado, `out_of_range` sin motivo, `ok` con `limit_reason`, y
+  un `status` fuera de la unión—. El primero es el criterio de T006.
+
 ### Sigue
 
-**T006 — `contract.ts`.** `Money`, `Quote`, `Reference`, `QuoteAdapter`,
-`ReferenceAdapter` y la unión `Adapter` de `plan.md` §3, sin cambios.
+**T006b — `money.ts` con tests dorados.** ⚠️ Barrera dura: ningún adapter puede
+escribirse antes de cerrarla (Art. VII.1).
 
-Detrás viene **T006b**, que es barrera dura: ningún adapter puede escribirse
-antes de cerrarla (Art. VII.1). N3 la toca — los casos dorados tienen que fijar
-también la dirección inversa, no solo la directa.
+**Los casos dorados los calcula el humano a mano, no yo.** Ya los tiene. Mi
+parte es implementar `computeAmounts()` y codificar esos casos como test, no
+inventarlos: un caso dorado que yo derive de mi propia implementación no prueba
+nada — confirma que el código hace lo que el código hace.
+
+N3 la toca: el orden canónico de `plan.md` §3.1 está descrito solo en directo, y
+con `fixed_side: 'out'` el cálculo corre al revés. Los casos tienen que fijar
+también la inversa.
 
 ### A medias
 
