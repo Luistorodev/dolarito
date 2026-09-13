@@ -8,8 +8,9 @@
     "typecheck": "tsc",
     "test": "node --test",
     "check:supabase": "node src/scripts/check-supabase.ts",
-    "seed:providers": "node src/scripts/seed-providers.ts",
-    "check:rls": "node src/scripts/check-rls.ts"
+    "check:rls": "node src/scripts/check-rls.ts",
+    "check:db": "node src/scripts/check-db-roundtrip.ts",
+    "seed:providers": "node src/scripts/seed-providers.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0"

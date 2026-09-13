@@ -369,30 +369,70 @@ probado. Lo destapó una mutación, no el verde.
   fallar en el test.
 
 
+- **Ida y vuelta en vivo contra la base real.**
+  `scripts/check-db-roundtrip.ts`, corrido con `pnpm check:db`. Cubre lo que los
+  tests unitarios no pueden:
+  - **Las cuatro llamadas a PostgREST**: `insert` en `runs`, `update` con las
+    referencias, `insert` en `quotes`, y el cierre con el resumen.
+  - **Que la `service_role key` sí escribe a través de RLS.** T005 solo había
+    probado que `anon` **no** puede; nunca que el servidor **sí**. Ahora las dos
+    mitades están.
+  - **Que `raw` sobrevive el viaje.** Con una carga adversaria a propósito:
+    anidamiento, arrays, unicode con emoji, un float de nueve decimales, un
+    `null` explícito, un booleano, y objeto y array vacíos.
+  - De paso confirmó contra las columnas reales que `undefined` llega como
+    `null` y no como cero, que era una afirmación que solo tenía test unitario.
+
+  **La base quedó vacía.** El script cuenta antes y después y falla si no
+  coinciden. Todo cuelga de una fila de `runs`, y borrarla arrastra su
+  cotización por `on delete cascade`. Confirmado aparte, fuera del script:
+  `runs` 0, `quotes` 0, `market_history` 0, `providers` 8 —la semilla de T004,
+  que se queda—. El histórico sigue intacto porque no quedó nada que forme parte
+  de él.
+
+  **Hallazgo: `jsonb` no conserva el orden de las claves.** Las reordena por
+  longitud y después alfabéticamente. Mi primera aserción comparaba
+  `JSON.stringify` y falló — el defecto era de la aserción, no de `db.ts`:
+  `isDeepStrictEqual` da `true` y **todos los valores están intactos**. Queda
+  anotado en el script porque cambia una frase: "guardamos exactamente lo que la
+  fuente mandó" es cierto del contenido, no de los bytes. Si alguna vez hace
+  falta procedencia byte a byte —verificar una firma, digamos— `jsonb` es la
+  columna equivocada y haría falta una de texto aparte.
+
+- **T009 — Registro de adapters.** `src/registry.ts` exporta `ADAPTERS`.
+  **Está vacío, y es el estado honesto**: los adapters reales son T010 a T017, y
+  cada una agrega su línea. Los falsos están deliberadamente afuera — un falso en
+  el registro de producción escribiría filas inventadas en `quotes` cada 15
+  minutos, y hay un test que lo impide.
+
+  El criterio es estructural, así que el test también: **lee el fuente de
+  `orchestrator.ts`** y verifica que no importe nada de `adapters/` ni del
+  registro. Afirmar la propiedad de hoy sin leer el archivo dejaría de ser cierto
+  en silencio la primera vez que alguien busque un adapter concreto.
+
+  Además `inspectRegistry()`, que no pedía la tarea pero que `providerIds` hizo
+  necesario: ahora es posible que un adapter reclame un proveedor inexistente, o
+  que dos reclamen el mismo. Cualquiera de las dos corrompe la métrica de
+  cobertura en silencio —el fallo de N2 en su otra forma— y ninguna se ve
+  leyendo un archivo. Chequea id duplicado, proveedor reclamado dos veces,
+  proveedor fuera del catálogo sembrado, y adapter sin ningún proveedor.
+
+  Tres mutaciones, las tres atrapadas: hacer que el orquestador importe un
+  adapter concreto —que **compila**, `tsc` en 0, así que la atrapa el test y no
+  el compilador—, y quitar cada uno de los dos chequeos de coherencia.
+
+
 ### Sigue
 
-**T009 — Registro de adapters.** `registry.ts` exporta el array de adapters
-activos. Agregar una fuente debe ser agregar una línea ahí y nada más
-(Art. II.4); el criterio es que el orquestador no importe ningún adapter
-directamente — hoy ya no lo hace, los recibe por parámetro.
+**T010 — Adapter de TRM**, el primer adapter real y la primera referencia.
+Endpoint de datos.gov.co; usar `vigenciahasta` del propio dato para saber hasta
+cuándo rige, que resuelve fines de semana y festivos sin calcular calendario.
 
-Después **T010 — TRM**, el primer adapter real. Ahí arranca la obligación de
-anotar el límite de tasa en la tabla de `http.ts`.
+Con él arrancan tres obligaciones nuevas: anotar el límite de tasa en la tabla de
+`http.ts`, agregar la línea en `registry.ts`, y guardar un fixture real en
+`fixtures/` (Art. VII.3).
 
 ### A medias
-
-- **`db.ts` no se probó contra la base real.** Sus tests cubren la traducción
-  pura —`Quote` → fila, `Reference` → campos de `runs`—, que es donde viven los
-  errores silenciosos: un campo perdido o un `undefined` vuelto cero entra a
-  `quotes` con cara de observación. **Lo que no se ejercitó son las llamadas a
-  PostgREST**: `insert` en `runs`, `update` con las referencias, `insert` en
-  `quotes` y el cierre.
-
-  No hice una prueba en vivo a propósito: habría que escribir filas falsas en
-  `quotes` y después borrarlas, y el histórico es inmutable. La primera corrida
-  real de T018 es el lugar correcto para ejercitarlo. Si preferís una prueba de
-  ida y vuelta antes, decímelo y la hago con un `run` que se borre en cascada.
-
 
 - **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
   Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,
