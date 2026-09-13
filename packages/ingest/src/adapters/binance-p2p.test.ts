@@ -198,10 +198,51 @@ describe('the weighted walk', () => {
     assert.equal(walk.weightedPrice, 3100, 'took the first listed, not the cheapest');
   });
 
-  it.todo(
-    'GOLDEN: the weighted price for BUY bracket 100, hand-computed by the human — ' +
-      'pending the number, over the eligible ads of binance-p2p-buy-cop-2026-09-13.json',
-  );
+  it('GOLDEN A — the real book, BUY bracket 100: 3082.59', () => {
+    // Hand-computed by the human, then reproduced here independently before
+    // being written down (Art. VII.1, and the lesson of T006b).
+    //
+    // This case proves the MINIMUM FILTER, not the formula: ad #2 has room for
+    // 456.81 USDT and covers the whole bracket on its own, so the weighting is
+    // trivial. What it pins is that the cheapest ad in the book — 3075.60 —
+    // does NOT appear, because its 500,000 COP minimum is about 162.6 USDT.
+    const walk = walkBook(parseOffers(BUY), 100);
+
+    assert.ok(walk.kind === 'ok');
+    assert.equal(walk.weightedPrice, 3082.59);
+    assert.equal(walk.adsUsed, 1, 'one ad covered it, so this is not a formula test');
+  });
+
+  it('GOLDEN B — a synthetic book that does exercise the formula: 3085.00', () => {
+    // Hand-computed by the human. Three ads, all with low minimums, so nothing
+    // is filtered and the walk has to weight three prices:
+    //   40 @ 3000 + 35 @ 3100 + 25 @ 3200 = 308,500 over 100 USDT = 3085.00
+    const book: Offer[] = [
+      { price: 3000, minUsdt: 1, maxUsdt: 40 },
+      { price: 3100, minUsdt: 1, maxUsdt: 35 },
+      { price: 3200, minUsdt: 1, maxUsdt: 100 },
+    ];
+
+    const walk = walkBook(book, 100);
+
+    assert.ok(walk.kind === 'ok');
+    assert.equal(walk.weightedPrice, 3085.0, 'exact, no rounding involved');
+    assert.equal(walk.adsUsed, 3, 'all three, the last one partially');
+    assert.equal(walk.filled, 100);
+  });
+
+  it('GOLDEN B, continued — the same book cannot fill 500', () => {
+    const book: Offer[] = [
+      { price: 3000, minUsdt: 1, maxUsdt: 40 },
+      { price: 3100, minUsdt: 1, maxUsdt: 35 },
+      { price: 3200, minUsdt: 1, maxUsdt: 100 },
+    ];
+
+    const walk = walkBook(book, 500);
+
+    assert.ok(walk.kind === 'insufficient_liquidity');
+    assert.equal(walk.eligibleCapacity, 175, '40 + 35 + 100');
+  });
 });
 
 describe('the adapter', () => {

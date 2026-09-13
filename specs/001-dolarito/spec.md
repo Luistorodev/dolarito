@@ -203,6 +203,25 @@ Criterios de aceptación:
 
   Esto no es recomendar ni desaconsejar a nadie (§7): es declarar una diferencia
   de naturaleza entre dos cosas que la tabla pone una al lado de la otra.
+- **RF-11c — Cuando un bracket mayor consigue mejor precio que uno menor, la
+  interfaz lo explica.** Sin explicación se lee como un error del sitio, no como
+  una propiedad del mercado.
+
+  Ocurre de verdad y no es raro. Medido en `binance_p2p` el 2026-09-13: comprar
+  500 USD sale a 3.079,73 COP por dólar y comprar 100 sale a 3.082,59 — **el
+  monto mayor consigue mejor precio.** La causa no es el volumen: en P2P cada
+  anuncio fija su propio mínimo, y los mejores suelen pedir montos altos. Un
+  monto chico no paga más por ser chico, **paga más por quedar excluido de los
+  mejores anuncios**. Comprando 100 solo califican 7 de 20 anuncios; comprando
+  500, 18 de 20.
+
+  Es exactamente lo que HU-04 existe para revelar —el efecto del monto sobre el
+  precio real— pero contradice la intuición de que los montos grandes son los que
+  negocian mejor, y sin decirlo el usuario concluye que la tabla está mal.
+
+  Esto no es recomendar operar por un monto ni por otro (§7): es explicar por qué
+  dos filas del mismo proveedor se ordenan al revés de lo esperado.
+
 - RF-12 — El sitio funciona en móvil como caso principal.
 - RF-13 — Todo el sitio queda tras contraseña hasta que se decida abrirlo.
 
