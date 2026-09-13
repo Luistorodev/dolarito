@@ -336,22 +336,63 @@ probado. Lo destapó una mutación, no el verde.
   caídos salían en rojo (4 > la mitad de 6); con la nueva no salen (4 no supera
   4, y ambos modos viven). Es deliberado, y tiene test propio en T008.
 
+- **T008 — Orquestador.** `src/orchestrator.ts` y `src/db.ts`.
+  `Promise.allSettled` sobre los adapters: abre la fila en `runs`, resuelve
+  primero las referencias —que aterrizan en esa misma fila—, después las
+  cotizaciones, y cierra con `sources_ok` y `sources_failed`.
+
+  **Un adapter que lanza no aporta ninguna fila.** Ni vacía, ni marcada como
+  fallida. Solo entra en `sources_failed` (Art. I.2). Sus hermanos sanos siguen
+  guardando lo suyo: `allSettled` es justamente para que una fuente caída no
+  apague a las demás (Art. II).
+
+  La persistencia va por la interfaz `RunStore`, no por Supabase directo, así
+  que la corrida entera se ejercita sin base de datos y `orchestrator.ts` habla
+  de orquestación en vez de PostgREST. `db.ts` es el único que conoce PostgREST
+  y donde se traduce `undefined` → `null` una sola vez (plan.md §2.1).
+
+  **`providerIds` en la métrica, y el caso de Wise probado en las dos
+  direcciones:**
+  - un solo adapter caído que cubre 3 proveedores de un mismo modo **sale en
+    rojo**, y el test afirma explícitamente que es por la regla 2 y **no** por
+    la 1 — 3 no supera 4;
+  - cuatro adapters locales caídos, 4 proveedores perdidos, **no** salen: no
+    superan 4 y los dos modos siguen vivos. Con la unidad vieja esta corrida
+    salía en rojo. Es deliberado.
+
+  Cinco mutaciones, las cinco atrapadas, todas con salida 1: contar adapters en
+  vez de proveedores, quitar la regla del modo vacío, dejar rastro en `quotes`
+  de un adapter caído, que una referencia caída deje de ser incidente, y `>=` en
+  vez de `>` en el umbral. **La tercera hubo que rehacerla:** la primera versión
+  rompía la compilación, así que se "atrapaba" por error de sintaxis y no por el
+  test. Una mutación que no compila no prueba nada — tiene que pasar `tsc` y
+  fallar en el test.
+
+
 ### Sigue
 
-**T008 — Orquestador.** `Promise.allSettled` sobre el registro: abre la fila en
-`runs`, resuelve primero los `ReferenceAdapter`, después los `QuoteAdapter`, y
-cierra con `sources_ok` y `sources_failed`.
+**T009 — Registro de adapters.** `registry.ts` exporta el array de adapters
+activos. Agregar una fuente debe ser agregar una línea ahí y nada más
+(Art. II.4); el criterio es que el orquestador no importe ningún adapter
+directamente — hoy ya no lo hace, los recibe por parámetro.
 
-Acá entra **N2**, que sigue sin resolver: el orquestador cuenta **proveedores**
-pero ejecuta **adapters**, y Wise es 1 adapter y 3 proveedores. Una falla suya
-apaga 3 de 8 y rompe la métrica de cobertura. Falta el mapeo adapter →
-proveedores antes de escribir el conteo.
-
-T007 dejó listo lo que T008 necesita para probarse sin red, salvo una pieza:
-**no hay `ReferenceAdapter` falso todavía**. Lo dejé fuera a propósito porque
-T007 pedía "un adapter"; es trivial y va con T008.
+Después **T010 — TRM**, el primer adapter real. Ahí arranca la obligación de
+anotar el límite de tasa en la tabla de `http.ts`.
 
 ### A medias
+
+- **`db.ts` no se probó contra la base real.** Sus tests cubren la traducción
+  pura —`Quote` → fila, `Reference` → campos de `runs`—, que es donde viven los
+  errores silenciosos: un campo perdido o un `undefined` vuelto cero entra a
+  `quotes` con cara de observación. **Lo que no se ejercitó son las llamadas a
+  PostgREST**: `insert` en `runs`, `update` con las referencias, `insert` en
+  `quotes` y el cierre.
+
+  No hice una prueba en vivo a propósito: habría que escribir filas falsas en
+  `quotes` y después borrarlas, y el histórico es inmutable. La primera corrida
+  real de T018 es el lugar correcto para ejercitarlo. Si preferís una prueba de
+  ida y vuelta antes, decímelo y la hago con un `run` que se borre en cascada.
+
 
 - **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
   Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,

@@ -19,7 +19,7 @@
  * so the fake makes both easy to trigger on purpose.
  */
 
-import type { Quote, QuoteAdapter } from '../contract.ts';
+import type { Quote, QuoteAdapter, Reference, ReferenceAdapter } from '../contract.ts';
 import { computeAmounts } from '../money.ts';
 
 export const FAKE_BRACKETS = [1, 100, 500, 1000] as const;
@@ -172,6 +172,52 @@ export function createThrowingQuoteAdapter(options: FakeAdapterOptions = {}): Qu
     providerIds: config.providerIds,
     fetchQuotes: async (): Promise<Quote[]> => {
       throw new FakeAdapterFailure('fake adapter: the source could not be reached');
+    },
+  };
+}
+
+export type FakeReferenceOptions = {
+  id?: string;
+  kind?: 'trm' | 'mid_market';
+  value?: number;
+  source?: string;
+  observedAt?: string;
+};
+
+/** A reference that answers. Populates its two fields on the `runs` row. */
+export function createFakeReferenceAdapter(options: FakeReferenceOptions = {}): ReferenceAdapter {
+  const kind = options.kind ?? 'trm';
+
+  return {
+    id: options.id ?? `fake_${kind}`,
+    kind: 'reference',
+    fetchReference: async (): Promise<Reference> => ({
+      kind,
+      value: options.value ?? 4012.34,
+      source: options.source ?? 'fake',
+      ...(options.observedAt === undefined ? {} : { observed_at: options.observedAt }),
+      raw: { fake: true, kind },
+    }),
+  };
+}
+
+/**
+ * A reference that cannot answer.
+ *
+ * Its absence is an incident rather than degradation: without TRM or the
+ * mid-market rate there is nothing to compare against, and both markups in
+ * `latest_quotes` come out null for the whole run (plan.md §5.1, rule 3).
+ */
+export function createThrowingReferenceAdapter(
+  options: FakeReferenceOptions = {},
+): ReferenceAdapter {
+  const kind = options.kind ?? 'trm';
+
+  return {
+    id: options.id ?? `fake_${kind}_failing`,
+    kind: 'reference',
+    fetchReference: async (): Promise<Reference> => {
+      throw new FakeAdapterFailure(`fake reference ${kind}: the source could not be reached`);
     },
   };
 }
