@@ -39,6 +39,24 @@ Proyecto desarrollado con Spec Driven Development.
 - La `service_role key` jamás llega al cliente.
 - Interfaz en español. Código, nombres de variables y commits en inglés.
 
+### Cómo se aplica el SQL
+
+**DDL a mano por el SQL Editor de Supabase. DML por código con la
+`service_role key`.** La línea divisoria es qué credencial hace falta:
+
+- **DDL** — migraciones, vistas, políticas RLS, índices. El archivo se escribe
+  en `supabase/migrations/` y **lo aplica el humano** pegándolo en el SQL Editor
+  del dashboard. **No pidas `SUPABASE_DB_PASSWORD` ni `SUPABASE_ACCESS_TOKEN`:
+  no van a estar en `.env` y no se van a agregar.** Tampoco hay Docker para un
+  Supabase local. Escribí la migración, entregá el archivo, pedí la salida.
+- **DML** — semillas, inserciones de ingesta, consultas de verificación. Corre
+  por código contra PostgREST con la `service_role key`, que sí está en `.env`.
+  Eso se automatiza y se verifica sin intervención.
+
+Toda migración va con su script de verificación en `supabase/tests/`, fuera de
+`migrations/` para que `db push` no lo levante nunca. El verificador no deja
+filas y no depende del manejo de transacciones del editor.
+
 ## Estado actual
 
 **Fase 0 en curso.** Última actualización: 2026-09-13.
@@ -70,9 +88,9 @@ Proyecto desarrollado con Spec Driven Development.
     de listarlas teniendo solo URL y llave. No imprime material de llave.
 
   Verificado: `pnpm lint` y `pnpm typecheck` limpios; el script conecta contra el
-  proyecto real y lista **0 tablas**, que es lo correcto antes de T003, saliendo
-  con código 0. Los dos caminos de error también: sin variables lista las tres y
-  sale 1; con host inalcanzable imprime la causa y sale 1.
+  proyecto real y lista tablas, saliendo con código 0. Los dos caminos de error
+  también: sin variables lista las tres y sale 1; con host inalcanzable imprime
+  la causa y sale 1.
 
   Dependencias: `@supabase/supabase-js` 2.116.0, `@types/node` 24.13.4.
 
@@ -83,41 +101,52 @@ Proyecto desarrollado con Spec Driven Development.
   relativos llevan extensión `.ts`. Simplifica T018: no hay build antes del cron.
   `tsconfig.base.json` quedó intacto. De paso se adelantó el script `typecheck`
   que estaba previsto para T006: el bloqueo era TS18003 por cero archivos fuente.
+- **T003 — Migración del esquema.** `plan.md` §2 y §2.2 completos en
+  `supabase/migrations/20260913170117_initial_schema.sql`: las cuatro tablas,
+  los CHECK, el índice único, los dos índices de consulta y la vista
+  `latest_quotes` con el corte de 24 h y los dos márgenes. Incluye
+  `market_history.loaded_at` (N5). Un diff normalizado contra `plan.md` §2
+  confirmó que solo difieren dos cosas deliberadas: los índices llevan nombre
+  explícito en vez del autogenerado de Postgres —las columnas no cambian— y la
+  columna de N5. RLS quedó fuera a propósito: es T005.
+
+  `supabase/tests/t003_schema_verify.sql` cubre los tres puntos del criterio de
+  terminado. Aplicado a mano en el SQL Editor: la migración corrió limpia y el
+  verificador devolvió `objects present, 3 rejections fired as expected`.
+  Confirmado aparte con `check:supabase`, que ahora lista 5 objetos
+  (`providers`, `runs`, `quotes`, `market_history`, `latest_quotes`).
+
+  De acá salió la convención de arriba sobre DDL y DML, y con ella el descarte
+  de `SUPABASE_DB_PASSWORD` y `SUPABASE_ACCESS_TOKEN`.
 
 ### Sigue
 
-**T003 — Migración del esquema.** No iniciada. Implementa `plan.md` §2 completo:
-las cuatro tablas, los CHECK, el índice único, los índices de consulta y la vista
-`latest_quotes` con el corte de 24 horas y los dos márgenes.
+**T004 — Sembrar el catálogo de proveedores.** Las 8 filas con su `asset` y su
+`channel`. Es DML: va por código con la `service_role key`. Las referencias no
+van acá — TRM y mid-market viven en `runs`, no son proveedores.
 
-**Incluye `market_history.loaded_at`** (N5, ya resuelta en `plan.md` §2 — ver
-abajo). Es la única columna del esquema que no venía en la versión original del
-plan.
+Después **T005 — Políticas RLS**, que es DDL y por lo tanto vuelve a pasar por el
+SQL Editor, con su test negativo de `anon key` por código.
 
 ### A medias
 
 - **Los secretos del repo de T002 no están puestos, y hoy no pueden estarlo:**
   `git remote -v` no devuelve nada, no hay repositorio en GitHub todavía. El
   *criterio de terminado* de T002 (script que conecta y lista tablas) sí está
-  cumplido; lo que falta es la otra mitad del enunciado. **Bloquea T018**, no
-  T003.
-- **El proyecto de Supabase arranca en frío.** La primera corrida del script
-  devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint daba
-  401 estable, así que el gateway estaba arriba y lo que tardaba era la base. El
-  reintento inmediato funcionó. No es un fallo del código, pero **el backoff de
-  T006c debe cubrir 504 además de 429 y 5xx**, o el primer ciclo tras una pausa
-  del proyecto contará como fuente caída.
+  cumplido; lo que falta es la otra mitad del enunciado. **Bloquea T018.**
+- **El proyecto de Supabase arranca en frío.** La primera corrida del script en
+  T002 devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint
+  daba 401 estable, así que el gateway estaba arriba y lo que tardaba era la
+  base. El reintento inmediato funcionó, y las corridas de T003 ya no lo
+  reprodujeron. No es un fallo del código, pero **el backoff de T006c debe cubrir
+  504 además de 429 y 5xx**, o el primer ciclo tras una pausa del proyecto
+  contará como fuente caída.
 
 ### Decisiones pendientes
 
-Ninguna bloquea T003 salvo N5, que ya está resuelta. Salieron de la revisión de
-specs y, salvo N5, **aún no están reflejadas en los documentos de gobierno**.
-
-**N5 — RESUELTA y ya escrita en `plan.md` §2.** `market_history` lleva
-`loaded_at timestamptz not null default now()`, con la nota en §2.1 que explica
-por qué el día del dato (`d`) y el día de la carga (`loaded_at`) son cosas
-distintas, y por qué es la única tabla donde difieren: en `quotes` y `runs` la
-captura *es* el evento. Queda implementarla en la migración de T003.
+Ninguna bloquea T004 ni T005. Salieron de la revisión de specs y **aún no están
+reflejadas en los documentos de gobierno**. N5 salió de esta lista: quedó escrita
+en `plan.md` §2 y ya está implementada en la migración de T003.
 
 | # | Qué | Antes de |
 |---|---|---|
