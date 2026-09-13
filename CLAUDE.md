@@ -38,6 +38,12 @@ Proyecto desarrollado con Spec Driven Development.
 - Nunca `UPDATE` sobre `quotes`. Solo inserciones. El histórico es inmutable.
 - La `service_role key` jamás llega al cliente.
 - Interfaz en español. Código, nombres de variables y commits en inglés.
+- **Los tipos que modelan JSON externo llevan `?: T | undefined`.** Con
+  `exactOptionalPropertyTypes`, `?: T` a secas admite el campo ausente pero
+  **rechaza el `undefined` explícito**, y un test de respuesta corrupta necesita
+  poder construir las dos formas — porque las dos llegan de la red. La laxitud es
+  del borde, no del código: nuestros tipos propios siguen estrictos. Salió en
+  T012 y aplica a T013–T017.
 
 ### Cómo se aplica el SQL
 
@@ -529,19 +535,62 @@ probado. Lo destapó una mutación, no el verde.
   `quotes` siguen en 0**, que era la otra mitad del criterio.
 
 
+- **T012 — `bitso`, primer adapter de cotización.** `src/adapters/bitso.ts`.
+  Ocho filas por corrida, `asset: 'usdt'`, `channel: 'exchange'`,
+  `amounts_source: 'computed'`. La tasa no varía por monto —un ticker es un
+  precio para todos— y lo que varía es el lado variable, vía `computeAmounts()`.
+
+  **Qué lado del libro usa cada dirección, que es lo que se invierte solo:**
+
+  | Dirección | La persona | Lado | `gross_rate` |
+  |---|---|---|---|
+  | `cop_to_usd` | quiere USDT, paga pesos | compra → pega al **ask** | `ask` |
+  | `usd_to_cop` | entrega USDT, recibe pesos | vende → pega al **bid** | `bid` |
+
+  Cruzarlos es silencioso y **favorece al proveedor en las ocho filas**: el `ask`
+  siempre está por encima del `bid`. En el fixture están a 14,20 COP —0,46%—,
+  chico para verse plausible en cada fila y grande para reordenar un ranking. Los
+  tests lo fijan **por valor**: vender 100 rinde 306.550 COP, comprar 100 cuesta
+  307.970, y comprar tiene que costar más de lo que rinde vender.
+
+  **`fixed_side` por dirección, que era el criterio que más fácil se da por
+  bueno.** El test no comprueba la etiqueta: comprueba que **el lado fijo sea la
+  pata en USD y valga exactamente el bracket**. Una inversión pone ahí un número
+  de cientos de miles en la moneda equivocada, así que no puede pasar.
+
+  Cuatro mutaciones, las cuatro atrapadas y compilando. La inversión de
+  `fixed_side` cae **en los dos sitios donde podría introducirse**: en el adapter
+  (2 tests) y en `money.ts`, la fuente única (10 tests, incluidos los seis casos
+  dorados). También caen `ask`/`bid` cruzados y `fee_pct: 0` en vez de
+  `undefined`.
+
+  **Cableado verificado de punta a punta contra fuentes reales**, con store en
+  memoria para no tocar la base: registro → orquestador → `trm=3072.27`,
+  `mid_market=3079.23 (yahoo)`, 8 filas de bitso, `sources_failed` vacío,
+  `exitCode` 0.
+
+
 ### Sigue
 
-**Fase 3 — los seis adapters de cotización**, de simple a complejo, empezando por
-**T012 `bitso`**: `ask`/`bid` del ticker `usdt_cop`, ocho filas por corrida, la
-tasa no varía por monto y lo que varía es el lado variable vía
-`computeAmounts()`.
+**T013 — `dolarapp`** `[P]`. `ask`/`bid` de `v1/tickers?currencies=COP`,
+`asset: 'usdc'`, `channel: 'fintech'`. Sin comisión explícita: `fee_*` queda
+`undefined`, nunca cero.
 
-Cada uno de los seis arrastra las mismas tres obligaciones: fixture real en
-`fixtures/`, línea en `registry.ts`, y el límite de tasa anotado en la tabla de
-`http.ts` — la cifra con su enlace, o constancia de que la fuente no publica
-ninguna.
+Quedan cinco adapters (T013–T017). Los tres primeros están marcados `[P]`, así
+que pueden ir en cualquier orden. Cada uno arrastra las mismas tres
+obligaciones, y el patrón de `bitso` ya deja resueltos el mapeo de lados, la
+forma del tipo de respuesta externa y la batería de mutaciones a repetir.
 
 ### A medias
+
+- **El límite de tasa de Bitso tampoco viene en la respuesta.** Verificado el
+  2026-09-13 sobre un 200 en vivo de `/v3/ticker/?book=usdt_cop`: sin
+  `X-RateLimit-*`, sin `Retry-After`, sin `Cache-Control`. Bitso documenta
+  límites por endpoint en su referencia de API, pero **la cifra no la leí del
+  cable y no la afirmo**. El ticker sí trae su `created_at`, que en esa captura
+  tenía segundos: es un libro que actualiza en continuo, así que no hay ciclo de
+  refresco al que ir más lento, solo un techo que no medí.
+
 
 - **`market_history.close` guarda menos precisión de la que manda Yahoo.**
   Yahoo devuelve `4283.6298828125` —artefacto de coma flotante— y la columna es

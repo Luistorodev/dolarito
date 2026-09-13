@@ -51,7 +51,7 @@ describe('the registry today', () => {
     // line there and one number here, and nothing anywhere else.
     assert.deepEqual(
       ADAPTERS.map((adapter) => adapter.id),
-      ['trm', 'mid_market'],
+      ['trm', 'mid_market', 'bitso'],
     );
   });
 
@@ -63,14 +63,21 @@ describe('the registry today', () => {
     );
   });
 
-  it('still reports all eight providers as uncovered', () => {
-    // Both references cover no provider and never enter a ranking
-    // (Art. III.4). The eight only start shrinking with T012.
+  it('covers bitso and reports the other seven as uncovered', () => {
+    // The references cover no provider and never enter a ranking (Art. III.4),
+    // so the count that shrinks is driven by the quote adapters alone. Edited
+    // as T013 to T017 land.
     const report = inspectRegistry();
-    assert.equal(report.uncovered.length, 8);
-    assert.deepEqual(report.uncovered, PROVIDERS.map((p) => p.id).sort());
-    assert.equal(report.coveredProviderCount, 0);
-    assert.deepEqual(report.problems, [], 'a registry of references alone is coherent');
+    assert.equal(report.coveredProviderCount, 1);
+    assert.ok(!report.uncovered.includes('bitso'), 'bitso now has a source');
+    assert.equal(report.uncovered.length, 7);
+    assert.deepEqual(
+      report.uncovered,
+      PROVIDERS.map((p) => p.id)
+        .filter((id) => id !== 'bitso')
+        .sort(),
+    );
+    assert.deepEqual(report.problems, []);
   });
 });
 
