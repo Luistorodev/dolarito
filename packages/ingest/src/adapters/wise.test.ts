@@ -103,6 +103,21 @@ describe('the amounts are the provider’s own', () => {
     );
   });
 
+  it('leaves fee_fixed_usd undefined when the entry states no fee at all', () => {
+    // No fixture exercises this: all three providers state a fee on every
+    // capture, and instarem's is a real 0. Without this case a mutation that
+    // turns an absent fee into 0 survives the whole suite — which is exactly
+    // what happened before it was written. "Not stated" is not "free"
+    // (Art. I.1), and the difference is invisible once it reaches the database.
+    const noFee: WiseResponse = {
+      providers: [{ alias: 'wise', quotes: [{ rate: 3086.28, receivedAmount: 280_357.68 }] }],
+    };
+
+    const row = buildQuotes(noFee, 100, CAPTURED)[0];
+    assert.equal(row?.fee_fixed_usd, undefined);
+    assert.notEqual(row?.fee_fixed_usd, 0, 'an unknown fee is not a free transfer');
+  });
+
   it('leaves fee_pct undefined — this endpoint states no percentage', () => {
     for (const row of buildQuotes(fixture(100), 100, CAPTURED)) {
       assert.equal(row.fee_pct, undefined);

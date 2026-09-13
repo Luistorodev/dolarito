@@ -650,19 +650,39 @@ probado. Lo destapó una mutación, no el verde.
   proveedores.
 
 
+- **T016 — `binance_p2p`**, **T017 — `wise`**, **T018 — workflow de ingesta** y
+  **T019 — alerta de silencio**. Los ocho proveedores cubiertos.
+  - `binance_p2p`: ponderado por volumen, con **filtro de mínimos** que el plan
+    no especificaba y decide el resultado — comprando 100 el anuncio más barato
+    no califica. Dos casos dorados del humano. `below_minimum` se dispara cada
+    corrida; `insufficient_liquidity` se prueba con libro recortado a propósito.
+  - `wise`: una llamada, tres proveedores. **Un ausente no genera fila** — la API
+    no dice por qué falta y `below_minimum` sería inferirlo.
+  - `run-ingest.ts` + `.github/workflows/ingest.yml`, cron `*/15` con
+    `workflow_dispatch` y `concurrency` para que una corrida lenta no se solape.
+  - `silence.ts` + `check-silence.ts` + workflow diario. Distingue **ingesta
+    colgada** de **mercado cerrado** por repetición de marca **y** valor a lo
+    largo de corridas, que es lo único que las separa.
+
+  **Primera corrida real contra la base:** 74 filas, 2 referencias, 8 de 8
+  fuentes ok, exit 0, 37,5 s. `latest_quotes` devuelve rankings con márgenes.
+  `check:silence` responde "nothing is silent".
+
+  **Cinco suposiciones del plan resultaron falsas y están corregidas**, todas
+  contra respuesta verificada: el mínimo de 5 USD de Eldorado, las 12 filas fijas
+  de Wise, la regla 6 del spread aplicada a P2P, la monotonía del ponderado, y
+  `below_minimum` faltando en Binance mientras sobraba en Eldorado.
+
+
 ### Sigue
 
-**T016 — `binance_p2p`**, con dos cosas ya verificadas esperándolo: el
-`tradeType` invertido por diseño —se pide `BUY` y los anuncios responden
-`SELL`— y que el bracket de 1 **sí** va `out_of_range`/`below_minimum` ahí,
-mientras `insufficient_liquidity` necesita un fixture recortado a propósito para
-probarse.
+**Fase 4 terminada salvo lo que depende de vos.** Lo que sigue es **T020**, la
+ventana de acumulación de 7 días — y es barrera dura: ninguna tarea de frontend
+puede empezar antes (Art. VI.3).
 
-Después **T017 — `wise`**, que cierra la cobertura de los ocho.
+Para que T020 arranque hace falta que el cron corra solo, y para eso hacen falta
+los cuatro secretos del repo. Ver el overview al final de la sesión.
 
-**Antes de T025 hay que resolver la asimetría del ranking** marcada
-`[NECESITA DECISIÓN]` en `tasks.md`: Eldorado da 4 filas por bracket y los demás
-1, y tomar su mejor método lo favorece frente a quien tiene una sola opción.
 
 ### A medias
 

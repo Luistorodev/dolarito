@@ -1,0 +1,58 @@
+# Ingest — one capture cycle every 15 minutes (T018).
+#
+# The cadence is the project's, not any source's: every provider we poll
+# refreshes faster than this (see the table in packages/ingest/src/http.ts).
+# Fifteen minutes is the conservative side of Article V.3 by a wide margin.
+#
+# There is no build step. packages/ingest runs TypeScript directly through
+# Node's native type stripping, which is why nothing is compiled here.
+name: ingest
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub queues rather than guarantees this, and skips
+    # runs under load — which is one of the reasons the silence alarm (T019)
+    # exists rather than trusting the cron.
+    - cron: '*/15 * * * *'
+  # Manual trigger, for the first run and for debugging without waiting.
+  workflow_dispatch:
+
+# A late run must never overlap the next one: two cycles writing at once would
+# collide on the unique index of `quotes`, and the second would fail for a
+# reason that has nothing to do with any source.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    # One cycle takes about 35 seconds against live sources. Ten minutes is
+    # room for a slow source plus the backoff, and still far below the next
+    # scheduled run.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run one capture cycle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # Writes only. It never reaches a browser bundle (plan.md §2.3).
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # Article V.4: identifiable, with a way to reach us. http.ts refuses
+          # to send a request without it, so a missing secret fails loudly here
+          # rather than quietly presenting no identity to eight providers.
+          INGEST_USER_AGENT: ${{ secrets.INGEST_USER_AGENT }}
+        run: pnpm --filter @dolarito/ingest run ingest

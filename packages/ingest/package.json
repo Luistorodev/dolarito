@@ -7,10 +7,12 @@
   "scripts": {
     "typecheck": "tsc",
     "test": "node --test",
+    "ingest": "node src/scripts/run-ingest.ts",
     "check:supabase": "node src/scripts/check-supabase.ts",
     "check:rls": "node src/scripts/check-rls.ts",
     "check:db": "node src/scripts/check-db-roundtrip.ts",
     "check:references": "node src/scripts/check-references.ts",
+    "check:silence": "node src/scripts/check-silence.ts",
     "seed:providers": "node src/scripts/seed-providers.ts",
     "seed:history": "node src/scripts/seed-market-history.ts"
   },
