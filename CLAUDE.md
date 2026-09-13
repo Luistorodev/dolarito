@@ -205,21 +205,65 @@ muda por un bug de ingesta) y a todo test que afirme una ausencia.
   `ok` con un solo lado, `out_of_range` sin motivo, `ok` con `limit_reason`, y
   un `status` fuera de la unión—. El primero es el criterio de T006.
 
+- **T006b — `money.ts` con tests dorados.** `computeAmounts()` en
+  `packages/ingest/src/money.ts`, única fuente autorizada para derivar montos.
+
+  **Los cuatro casos dorados los calculó el humano a mano.** Antes de escribir
+  nada los reproduje por separado con aritmética decimal exacta, no con la
+  implementación: los cuatro dieron. El caso C es el que fija el redondeo —
+  100/0,9901 × 3088 = 311.887,688…, que redondea a 311.888.
+
+  **Política de redondeo, documentada en el propio archivo:** solo el lado COP
+  se redondea, y una sola vez, al final. El lado USD nunca se deriva —
+  `bracket_usd` denomina el lado fijo en ambas direcciones, así que sale igual
+  que entró — y el USD neto o bruto que producen las comisiones es un
+  intermedio que se convierte pero nunca se reporta. Mantenerlo sin redondear es
+  lo que hace salir bien a C. El COP redondea al entero, mitad hacia arriba: el
+  peso no tiene centavos en la práctica, y el desempate se aplica igual en las
+  dos direcciones para que no favorezca a ningún proveedor.
+
+  **N3 resuelta.** La inversa deshace la cadena al revés: suma la fija antes de
+  dividir por la porcentual, `(bracket + fija) / (1 − pct)`. Hacerlo en orden
+  directo subestimaría lo que la persona paga.
+
+  Verificado además con tres mutaciones deliberadas. Dos las atrapa la suite.
+  **La tercera no** — ver "A medias".
+
+
 ### Sigue
 
-**T006b — `money.ts` con tests dorados.** ⚠️ Barrera dura: ningún adapter puede
-escribirse antes de cerrarla (Art. VII.1).
+**Cerrar el hueco de T006b** (abajo), y después **T006c — `http.ts`**: salida de
+red única, User-Agent identificable con contacto, timeout de 10 s y backoff ante
+429, 5xx **y 504** (ver la nota del arranque en frío).
 
-**Los casos dorados los calcula el humano a mano, no yo.** Ya los tiene. Mi
-parte es implementar `computeAmounts()` y codificar esos casos como test, no
-inventarlos: un caso dorado que yo derive de mi propia implementación no prueba
-nada — confirma que el código hace lo que el código hace.
-
-N3 la toca: el orden canónico de `plan.md` §3.1 está descrito solo en directo, y
-con `fixed_side: 'out'` el cálculo corre al revés. Los casos tienen que fijar
-también la inversa.
+Recién entonces los adapters. La barrera del Art. VII.1 está levantada por
+criterio, pero con la salvedad de abajo.
 
 ### A medias
+
+- **El orden canónico en directo no está fijado por ningún caso dorado.**
+  Salió de una prueba de mutación: invertir el orden en `usd_to_cop` —aplicar la
+  fija antes que la porcentual— **pasa los diez tests**. El motivo es que ningún
+  caso directo lleva las dos comisiones a la vez: A no tiene ninguna y B solo la
+  fija, y con una sola el orden no cambia el resultado. La diferencia es
+  `fija × pct × rate`; con 500 USD, 21,40 fijos, 0,99 % y 3080 serían 653 COP,
+  hoy invisibles.
+
+  El criterio de T006b está cumplido —cuatro casos, dos por dirección,
+  verificados a mano— pero el criterio no alcanza para pinchar esto. **Hace
+  falta un quinto caso calculado a mano: `usd_to_cop` con `fee_pct` y
+  `fee_fixed_usd` los dos distintos de cero.** No lo genero yo.
+
+  Atenuante: de los tres adapters que usan `amounts_source: 'computed'`
+  (bitso, buda, dolarapp), **ninguno pasa comisiones** según `plan.md` §3.1 —
+  dolarapp las lleva dentro del precio y los otros dos cotizan del libro. Así
+  que hoy ninguna ruta de producción ejerce el camino sin fijar. Pero
+  `computeAmounts()` es fuente única y una fuente futura sí puede traer las dos.
+
+  El test de N3 tiene un problema emparentado, más leve: **la expectativa la
+  calcula el propio test** a partir de la fórmula, en vez de un número calculado
+  a mano. Atrapa la mutación, pero sobre base más débil que A–D. Un sexto caso
+  —`cop_to_usd` con ambas comisiones, a mano— lo arreglaría.
 
 - **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**
   El remoto existe: `origin` apunta a `https://github.com/Luistorodev/dolarito.git`
