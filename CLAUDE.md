@@ -256,18 +256,66 @@ probado. Lo destapó una mutación, no el verde.
   mitad negativa, documental.
 
 
+- **T006c — `http.ts`.** Salida de red única. Ningún adapter importa `fetch`.
+  Los cuatro puntos del criterio:
+  - **User-Agent (Art. V.4).** Se lee de `INGEST_USER_AGENT` y se **valida**:
+    ausente, sin URL ni correo, o todavía con el marcador `.invalid` de
+    `.env.example` ⇒ **error duro, no advertencia**. El Artículo V no se relaja,
+    y un contacto inalcanzable delante de una fuente es justo lo que V.4
+    prohíbe. Una advertencia se ignora el primer día ocupado.
+  - **Timeout de 10 s**, por intento, no por llamada. Vía `AbortSignal.timeout`.
+  - **Backoff exponencial (Art. V.5)** ante 429, 5xx **y 504**, y también ante
+    fallo de transporte. 1000 → 2000 → 4000 ms con jitter de ±20 %, cuatro
+    intentos. **`Retry-After` manda sobre nuestro horario** cuando la fuente lo
+    envía: es la fuente declarando su cadencia, que es el fondo de V.3.
+    Un 4xx no reintenta y no duerme: un 404 no se vuelve 200 por insistir.
+  - **Cadencias declaradas (Art. V.3)**, documentadas en el propio archivo. Ver
+    la salvedad en "A medias": la mitad de la tabla dice *sin verificar*, y dice
+    eso a propósito.
+
+  **Las siete mutaciones caen, ninguna sobrevive.** La que pediste explícitamente
+  —reintentar sin dormir, con el reintento intacto— voltea cinco tests, porque
+  cada uno afirma las tres cosas juntas: que reintentó, que durmió antes, y con
+  qué números. Las otras seis: backoff lineal, 5xx fuera de reintentables,
+  ignorar `Retry-After`, reintentar el 404, quitar el User-Agent, y desconectar
+  el timeout de la señal.
+
+  **La séptima encontró un defecto en mi propio test.** Con el timeout
+  desconectado, el test de aborto no fallaba: **colgaba el suite entero**. Un
+  cuelgue es peor señal que un rojo — en CI es un job trabado, no un reporte.
+  Lleva `{ timeout: 1_000 }` y ahora sale 1 en tiempo acotado. Node lo cuenta
+  como `cancelled`, no `fail`, así que **el resumen dice `fail 0` mientras el
+  código de salida es 1**: mirar el código de salida, no el conteo.
+
+
 ### Sigue
 
-**T006c — `http.ts`.** Salida de red única: User-Agent identificable con forma
-de contacto (Art. V.4), timeout de 10 s, backoff ante 429, 5xx **y 504** (ver la
-nota del arranque en frío), y la cadencia declarada de cada fuente documentada
-en el propio archivo.
+**T007 — Adapter falso.** Filas fijas, sin red, con un caso `out_of_range` y uno
+que lanza, para cubrir los dos caminos del Art. I.2.
 
-Después **T007 — adapter falso**, y recién ahí los adapters reales. La barrera
-del Art. VII.1 está levantada limpia: T006b cerró con el orden canónico fijado
-en las dos direcciones.
+Después **T008 — orquestador**, donde entra N2: cuenta proveedores pero ejecuta
+adapters, y Wise es 1 adapter y 3 proveedores.
+
+**Antes de cualquier adapter real hace falta un `INGEST_USER_AGENT` con contacto
+de verdad** — ver "A medias". No es opcional: el cliente se niega a salir.
 
 ### A medias
+
+- **`INGEST_USER_AGENT` no está puesto, y el marcador de `.env.example` está
+  rechazado a propósito.** `http.ts` no deja salir ninguna petición sin un
+  contacto que resuelva. Hoy no bloquea nada —no hay adapter real— pero
+  **bloquea T010 en adelante**. Hace falta una URL o un correo reales.
+
+- **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
+  Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,
+  Yahoo hasta 1 minuto, `open.er-api.com` diaria. **Sin leer: los límites de tasa
+  de bitso, buda, binance_p2p, eldorado y wise.** No inventé ninguno — donde no
+  sé, la tabla dice que no sé, porque un intervalo inventado se usaría para
+  justificar nuestra propia cadencia, que es el Art. I aplicado a nosotros
+  mismos. Cada tarea de adapter (T012, T014, T015, T016, T017) tiene que anotar
+  la cifra real ahí. Hasta entonces, los 15 minutos son demostrablemente
+  conservadores contra la primera mitad de la tabla y **no** contra la segunda.
+
 
 - **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**
   El remoto existe: `origin` apunta a `https://github.com/Luistorodev/dolarito.git`
@@ -278,9 +326,10 @@ en las dos direcciones.
   T002 devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint
   daba 401 estable, así que el gateway estaba arriba y lo que tardaba era la
   base. El reintento inmediato funcionó, y las corridas de T003 a T005 ya no lo
-  reprodujeron. No es un fallo del código, pero **el backoff de T006c debe cubrir
-  504 además de 429 y 5xx**, o el primer ciclo tras una pausa del proyecto
-  contará como fuente caída.
+  reprodujeron. No es un fallo del código. **Ya está cubierto:** `http.ts`
+  reintenta el 504 junto con 429 y el resto de los 5xx, con un test propio que lo
+  nombra, así que el primer ciclo tras una pausa del proyecto ya no cuenta como
+  fuente caída. Queda anotado por qué la regla existe.
 - **`process.exit()` revienta en Windows con un fetch abierto.** Tira
   `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` de libuv y el código
   de salida se pierde (3221226505). Todos los scripts usan `process.exitCode` y

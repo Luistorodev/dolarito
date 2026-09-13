@@ -76,3 +76,44 @@ export function readSupabaseEnv(): SupabaseEnv {
 
   return { url, serviceRoleKey, anonKey };
 }
+
+/**
+ * The outbound identity, required before any request leaves the process
+ * (constitution Art. V.4).
+ *
+ * Absent or contactless is a hard error, not a warning. Article V is one of the
+ * three that "no se relajan por conveniencia de implementación", and a request
+ * carrying no way to reach us is exactly the thing it forbids. A warning would
+ * be ignored on the first busy day.
+ */
+export function readIngestUserAgent(): string {
+  loadRootEnvFile();
+
+  const value = process.env['INGEST_USER_AGENT'];
+  if (value === undefined || value.trim() === '') {
+    throw new MissingEnvError(['INGEST_USER_AGENT']);
+  }
+
+  const agent = value.trim();
+
+  // A contact is the whole point: a URL or an email address someone can use.
+  const hasContact = /https?:\/\/\S+|[^\s@]+@[^\s@]+\.[^\s@]+/.test(agent);
+  if (!hasContact) {
+    throw new Error(
+      `INGEST_USER_AGENT must carry a way to reach us — a URL or an email ` +
+        `address (constitution Art. V.4). Got: ${agent}`,
+    );
+  }
+
+  // `.invalid` is the reserved placeholder TLD, and .env.example ships one.
+  // Letting it out would put an unreachable contact in front of every source.
+  if (/\.invalid\b/i.test(agent)) {
+    throw new Error(
+      `INGEST_USER_AGENT still holds the .env.example placeholder, whose ` +
+        `contact does not resolve. Replace it with a real URL or email before ` +
+        `any request reaches a source (constitution Art. V.4). Got: ${agent}`,
+    );
+  }
+
+  return agent;
+}
