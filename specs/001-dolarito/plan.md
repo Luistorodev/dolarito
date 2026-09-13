@@ -428,7 +428,7 @@ comprobación que distingue el mapeo correcto del invertido es la del valor.
 
 | Adapter | Particularidad |
 |---|---|
-| `eldorado` | Un POST por bracket **y por método de pago**. Es el único que multiplica filas por método. Usa `fixedSide` y `amountIn`/`amountOut`, que mapean directo a nuestro contrato. `fees.total[].rate` es la fracción (→ `fee_pct`); `fees.total[].value` es el monto absoluto (→ `fee_amount_usd`). **No confundirlos.** `amounts_source: 'provider'`. Mínimo de 5 USD. |
+| `eldorado` | **Base:** `https://74j6q7lg6a.execute-api.eu-west-1.amazonaws.com/stage/orderbook` — `GET /methods` para los IDs, `POST /public/v2/quote` para cotizar. **La URL faltaba en este documento** hasta 2026-09-13; sin ella el adapter no era implementable, y `api.eldorado.io` lleva a otra cosa: la API de socios, con client credentials y KYC, que el Art. V.2 dejaría fuera del proyecto. Un POST por bracket **y por método de pago**: 11 métodos COP activos, y el precio varía entre ellos de verdad (3098 en Bancolombia contra 3800 en `bank_tx_co`, 22% peor, medido 2026-09-13). Usa `fixedSide` y `amountIn`/`amountOut`, que mapean directo a nuestro contrato. `fees.total[].rate` es la fracción (→ `fee_pct`); `fees.total[].value` es el monto absoluto en USDT (→ `fee_amount_usd`). **No confundirlos: vienen los dos.** `amounts_source: 'provider'`. **Solo se cotizan 4 de los 11 métodos** y **no hay mínimo de 5 USD**: ver §3.2. |
 | `dolarapp` | `ask`/`bid` directos, sin comisión explícita: va dentro del precio. `fee_*` queda `undefined`. |
 | `binance_p2p` | No tiene precio único. Calcula el **precio ponderado por volumen** para el bracket, recorriendo los anuncios hasta cubrir el monto. Guarda el top 10 completo en `raw`. Dos llamadas: `BUY` y `SELL`. |
 | `bitso` | `ask`/`bid` del ticker. Spread estrecho, alta liquidez. |
@@ -436,6 +436,78 @@ comprobación que distingue el mapeo correcto del invertido es la del valor.
 | `wise` | Una llamada por bracket devuelve los tres proveedores de remesa. Produce 3 filas. `fee` (absoluto, USD) viene aparte de `rate`; `receivedAmount` es el monto final → `amounts_source: 'provider'`. |
 | `trm` | Referencia. Escribe en `runs`. Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC`. Devuelve `valor`, `vigenciadesde`, `vigenciahasta`. **Usar `vigenciahasta`** para saber hasta cuándo rige: resuelve fines de semana y festivos sin calcular calendario. |
 | `mid_market` | Referencia. Escribe en `runs`. Crítico para HU-08. Primaria: Yahoo Finance `USDCOP=X` (`query1.finance.yahoo.com/v8/finance/chart/`), granularidad hasta 1 minuto. Respaldo: `open.er-api.com` (diaria). Registrar siempre cuál respondió en `mid_market_src`. |
+
+### 3.2 Eldorado: lo que la verificación en vivo corrigió
+
+Todo lo de acá se midió contra respuestas reales el 2026-09-13. Dos cosas que
+este documento afirmaba **no tenían fuente y resultaron falsas**.
+
+**No hay mínimo de 5 USD.** Era un dato escrito sin verificar. La API cotiza
+0,5, 1 y 5 USD con `200` en todos los casos; no rechaza nada. Lo que existe es un
+**piso de comisión de 0,49 USDT**, que en montos chicos domina el precio:
+
+| Bracket | COP que se paga por USDT | `fees.total[].rate` |
+|---|---|---|
+| 0,5 | 6.221 | 0,4900 |
+| 1 | 5.215 | 0,3289 |
+| 5 | 3.538 | 0,0893 |
+| 100 | 3.129 | 0,0099 |
+
+Por lo tanto **el bracket de 1 USD genera fila `ok` con su precio real**, no
+`out_of_range`. No está fuera de rango: está caro. Marcarlo `out_of_range`
+afirmaría que el proveedor no opera a ese monto, que es falso, y escondería
+justo el dato que HU-04 quiere mostrar — el efecto de las comisiones fijas.
+Tampoco se agrega una marca propia de "comisión abusiva": fijar ese umbral nos
+convertiría en árbitros de qué precio es aceptable, y el `spec.md` §7 dice que
+informamos, no recomendamos. 5.215 contra 3.129 lo dice solo.
+
+**Los 4 métodos de pago que se cotizan, y por qué son 4 y no 11.**
+
+```
+bank_bancolombia   app_nequi_co   app_daviplata_co   app_llave_co
+```
+
+Criterio: concentran el uso real en Colombia. Los otros 7 son cola larga.
+
+**Esta restricción es nuestra, no de la fuente.** Eldorado no publica ningún
+límite de tasa: no hay `X-RateLimit-*`, `Retry-After` ni `Cache-Control` en el
+`GET /methods` ni en el `POST /public/v2/quote`. La recortamos por costo propio,
+no porque nos lo pidan.
+
+El costo es real y por eso se decide en este documento y no en el código. Cada
+cotización es un POST que **crea un registro del lado de ellos**: `preview: true`
+no lo evita — el `quoteId` se recupera después con
+`GET /public/v2/quote/{quoteId}`, y no existe endpoint de solo precio (se
+probaron `/rate`, `/price`, `/rates`, `/orderbook`: los cuatro 404).
+
+| Métodos | POST por ciclo | POST por día | Medido |
+|---|---|---|---|
+| 4 | 32 | ~3.070 | 40 s en serie |
+| 11 | 88 | ~8.450 | — |
+
+**Ampliar la lista es una decisión de producto con costo, no una constante que se
+toca al pasar.** Y tiene contrapartida medible: entre los 7 descartados hay
+precios que difieren de verdad — `bank_tx_co` cotiza 383.800 COP por 100 USDT
+contra 312.898 de Bancolombia, un 22% peor. Al dejarlos fuera, el ranking no
+muestra esa diferencia. Fue una decisión consciente, no un descuido.
+
+Entre los 4 elegidos el precio tampoco es uniforme, aunque la variación se
+concentra: comprando difieren en el bracket de 1 (5.215 contra 4.634) y son
+idénticos en 100, 500 y 1000; vendiendo es al revés — iguales en 1 y distintos
+en los tres brackets grandes.
+
+**Dos cosas más que el documento no recogía**, ambas en la respuesta y ninguna
+representable en el contrato actual:
+
+- **La cotización no es firme.** Trae `slippageTolerancePercent: 2` junto a
+  `amountIn.maxIn` al comprar y `amountOut.minOut` al vender. Se persiste el
+  `expected`, que es la cotización; el peor caso queda en `raw`. Quien opere
+  puede terminar hasta un 2% peor, y eso es más que la diferencia entre varios
+  proveedores del ranking.
+- **`expiresAt` está a 2 minutos de `createdAt`.** Con cadencia de 15 minutos, la
+  fila guardada está vencida 13 de cada 15 minutos. Sigue siendo una observación
+  real de lo que valía en su momento — que es lo que `captured_at` dice— pero la
+  interfaz no debería presentarla como un precio tomable.
 
 ## 4. Estructura del repo
 

@@ -195,10 +195,19 @@ Confundirlos corrompe los montos en silencio. Verificar contra una respuesta rea
 antes de implementar.
 Su API ya usa `fixedSide`, `amountIn` y `amountOut`: mapean directo al contrato y
 por eso `amounts_source: 'provider'` — no recalcular.
-Mínimo de 5 USD: el bracket de 1 genera fila con `status: 'out_of_range'` y
-`limit_reason: 'below_minimum'`.
-*Terminado cuando:* genera filas por método; el bracket de 1 USD queda
-`out_of_range`; y un test confirma que `fee_pct` recibió `rate` y no `value`.
+**Corregido contra respuesta verificada el 2026-09-13: no hay mínimo de 5 USD.**
+Era un dato afirmado sin fuente. La API cotiza 0,5, 1 y 5 USD con `200`; lo que
+existe es un piso de comisión de 0,49 USDT que en montos chicos domina el precio
+(1 USD sale a 5.215 COP/USDT contra 3.129 a bracket 100). El bracket de 1
+**genera fila `ok` con su precio real**: no está fuera de rango, está caro, y
+esconderlo tapa justo lo que HU-04 quiere mostrar. Ver `plan.md` §3.2.
+
+Solo se cotizan **4 de los 11 métodos** COP — `bank_bancolombia`, `app_nequi_co`,
+`app_daviplata_co`, `app_llave_co` — por costo propio, no por límite de la
+fuente. 4 × 4 brackets × 2 direcciones = **32 filas por corrida**, no 8.
+*Terminado cuando:* genera 32 filas, una por método × bracket × dirección; el
+bracket de 1 USD sale `ok` con su precio real y su `fee_pct` alto; y un test
+confirma que `fee_pct` recibió `rate` y no `value`.
 Además, la tabla de cadencias de `http.ts` queda anotada para esta fuente. Y el
 test incluye la aserción del spread por valor (`plan.md` §3).
 
@@ -216,6 +225,30 @@ nombre del campo y confiar en él es exactamente cómo se introduce el error.
 Acá la aserción del spread por valor no es una comprobación más: **es la única
 defensa real**, porque el mapeo invertido produce filas perfectamente bien
 formadas.
+
+**Revisado el supuesto de `insufficient_liquidity` (2026-09-13), y sobra a medias
+mientras falta el otro.** Medido: hay 260 anuncios del lado BUY y 347 del SELL, y
+1000 USDT se cubren con 1 a 3 anuncios. La liquidez **prácticamente nunca** va a
+quedar corta a nuestros brackets. No es un supuesto falso como el mínimo de
+Eldorado —puede pasar en una madrugada mala— pero es una rama que no se va a
+ejercer sola, así que **hay que probarla con un fixture recortado a propósito**;
+si no, nunca se sabrá si funciona.
+
+**Lo que sí falta es `below_minimum`, que este documento no menciona y va a
+dispararse en todas las corridas.** Cada anuncio trae `minSingleTransAmount`, y
+medido sobre 20 anuncios el mínimo más bajo equivale a 10,9 USDT:
+
+| Bracket | Anuncios que lo aceptan |
+|---|---|
+| 1 | **0 de 20** → `out_of_range` / `below_minimum` |
+| 100 | 8 de 20 |
+| 500 | 19 de 20 |
+| 1000 | 20 de 20 |
+
+Vale notar la simetría: el plan puso `below_minimum` en Eldorado, donde es falso,
+y lo omitió en Binance, donde es cierto en cada ciclo. Acá el bracket de 1 **sí**
+genera fila `out_of_range`, y por la razón correcta: ningún anuncio opera a ese
+monto.
 *Terminado cuando:* un test con fixture verifica el cálculo ponderado contra un
 resultado calculado a mano. Además, la tabla de cadencias de `http.ts` queda
 anotada para esta fuente. Y el test incluye la aserción del spread por valor
