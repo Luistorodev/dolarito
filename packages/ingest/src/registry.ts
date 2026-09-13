@@ -6,8 +6,9 @@
  * source cannot require a change anywhere in the orchestration path — and a
  * broken one cannot be reached by anything except `Promise.allSettled`.
  *
- * Both references are in (T010, T011), and five quote adapters (T012-T016).
- * One to go — `wise` (T017) — which closes the coverage of all eight.
+ * Complete: both references (T010, T011) and all six quote adapters
+ * (T012-T017), covering the eight catalogued providers. `wise` is the one that
+ * covers three of them from a single call — the reason N2 exists.
  *
  * The fake adapters are deliberately absent. They exist to exercise the
  * orchestrator in tests, and a fake in the production registry would write
@@ -19,6 +20,7 @@ import { createBitsoAdapter } from './adapters/bitso.ts';
 import { createBudaAdapter } from './adapters/buda.ts';
 import { createDolarAppAdapter } from './adapters/dolarapp.ts';
 import { createEldoradoAdapter } from './adapters/eldorado.ts';
+import { createWiseAdapter } from './adapters/wise.ts';
 import type { Adapter, QuoteAdapter, ReferenceAdapter } from './contract.ts';
 import { PROVIDERS } from './lib/providers.ts';
 import { createMidMarketAdapter } from './references/mid-market.ts';
@@ -32,7 +34,7 @@ export const ADAPTERS: Adapter[] = [
   createBudaAdapter(),
   createEldoradoAdapter(),
   createBinanceP2pAdapter(),
-  // T017 — wise           (quote, 3 providers)
+  createWiseAdapter(),
 ];
 
 export type RegistryReport = {

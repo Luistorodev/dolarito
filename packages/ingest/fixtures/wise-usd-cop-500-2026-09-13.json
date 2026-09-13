@@ -1,0 +1,147 @@
+{
+  "amount": 500,
+  "amountType": "SEND",
+  "providerCountry": null,
+  "providerTypes": [
+    "bank",
+    "moneyTransferProvider"
+  ],
+  "providers": [
+    {
+      "quotes": [
+        {
+          "dateCollected": "2026-09-13T21:20:26.396232Z",
+          "deliveryEstimation": {
+            "duration": null,
+            "providerGivesEstimate": true
+          },
+          "fee": 0,
+          "isConsideredMidMarketRate": false,
+          "markup": 1.06467394,
+          "rate": 3063.2553525349,
+          "receivedAmount": 1531627.68,
+          "sendAmount": null,
+          "sourceCountry": "US",
+          "targetCountry": "CO"
+        }
+      ],
+      "alias": "instarem",
+      "id": 107,
+      "logos": {
+        "normal": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/instarem.svg",
+          "pngUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/instarem.png"
+        },
+        "inverse": {
+          "svgUrl": null,
+          "pngUrl": null
+        },
+        "white": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/instarem--white.svg",
+          "pngUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/instarem--white.png"
+        },
+        "circle": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/instarem-mark.svg",
+          "pngUrl": null
+        },
+        "altText": "Instarem."
+      },
+      "name": "Instarem",
+      "partner": false,
+      "type": "moneyTransferProvider"
+    },
+    {
+      "quotes": [
+        {
+          "dateCollected": "2026-09-13T21:40:03.903913Z",
+          "deliveryEstimation": {
+            "duration": null,
+            "providerGivesEstimate": true
+          },
+          "fee": 1.99,
+          "isConsideredMidMarketRate": false,
+          "markup": 3.87223434,
+          "rate": 2976.3271059181,
+          "receivedAmount": 1482240.66,
+          "sendAmount": null,
+          "sourceCountry": "US",
+          "targetCountry": "CO"
+        }
+      ],
+      "alias": "western-union",
+      "id": 22,
+      "logos": {
+        "normal": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/western-union.svg",
+          "pngUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/western-union.png"
+        },
+        "inverse": {
+          "svgUrl": null,
+          "pngUrl": null
+        },
+        "white": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/western-union--white.svg",
+          "pngUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/western-union--white.png"
+        },
+        "circle": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/western-union-mark.svg",
+          "pngUrl": null
+        },
+        "altText": "Western Union"
+      },
+      "name": "Western Union",
+      "partner": false,
+      "type": "moneyTransferProvider"
+    },
+    {
+      "quotes": [
+        {
+          "dateCollected": "2026-09-13T22:11:02Z",
+          "deliveryEstimation": {
+            "duration": {
+              "min": "PT24H",
+              "max": "PT24H"
+            },
+            "providerGivesEstimate": true
+          },
+          "fee": 14.6,
+          "isConsideredMidMarketRate": true,
+          "markup": 0,
+          "rate": 3086.28,
+          "receivedAmount": 1498080.31,
+          "sendAmount": null,
+          "sourceCountry": null,
+          "targetCountry": null
+        }
+      ],
+      "alias": "wise",
+      "id": 39,
+      "logos": {
+        "normal": {
+          "svgUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo.svg",
+          "pngUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo.png"
+        },
+        "inverse": {
+          "svgUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo_inverse.svg",
+          "pngUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo_inverse.png"
+        },
+        "white": {
+          "svgUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo_white.svg",
+          "pngUrl": "https://wise.com/public-resources/assets/logos/wise-personal/logo_white.png"
+        },
+        "circle": {
+          "svgUrl": "https://dq8dwmysp7hk1.cloudfront.net/logos/wise-mark.svg",
+          "pngUrl": null
+        },
+        "altText": "Wise"
+      },
+      "name": "Wise",
+      "partner": false,
+      "type": "moneyTransferProvider"
+    }
+  ],
+  "sourceCountry": null,
+  "sourceCurrency": "USD",
+  "targetCountry": null,
+  "targetCurrency": "COP"
+}

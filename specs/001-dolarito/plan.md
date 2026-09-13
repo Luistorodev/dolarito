@@ -463,7 +463,7 @@ exclusión de los mejores anuncios, no por profundidad.
 | `binance_p2p` | No tiene precio único. Calcula el **precio ponderado por volumen** para el bracket, recorriendo los anuncios hasta cubrir el monto. Guarda el top 10 completo en `raw`. Dos llamadas: `BUY` y `SELL`. |
 | `bitso` | `ask`/`bid` del ticker. Spread estrecho, alta liquidez. |
 | `buda` | `min_ask`/`max_bid`. **Libro delgado en COP**: spread mucho más ancho. Se incluye, marcado. |
-| `wise` | Una llamada por bracket devuelve los tres proveedores de remesa. Produce 3 filas. `fee` (absoluto, USD) viene aparte de `rate`; `receivedAmount` es el monto final → `amounts_source: 'provider'`. |
+| `wise` | Una llamada por bracket devuelve **hasta** los tres proveedores de remesa, según cuáles devuelva la API. `fee` (absoluto, USD) viene aparte de `rate`; `receivedAmount` es el monto final → `amounts_source: 'provider'`. **Un proveedor ausente no genera fila** — ver §3.3. |
 | `trm` | Referencia. Escribe en `runs`. Endpoint: `https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC`. Devuelve `valor`, `vigenciadesde`, `vigenciahasta`. **Usar `vigenciahasta`** para saber hasta cuándo rige: resuelve fines de semana y festivos sin calcular calendario. |
 | `mid_market` | Referencia. Escribe en `runs`. Crítico para HU-08. Primaria: Yahoo Finance `USDCOP=X` (`query1.finance.yahoo.com/v8/finance/chart/`), granularidad hasta 1 minuto. Respaldo: `open.er-api.com` (diaria). Registrar siempre cuál respondió en `mid_market_src`. |
 
@@ -538,6 +538,32 @@ representable en el contrato actual:
   fila guardada está vencida 13 de cada 15 minutos. Sigue siendo una observación
   real de lo que valía en su momento — que es lo que `captured_at` dice— pero la
   interfaz no debería presentarla como un precio tomable.
+
+### 3.3 Wise: por qué son "hasta" 12 filas y no 12
+
+**Las 12 filas por corrida eran una suposición sin verificar.** Lo correcto es
+*hasta* 12, según qué proveedores devuelva la API. Conteo real observado el
+2026-09-13, consistente entre consultas repetidas:
+
+| `sendAmount` | Proveedores devueltos |
+|---|---|
+| 1 | solo `instarem` |
+| 5 | `instarem`, `western-union` |
+| 20 | `instarem`, `western-union` |
+| 100 / 500 / 1000 | los tres |
+
+Western Union aparece entre 1 y 5; Wise, entre 20 y 100.
+
+**La respuesta no dice por qué falta nadie.** No hay estado, ni motivo, ni
+entrada vacía: el proveedor simplemente no está en el array. Por eso un ausente
+**no genera fila de ningún tipo**, y en particular no se marca `below_minimum`:
+eso afirmaría una causa que la fuente no dio (Art. I.1).
+
+El patrón parece un mínimo, pero este endpoint es una **recolección periódica de
+comparaciones, no una cotización en vivo** — cada entrada trae su propio
+`dateCollected` —, así que una ausencia puede ser igual de bien un corredor que
+no cubren o una pasada de recolección que no completó del lado de ellos. No
+sabemos cuál, y el producto no inventa la diferencia.
 
 ## 4. Estructura del repo
 

@@ -264,8 +264,11 @@ anotada para esta fuente. Y el test incluye la aserción del spread por valor
 Una llamada por bracket devuelve Wise, Instarem y Western Union. Produce 3 filas
 por bracket, todas con `mode: 'remesa'`. Mapear `fee` a `fee_fixed_usd` y
 `deliveryEstimation` a `eta_minutes`.
-*Terminado cuando:* 12 filas por corrida (3 proveedores × 4 brackets) y test con
-fixture. Además, la tabla de cadencias de `http.ts` queda anotada para esta
+*Terminado cuando:* **hasta** 12 filas por corrida (3 proveedores × 4 brackets,
+según cuáles devuelva la API) y test con fixture. Verificado el 2026-09-13: en el
+bracket de 1 USD solo responde `instarem`, así que son 10. Un proveedor ausente
+**no genera fila** — la API no dice por qué falta y `below_minimum` sería
+inferirlo (`plan.md` §3.3). Además, la tabla de cadencias de `http.ts` queda anotada para esta
 fuente. Y el test incluye la aserción del spread por valor (`plan.md` §3).
 
 **T017 — `wise`**, continuación: `amounts_source: 'provider'` — `receivedAmount`
@@ -373,6 +376,12 @@ Las tres salidas, ninguna obviamente correcta:
 **No puede resolverse al implementar la UI.** Afecta qué consulta el servidor, qué
 significa una posición del ranking y si HU-01 sigue respondiendo la pregunta que
 promete. Decidir antes de escribir T025.
+
+**Además, en modo Remesa un proveedor puede faltar sin motivo conocido.** La API
+de Wise no reporta la ausencia ni su causa (`plan.md` §3.3), así que la interfaz
+**no debe inventar uno**. Si hay que mostrar algo, es **que no hay dato** — no que
+esté fuera de rango, ni que el proveedor no opere a ese monto. Verificado: en el
+bracket de 1 USD faltan Wise y Western Union en cada corrida.
 
 *Terminado cuando:* cambiar de bracket reordena, el bracket de 1 USD muestra
 los no disponibles con explicación, y la decisión de arriba está tomada y

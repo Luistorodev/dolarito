@@ -33,7 +33,7 @@
  * | `buda` | **`Cache-Control: max-age=2, public, s-maxage=2`**, observed 2026-09-13 on a live 200: Buda considers its own ticker fresh for 2 seconds. We poll 450x slower. No `X-RateLimit-*` or `Retry-After`. |
  * | `eldorado` | **No rate limit is published anywhere on the wire.** Checked 2026-09-13 on live 200s of both `GET /methods` and `POST /public/v2/quote`: no `X-RateLimit-*`, no `Retry-After`, no `Cache-Control`. So the restraint here is entirely ours — and it is not about cadence but about **volume**: 4 payment methods x 4 brackets x 2 directions = 32 POSTs per cycle, each one creating a record on their side that is never traded (plan.md §7.1). The methods list is a deliberate 4 of 11 for that reason. `/methods` is not called per cycle at all: 289 KB of payment-form schemas we would discard. |
  * | `binance_p2p` | **No rate limit is stated in the response.** Checked 2026-09-13 on live 200s of the ad search: no `X-RateLimit-*`, no `Retry-After`. Listings change continuously, so there is no refresh cycle to be slower than. Two POSTs per cycle, one per direction — the cheapest of the six quote adapters. |
- * | `wise` | Comparison endpoint. **Cadence and rate limit unread** (T017). |
+ * | `wise` | **`Cache-Control: no-cache, no-store, max-age=0, must-revalidate`**, observed 2026-09-13 on a live 200. No `X-RateLimit-*` or `Retry-After`. The endpoint is a periodic comparison harvest rather than a live quote — `dateCollected` on each entry says when Wise last polled that provider — so our fifteen minutes is coarser than anything it refreshes. Four GETs per cycle, one per bracket. |
  *
  * 15 minutes is comfortably conservative against every cadence in the first
  * table, and now against measured figures rather than description. Against
