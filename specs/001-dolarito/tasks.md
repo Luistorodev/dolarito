@@ -348,8 +348,29 @@ III.1: `amount_out` DESC cuando `fixed_side='in'`, `amount_in` ASC cuando
 `fixed_side='out'`. Nunca por tasa. Diferencia contra el primero expresada en
 dinero. Filas `out_of_range` visibles con su `limit_reason` (HU-04). Cada fila
 declara su `asset`: el usuario debe ver que el modo Local es stablecoin.
-*Terminado cuando:* cambiar de bracket reordena, y el bracket de 1 USD muestra
-los no disponibles con explicación.
+**[NECESITA DECISIÓN] — Eldorado produce 4 filas por bracket y dirección; los
+demás, 1.** Es el único con dimensión de método de pago (`payment_method`), y eso
+rompe la simetría del ranking de una forma que favorece sistemáticamente a
+Eldorado: tomar su mejor método lo compara contra el **único** método de
+proveedores que no tienen alternativa. No es lo mismo "el mejor de cuatro" que
+"el único", y el Artículo III.3 exige que toda comparación sea a monto fijo entre
+cosas comparables.
+
+Las tres salidas, ninguna obviamente correcta:
+
+| Opción | A favor | En contra |
+|---|---|---|
+| **Mejor método, declarando cuál** | Una fila por proveedor, ranking legible | Sigue siendo el mejor de cuatro contra el único de otros; la ventaja queda pero al menos visible |
+| **Todas las filas** | Honesto y completo | Eldorado ocupa 4 de cada 11 posiciones del ranking, y lo domina visualmente sin ser mejor |
+| **Un método por defecto** | Comparación pareja de verdad | Elegirlo es una decisión nuestra sobre qué método "cuenta", y castiga a Eldorado si el elegido es el peor |
+
+**No puede resolverse al implementar la UI.** Afecta qué consulta el servidor, qué
+significa una posición del ranking y si HU-01 sigue respondiendo la pregunta que
+promete. Decidir antes de escribir T025.
+
+*Terminado cuando:* cambiar de bracket reordena, el bracket de 1 USD muestra
+los no disponibles con explicación, y la decisión de arriba está tomada y
+aplicada.
 
 **T026 — Frescura del dato**
 Momento de captura visible en cada fila. Marca de desactualizado sobre 60

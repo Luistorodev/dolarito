@@ -602,6 +602,31 @@ real, que es la cobertura de un modo, no la cantidad.
 | Binance bloquea por IP | Backoff exponencial y reducción de cadencia. Si el bloqueo persiste, la fuente sale del alcance. **Prohibido rotar IPs o suplantar clientes** (Artículo V.6). |
 | Datos de Wise desfasados | Se marcan como estimaciones (HU-03) |
 | El bracket de 1 USD se ve vacío | Es intencional y está documentado en la UI |
+| **Eldorado cierra el acceso por los `quoteId` que nunca se operan** | Ver abajo. Si ocurre, **Art. V.6: se baja la cadencia o se retira la fuente**. Nunca rotar IPs ni suplantar clientes. |
+
+### 7.1 El riesgo de Eldorado, que es distinto de los demás
+
+Los otros siete proveedores se consultan con un `GET` que no deja nada del lado
+de ellos. Eldorado no: **cada cotización es un `POST` que crea un registro**, y
+`preview: true` no lo evita — el `quoteId` sigue recuperable después. No existe
+endpoint de solo precio (§3.2).
+
+Con 4 métodos × 4 brackets × 2 direcciones cada 15 minutos, eso son **~3.072
+registros diarios que nunca se convierten en una operación**. Alrededor de un
+millón al año, todos `GUEST`, todos vencidos a los dos minutos, ninguno operado.
+
+Es un patrón que desde su lado se ve exactamente como abuso, aunque la intención
+sea la contraria y el User-Agent diga quiénes somos y cómo contactarnos
+(Art. V.4). **Es el proveedor con más probabilidad de cortarnos el acceso, y el
+más justificado en hacerlo.**
+
+La respuesta si pasa ya está decidida y no admite creatividad: bajar la cadencia,
+o retirar la fuente del alcance. **Nunca rotar IPs, suplantar clientes ni buscar
+rodeos técnicos** (Art. V.6). Una fuente que no nos quiere no entra al producto.
+
+Vale también la vía honesta antes de que pase: escribirles y preguntar. El
+contacto del User-Agent existe justamente para que ellos puedan hacerlo primero,
+pero nada impide que empecemos nosotros.
 
 ## 8. Pendientes
 
