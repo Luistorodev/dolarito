@@ -676,15 +676,84 @@ probado. Lo destapó una mutación, no el verde.
 
 ### Sigue
 
-**Fase 4 terminada salvo lo que depende de vos.** Lo que sigue es **T020**, la
-ventana de acumulación de 7 días — y es barrera dura: ninguna tarea de frontend
-puede empezar antes (Art. VI.3).
+## ⛔ T020 — Ventana de acumulación, EN CURSO
 
-Para que T020 arranque hace falta que el cron corra solo, y para eso hacen falta
-los cuatro secretos del repo. Ver el overview al final de la sesión.
+**Inicio: 2026-09-13. Cierre previsto: 2026-09-20.**
+
+**Ninguna tarea de Fase 5 puede empezar antes de cerrarla** (Art. VI.3, regla 4
+de este archivo). No es una formalidad: existe para que no se diseñe interfaz
+sobre datos que todavía no se sabe cómo se comportan.
+
+Estado al arrancar: cron verde, disparado a mano desde Actions —50 s, corrida
+ingest #1—, 2 corridas en la base, 148 filas, 8 de 8 fuentes en ambas, cero
+fallos.
+
+### Qué revisar al cerrar la semana
+
+1. **Cobertura por fuente.** Cuántas corridas de ~672 (7 días × 96) registró cada
+   proveedor. Un proveedor al 95% y otro al 60% son problemas distintos: el
+   primero es ruido de red, el segundo es una fuente que no sirve. Mirar también
+   `runs.sources_failed` agrupado por causa — no es lo mismo un 504 que un
+   cambio de formato.
+
+2. **Huecos.** Corridas que faltan del todo (Actions encola y saltea bajo carga,
+   no garantiza el `*/15`), y brackets que nunca tuvieron dato. **Atención al
+   bracket de 1 USD:** hoy sale `out_of_range` en `binance_p2p` y ausente en
+   `wise`/`western_union` en cada corrida. Si resulta que nunca tiene datos útiles
+   en casi ningún proveedor, eso es una conclusión de producto sobre HU-04, no un
+   bug.
+
+3. **Variación entre los métodos de Eldorado.** Los 4 elegidos difieren solo en
+   algunas celdas —comprando en el bracket 1, vendiendo en los grandes—. Con una
+   semana se puede responder: **¿justifican 4 consultas por bracket, o colapsan
+   casi siempre en un precio?** Si colapsan, se recorta la lista y baja el riesgo
+   de §7.1. Si no, la asimetría de T025 es aún más importante.
+
+4. **Frecuencia del cruce en `binance_p2p`.** Medido una vez: en el bracket 500,
+   vender rendía más que comprar. Contar en cuántas corridas y en qué brackets
+   pasa. Si es frecuente y sistemático, deja de ser una curiosidad y pasa a ser
+   algo que la interfaz tiene que explicar (como RF-11c).
+
+5. **Si el líder del ranking cambia según el bracket.** Es la pregunta que HU-04
+   existe para responder. Si el líder es el mismo en los cuatro brackets, el
+   selector de monto aporta poco y conviene saberlo antes de construirlo; si
+   cambia, es el argumento central del producto y la interfaz debe destacarlo.
+
+6. **El defecto de `markup_vs_trm` — ver "A medias".** Con una semana se puede
+   medir cuánto se separa el margen anunciado del efectivo en los tres
+   proveedores con comisión fija.
+
+### Mientras tanto
+
+Nada de frontend. Lo que sí se puede hacer sin tocar Fase 5: las decisiones
+abiertas (N1, N4, la asimetría de T025), las correcciones menores de documentos
+antes de T029, y revisar `site_url`/`notes` del catálogo.
 
 
 ### A medias
+
+- **`markup_vs_trm` y `markup_vs_mid` usan la tasa anunciada, no la efectiva.**
+  `plan.md` §2.2 las define como `(trm - gross_rate) / trm`, y para los tres
+  proveedores con comisión fija eso **contradice el Art. III.1**, que dice que
+  nunca se ordena ni se compara por la tasa anunciada.
+
+  Visto en datos reales, vender 100 USD:
+
+  | Proveedor | `gross_rate` | fee USD | `markup_vs_trm` | Tasa efectiva | Puesto |
+  |---|---|---|---|---|---|
+  | wise | 3087,23 | 9,16 | **−0,0049** | 2804,44 | **11 de 11** |
+  | western_union | 2971,71 | 1,99 | 0,0327 | 2912,58 | 10 |
+  | binance_p2p | 3085,00 | — | −0,0041 | 3085,00 | 1 |
+
+  **Wise aparece con el mejor margen de los once y entrega el peor monto**, en la
+  misma fila. El orden del ranking está bien —va por `amount_out`— pero la
+  columna de margen dice lo contrario, y es la que HU-05 y la ficha de proveedor
+  van a mostrar.
+
+  No lo arreglé: cambia la vista de `plan.md` §2.2 y hay más de una salida
+  razonable (margen efectivo calculado desde el monto, o mantener los dos y
+  etiquetarlos). **Decisión tuya antes de T024/T025.**
+
 
 - **El riesgo de acceso de Eldorado, anotado en `plan.md` §7.1.** Es el único
   proveedor que se consulta con `POST` y **cada cotización crea un registro del
