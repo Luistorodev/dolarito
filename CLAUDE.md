@@ -41,7 +41,7 @@ Proyecto desarrollado con Spec Driven Development.
 
 ## Estado actual
 
-**Fase 0 en curso.** Última actualización: 2026-09-12.
+**Fase 0 en curso.** Última actualización: 2026-09-13.
 
 ### Completado
 
@@ -57,25 +57,67 @@ Proyecto desarrollado con Spec Driven Development.
   rechaza `any` explícito.
   También se consolidaron los specs en sus rutas canónicas (`.specify/memory/`,
   `specs/001-dolarito/`) y se borraron dos árboles duplicados idénticos.
+- **T002 — Proyecto de Supabase.** Proyecto creado y `.env` local con las tres
+  variables. Tres archivos nuevos en `packages/ingest/src/`:
+  - `lib/env.ts` — carga el `.env` de la raíz con `process.loadEnvFile` de Node,
+    sin dependencia de `dotenv`. Exige las tres variables y reporta **todas** las
+    faltantes de una vez, con la ruta donde buscó. En Actions no habrá archivo y
+    las variables llegarán del entorno: su ausencia no es error.
+  - `lib/supabase.ts` — cliente con `service_role`, sin sesión ni refresco de
+    token. Solo servidor; nunca se importa desde `apps/web`.
+  - `scripts/check-supabase.ts` — el script de verificación. Enumera tablas y
+    vistas leyendo el documento OpenAPI de PostgREST en `/rest/v1/`, única forma
+    de listarlas teniendo solo URL y llave. No imprime material de llave.
+
+  Verificado: `pnpm lint` y `pnpm typecheck` limpios; el script conecta contra el
+  proyecto real y lista **0 tablas**, que es lo correcto antes de T003, saliendo
+  con código 0. Los dos caminos de error también: sin variables lista las tres y
+  sale 1; con host inalcanzable imprime la causa y sale 1.
+
+  Dependencias: `@supabase/supabase-js` 2.116.0, `@types/node` 24.13.4.
+
+  **Decisión de build tomada acá, no en T001:** `packages/ingest` corre
+  TypeScript directo con el *type stripping* nativo de Node, sin paso de
+  compilación. Su `tsconfig.json` pasó a `noEmit` y sumó
+  `allowImportingTsExtensions` y `erasableSyntaxOnly`; por eso los imports
+  relativos llevan extensión `.ts`. Simplifica T018: no hay build antes del cron.
+  `tsconfig.base.json` quedó intacto. De paso se adelantó el script `typecheck`
+  que estaba previsto para T006: el bloqueo era TS18003 por cero archivos fuente.
 
 ### Sigue
 
-**T002 — Proyecto de Supabase.** No iniciada.
+**T003 — Migración del esquema.** No iniciada. Implementa `plan.md` §2 completo:
+las cuatro tablas, los CHECK, el índice único, los índices de consulta y la vista
+`latest_quotes` con el corte de 24 horas y los dos márgenes.
+
+**Incluye `market_history.loaded_at`** (N5, ya resuelta en `plan.md` §2 — ver
+abajo). Es la única columna del esquema que no venía en la versión original del
+plan.
 
 ### A medias
 
-- **El commit inicial de T001 está sin hacer.** `user.name` de Git está vacío
-  (el email sí está configurado). Los 23 archivos están en el índice. Falta
-  decidir el nombre de autor y si el commit va sobre `master` o sobre la rama
-  `001-dolarito` que sugiere `spec.md`.
-- **`packages/ingest` todavía no tiene script `typecheck`.** Con cero archivos
-  fuente `tsc` falla con TS18003. Se agrega en T006, junto con `contract.ts`.
+- **Los secretos del repo de T002 no están puestos, y hoy no pueden estarlo:**
+  `git remote -v` no devuelve nada, no hay repositorio en GitHub todavía. El
+  *criterio de terminado* de T002 (script que conecta y lista tablas) sí está
+  cumplido; lo que falta es la otra mitad del enunciado. **Bloquea T018**, no
+  T003.
+- **El proyecto de Supabase arranca en frío.** La primera corrida del script
+  devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint daba
+  401 estable, así que el gateway estaba arriba y lo que tardaba era la base. El
+  reintento inmediato funcionó. No es un fallo del código, pero **el backoff de
+  T006c debe cubrir 504 además de 429 y 5xx**, o el primer ciclo tras una pausa
+  del proyecto contará como fuente caída.
 
 ### Decisiones pendientes
 
-Ninguna bloquea T002, pero todas deben resolverse antes de la tarea que se
-indica. Salieron de la revisión de specs y **aún no están reflejadas en los
-documentos de gobierno**.
+Ninguna bloquea T003 salvo N5, que ya está resuelta. Salieron de la revisión de
+specs y, salvo N5, **aún no están reflejadas en los documentos de gobierno**.
+
+**N5 — RESUELTA y ya escrita en `plan.md` §2.** `market_history` lleva
+`loaded_at timestamptz not null default now()`, con la nota en §2.1 que explica
+por qué el día del dato (`d`) y el día de la carga (`loaded_at`) son cosas
+distintas, y por qué es la única tabla donde difieren: en `quotes` y `runs` la
+captura *es* el evento. Queda implementarla en la migración de T003.
 
 | # | Qué | Antes de |
 |---|---|---|
@@ -83,7 +125,6 @@ documentos de gobierno**.
 | N2 | El orquestador cuenta proveedores pero ejecuta adapters. Wise es 1 adapter y 3 proveedores: una falla apaga 3 de 8 y rompe la métrica de cobertura. Falta el mapeo adapter → proveedores. | T008 |
 | N3 | El orden canónico de `computeAmounts()` está descrito solo en directo. Con `fixed_side: 'out'` el cálculo corre al revés. Los casos dorados deben fijar la inversa. | T006b |
 | N4 | "Clave de servidor" sin definir. La única de fábrica en Supabase es `service_role`, que también escribe: le daría escritura al tier web. Marcado en `.env.example` como `SUPABASE_SERVER_READ_KEY`. | T023 |
-| N5 | `market_history` no tiene marca de carga (Art. I.3). Agregar `loaded_at` o documentar la excepción. | T003 |
 | — | Dominio. Único pendiente que ya venía en los specs. | T030 |
 
 ### Correcciones menores sin aplicar a los documentos

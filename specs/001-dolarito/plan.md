@@ -115,9 +115,10 @@ create index on quotes (mode, direction, bracket_usd, status, captured_at desc);
 
 -- Histórico de mercado sembrado de una vez. Nunca se mezcla con las capturas.
 create table market_history (
-  d       date primary key,
-  close   numeric(14,4) not null,
-  src     text not null default 'yahoo_seed'
+  d          date primary key,
+  close      numeric(14,4) not null,
+  src        text not null default 'yahoo_seed',
+  loaded_at  timestamptz not null default now()   -- cuándo se trajo la fila
 );
 ```
 
@@ -153,6 +154,13 @@ dio: su fórmula interna es la verdad para esa fuente.
 **`asset` y `channel` reemplazan a `rail`.** Una sola columna no podía expresar
 que Binance P2P es p2p sobre USDT. Separarlas también hace explícito que el modo
 Local es íntegramente stablecoin, que la interfaz debe comunicar.
+
+**`market_history.loaded_at` separa el día del dato de la carga.** `d` es el
+día de cierre que la fila describe; `loaded_at` es cuándo lo trajimos. Sin esa
+segunda marca no hay forma de distinguir una siembra vieja de una resiembra, ni
+de auditar qué corrida de carga produjo qué filas, que es lo que pide el
+Artículo I.3. Es la única tabla donde ambas fechas difieren: en `quotes` y
+`runs` la captura *es* el evento.
 
 **`raw` es `not null`.** Coherente con lo anterior: solo escriben las
 observaciones, y toda observación tiene respuesta cruda.

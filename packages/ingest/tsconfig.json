@@ -2,7 +2,16 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist",
+
+    // This package is executed straight from TypeScript by Node's native type
+    // stripping (node >= 22), so there is no build step and nothing to emit.
+    // `erasableSyntaxOnly` keeps the source inside what stripping can handle.
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]
