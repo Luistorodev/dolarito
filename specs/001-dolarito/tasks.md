@@ -224,7 +224,37 @@ para disparo manual. Secretos desde el repo.
 Job diario que consulta si alguna fuente lleva más de 6 horas sin filas. Falla
 ruidosamente si la hay. Sirve además como actividad que evita que Actions
 deshabilite los cron por inactividad.
-*Terminado cuando:* falla a propósito al simular una fuente muda.
+
+**Para las referencias, el criterio NO puede ser `mid_market_at` contra
+`captured_at` en una sola corrida.** Medido en T011, el 2026-09-13, con el
+mercado FX cerrado: Yahoo devolvió un dato marcado ese mismo domingo a las
+20:00Z —minutos antes de la captura— aunque la última sesión había cerrado el
+viernes a las 22:59Z. El desfase de fin de semana es de **minutos, no de días**.
+
+Por qué importa: la intuición natural es "si el dato es viejo, algo se rompió", y
+con esa regla un mercado cerrado **nunca** dispararía la alarma, mientras una
+ingesta colgada tampoco lo haría — porque una ingesta colgada devuelve un
+`mid_market_at` que, visto en una sola fila, se ve igual de reciente que uno
+sano. Una corrida aislada no contiene la información necesaria. No es que el
+umbral esté mal calibrado: es que la señal no está ahí.
+
+Lo que sí distingue los dos casos es la **repetición a lo largo de varias
+corridas**, y hay que mirar la marca y el valor juntos:
+
+| A lo largo de N corridas | `mid_market_at` | `mid_market` | Qué es |
+|---|---|---|---|
+| Ingesta colgada | idéntico | idéntico | **incidente** |
+| Mercado cerrado | puede avanzar | quieto | normal, no se toca |
+| Mercado abierto | avanza | se mueve | sano |
+
+El caso que hay que atrapar es el primero: **la misma marca de tiempo repetida
+corrida tras corrida**. Un valor quieto por sí solo no es señal de nada — un fin
+de semana entero lo produce legítimamente, y el Artículo I.4 exige dejarlo
+quieto, no interpolarlo.
+
+*Terminado cuando:* falla a propósito al simular una fuente muda, y un test
+distingue una ingesta colgada —marca y valor repetidos en corridas sucesivas— de
+un fin de semana con el mercado cerrado, **sin marcar el segundo**.
 
 **T020 — Ventana de acumulación (7 días)** ⛔
 **No iniciar ninguna tarea de frontend hasta completar esta.** Dejar la ingesta
