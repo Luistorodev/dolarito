@@ -1,0 +1,124 @@
+{
+  "_fixture_note": "RECORTADO. Respuesta real de GET /methods del 2026-09-13, filtrada a currency=COP y sin el campo schema de cada metodo (formularios de pago, ~287 KB que no usamos). La respuesta completa trae 117 metodos y pesa 289 KB. Nada mas fue alterado.",
+  "data": [
+    {
+      "active": true,
+      "id": "bank_bancolombia",
+      "name": "Bancolombia (COP)",
+      "country": "CO",
+      "logo": "bank_bancolombia",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_bancolombia.png"
+    },
+    {
+      "active": true,
+      "id": "app_nequi_co",
+      "name": "Nequi (COP)",
+      "country": "CO",
+      "logo": "app_nequi_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/app_nequi_co.png"
+    },
+    {
+      "active": true,
+      "id": "app_daviplata_co",
+      "name": "Daviplata (COP)",
+      "country": "CO",
+      "logo": "app_daviplata_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/app_daviplata_co.png"
+    },
+    {
+      "active": true,
+      "id": "app_davivienda_co",
+      "name": "Davivienda (COP)",
+      "country": "CO",
+      "logo": "app_davivienda_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/app_davivienda_co.png"
+    },
+    {
+      "active": true,
+      "id": "bank_tx_co",
+      "name": "Transferencia bancaria (COP)",
+      "country": "CO",
+      "logo": "bank_tx_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_tx_co.png"
+    },
+    {
+      "active": true,
+      "id": "bank_bbva_co",
+      "name": "BBVA (COP)",
+      "country": "CO",
+      "logo": "bank_bbva_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_bbva_co.png"
+    },
+    {
+      "active": true,
+      "id": "bank_falabella_co",
+      "name": "Falabella (COP)",
+      "country": "CO",
+      "logo": "bank_falabella_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_falabella_co.png",
+      "p2pDisabled": true,
+      "payerDetailRequired": true
+    },
+    {
+      "active": true,
+      "id": "app_movii_co",
+      "name": "Movii (COP)",
+      "country": "CO",
+      "logo": "app_movii_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/app_movii_co.png"
+    },
+    {
+      "active": true,
+      "id": "bank_bogota_co",
+      "name": "Banco de Bogotá (COP)",
+      "country": "CO",
+      "logo": "bank_bogota_co",
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_bogota_co.png",
+      "p2pDisabled": true
+    },
+    {
+      "active": true,
+      "id": "app_llave_co",
+      "name": "Llave Bre-B (COP)",
+      "country": "CO",
+      "logo": "app_llave_co",
+      "currency": "COP",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "llave": {
+            "description": "{ \"en\": \"Llave\", \"pt\": \"Llave\", \"es\": \"Llave\" }",
+            "examples": [
+              "1234567890"
+            ],
+            "title": "{ \"en\": \"Llave\", \"pt\": \"Llave\", \"es\": \"Llave\" }",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llave"
+        ]
+      },
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/app_llave_co.png"
+    },
+    {
+      "id": "bank_nubank",
+      "name": "Nubank (COP)",
+      "country": "CO",
+      "logo": "bank_nubank",
+      "active": true,
+      "currency": "COP",
+      "iconUrl": "https://cdn.eldorado.io/api/assets/payment_methods/bank_nubank.png",
+      "payerDetailRequired": true
+    }
+  ]
+}

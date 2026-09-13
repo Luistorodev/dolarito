@@ -608,22 +608,73 @@ probado. Lo destapó una mutación, no el verde.
   sosteniéndose contra datos reales — bitso 0,15%, dolarapp 0,87%, buda 2,04%.
 
 
+- **T015 — `eldorado`.** `src/adapters/eldorado.ts`. **32 filas por corrida**, no
+  8: es el único con dimensión de método de pago. `amounts_source: 'provider'` —
+  su API ya habla nuestro contrato (`fixedSide`, `amountIn`, `amountOut`) y no se
+  recalcula nada.
+
+  **La URL faltaba en `plan.md` por completo**, y `api.eldorado.io` lleva a su API
+  de socios con client credentials y KYC, que el Art. V.2 dejaría fuera. La base
+  real quedó escrita en `plan.md` §3.1.
+
+  **Dos afirmaciones del plan resultaron falsas y están corregidas:**
+  - **No hay mínimo de 5 USD.** La API cotiza 0,5, 1 y 5 con `200`. Lo que hay es
+    un piso de comisión de 0,49 USDT. El bracket de 1 sale **`ok` con su precio
+    real** — 5.215 COP/USDT contra 3.129 a bracket 100. No está fuera de rango,
+    está caro, y esconderlo tapa justo lo que HU-04 quiere mostrar.
+  - **T016 tiene el problema espejo:** `insufficient_liquidity` casi nunca se va
+    a disparar (260 y 347 anuncios; 1000 USDT se cubren con 1 a 3), y falta
+    `below_minimum`, que sí se dispara siempre — 0 de 20 anuncios aceptan 1 USD.
+
+  `fees.total[].rate` → `fee_pct` y `.value` → `fee_amount_usd`, cada uno a su
+  columna. A bracket 100 son 0,0099 y 0,9999: parecidos en magnitud, cien veces
+  distintos en significado. **La mutación que los intercambia voltea 4 tests.**
+
+  Cinco mutaciones, las cinco atrapadas y compilando: intercambiar `rate`/`value`,
+  reintroducir el mínimo inventado, invertir `fixed_side`, recortar la lista de
+  métodos en silencio, y declarar `computed` cuando los montos son de la fuente.
+
+  Tres detalles anotados en el código, ninguno representable en el contrato: la
+  cotización **no es firme** (`slippageTolerancePercent: 2`), `expiresAt` está a 2
+  minutos, y el `fee.value` viene con 18 decimales que un float64 no sostiene
+  (`0.999899000100999899` → `0.9998990001009999`; inocuo, la columna es
+  `numeric(12,4)`).
+
+  **A Eldorado no se le redondea el COP.** Los otros tres pasan por
+  `computeAmounts()`, que redondea al entero; este conserva los decimales de la
+  fuente, porque redondear el número de otro es editarlo. La inconsistencia es
+  deliberada y tiene test.
+
+  En vivo, los seis adapters: **56 filas** (8+8+8+32), `sources_failed` vacío,
+  `exitCode` 0, 31 s, y la aserción del spread sosteniéndose en los cuatro
+  proveedores.
+
+
 ### Sigue
 
-Quedan tres adapters, y son los tres complicados:
+**T016 — `binance_p2p`**, con dos cosas ya verificadas esperándolo: el
+`tradeType` invertido por diseño —se pide `BUY` y los anuncios responden
+`SELL`— y que el bracket de 1 **sí** va `out_of_range`/`below_minimum` ahí,
+mientras `insufficient_liquidity` necesita un fixture recortado a propósito para
+probarse.
 
-**T015 — `eldorado`**: un POST por bracket **y por método de pago**, el único que
-multiplica filas. `amounts_source: 'provider'` — su API ya usa `fixedSide`,
-`amountIn` y `amountOut`. Cuidado con `fees.total[].rate` (fracción → `fee_pct`)
-contra `.value` (absoluto → `fee_amount_usd`). Mínimo de 5 USD.
+Después **T017 — `wise`**, que cierra la cobertura de los ocho.
 
-**T016 — `binance_p2p`**: precio ponderado por volumen, y el `tradeType`
-invertido por diseño.
-
-**T017 — `wise`**: una llamada, tres proveedores, `amounts_source: 'provider'`.
-Es el que cierra la cobertura de los ocho y el que hace valer `providerIds`.
+**Antes de T025 hay que resolver la asimetría del ranking** marcada
+`[NECESITA DECISIÓN]` en `tasks.md`: Eldorado da 4 filas por bracket y los demás
+1, y tomar su mejor método lo favorece frente a quien tiene una sola opción.
 
 ### A medias
+
+- **El riesgo de acceso de Eldorado, anotado en `plan.md` §7.1.** Es el único
+  proveedor que se consulta con `POST` y **cada cotización crea un registro del
+  lado de ellos** — `preview: true` no lo evita, el `quoteId` se recupera después,
+  y no existe endpoint de solo precio. Son ~3.072 registros diarios que nunca se
+  operan, todos `GUEST`, todos vencidos a los 2 minutos. Desde su lado se ve como
+  abuso aunque la intención sea la contraria. **Es el proveedor con más
+  probabilidad de cortarnos el acceso y el más justificado en hacerlo.** Si pasa,
+  el Art. V.6 no admite creatividad: bajar cadencia o retirar la fuente.
+
 
 - **Tres adapters casi idénticos.** `bitso`, `dolarapp` y `buda` comparten la
   misma forma: un par ask/bid → ocho filas. El mapeo dirección → lado del libro,

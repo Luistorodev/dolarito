@@ -1,0 +1,198 @@
+{
+  "data": {
+    "quote": {
+      "quoteId": "5bce729d-f71e-4932-88dd-bfcbe2a00747",
+      "userId": "GUEST",
+      "displayRate": "3098",
+      "displayRateUnit": "IN_OVER_OUT",
+      "fees": {
+        "total": [
+          {
+            "value": "0.999899000100999899",
+            "rate": "0.0099",
+            "assetType": "EL_DORADO",
+            "asset": "TATUM-TRON-USDT"
+          }
+        ]
+      },
+      "expiresAt": "2026-09-13T21:40:07.838Z",
+      "createdAt": "2026-09-13T21:38:07.838Z",
+      "updatedAt": "2026-09-13T21:38:07.838Z",
+      "operationType": "FIAT_TO_EL_DORADO",
+      "fixedSide": "OUT",
+      "amountIn": {
+        "amountType": "VARIABLE_IN",
+        "expected": "312897.69",
+        "maxIn": "319155.64",
+        "slippageTolerancePercent": "2",
+        "assetType": "FIAT",
+        "asset": "COP",
+        "paymentMethodId": "bank_bancolombia"
+      },
+      "amountOut": {
+        "amountType": "FIXED",
+        "value": "100",
+        "assetType": "EL_DORADO",
+        "asset": "TATUM-TRON-USDT"
+      },
+      "status": "PREVIEW",
+      "currentStepIndex": 0,
+      "flightPlan": {
+        "type": "SINGLE_STEP",
+        "route": [
+          {
+            "amountIn": {
+              "amountType": "VARIABLE_IN",
+              "expected": "312897.69",
+              "maxIn": "319155.64",
+              "slippageTolerancePercent": "2",
+              "assetType": "FIAT",
+              "asset": "COP",
+              "paymentMethodId": "bank_bancolombia"
+            },
+            "amountOut": {
+              "amountType": "FIXED",
+              "value": "100",
+              "assetType": "EL_DORADO",
+              "asset": "TATUM-TRON-USDT"
+            },
+            "traits": {
+              "type": "p2p",
+              "duration": "PT5M"
+            }
+          }
+        ]
+      }
+    },
+    "bestQuote": {
+      "quoteId": "5bce729d-f71e-4932-88dd-bfcbe2a00747",
+      "userId": "GUEST",
+      "displayRate": "3098",
+      "displayRateUnit": "IN_OVER_OUT",
+      "fees": {
+        "total": [
+          {
+            "value": "0.999899000100999899",
+            "rate": "0.0099",
+            "assetType": "EL_DORADO",
+            "asset": "TATUM-TRON-USDT"
+          }
+        ]
+      },
+      "expiresAt": "2026-09-13T21:40:07.838Z",
+      "createdAt": "2026-09-13T21:38:07.838Z",
+      "updatedAt": "2026-09-13T21:38:07.838Z",
+      "operationType": "FIAT_TO_EL_DORADO",
+      "fixedSide": "OUT",
+      "amountIn": {
+        "amountType": "VARIABLE_IN",
+        "expected": "312897.69",
+        "maxIn": "319155.64",
+        "slippageTolerancePercent": "2",
+        "assetType": "FIAT",
+        "asset": "COP",
+        "paymentMethodId": "bank_bancolombia"
+      },
+      "amountOut": {
+        "amountType": "FIXED",
+        "value": "100",
+        "assetType": "EL_DORADO",
+        "asset": "TATUM-TRON-USDT"
+      },
+      "status": "PREVIEW",
+      "currentStepIndex": 0,
+      "flightPlan": {
+        "type": "SINGLE_STEP",
+        "route": [
+          {
+            "amountIn": {
+              "amountType": "VARIABLE_IN",
+              "expected": "312897.69",
+              "maxIn": "319155.64",
+              "slippageTolerancePercent": "2",
+              "assetType": "FIAT",
+              "asset": "COP",
+              "paymentMethodId": "bank_bancolombia"
+            },
+            "amountOut": {
+              "amountType": "FIXED",
+              "value": "100",
+              "assetType": "EL_DORADO",
+              "asset": "TATUM-TRON-USDT"
+            },
+            "traits": {
+              "type": "p2p",
+              "duration": "PT5M"
+            }
+          }
+        ]
+      }
+    },
+    "quotes": [
+      {
+        "quoteId": "5bce729d-f71e-4932-88dd-bfcbe2a00747",
+        "userId": "GUEST",
+        "displayRate": "3098",
+        "displayRateUnit": "IN_OVER_OUT",
+        "fees": {
+          "total": [
+            {
+              "value": "0.999899000100999899",
+              "rate": "0.0099",
+              "assetType": "EL_DORADO",
+              "asset": "TATUM-TRON-USDT"
+            }
+          ]
+        },
+        "expiresAt": "2026-09-13T21:40:07.838Z",
+        "createdAt": "2026-09-13T21:38:07.838Z",
+        "updatedAt": "2026-09-13T21:38:07.838Z",
+        "operationType": "FIAT_TO_EL_DORADO",
+        "fixedSide": "OUT",
+        "amountIn": {
+          "amountType": "VARIABLE_IN",
+          "expected": "312897.69",
+          "maxIn": "319155.64",
+          "slippageTolerancePercent": "2",
+          "assetType": "FIAT",
+          "asset": "COP",
+          "paymentMethodId": "bank_bancolombia"
+        },
+        "amountOut": {
+          "amountType": "FIXED",
+          "value": "100",
+          "assetType": "EL_DORADO",
+          "asset": "TATUM-TRON-USDT"
+        },
+        "status": "PREVIEW",
+        "currentStepIndex": 0,
+        "flightPlan": {
+          "type": "SINGLE_STEP",
+          "route": [
+            {
+              "amountIn": {
+                "amountType": "VARIABLE_IN",
+                "expected": "312897.69",
+                "maxIn": "319155.64",
+                "slippageTolerancePercent": "2",
+                "assetType": "FIAT",
+                "asset": "COP",
+                "paymentMethodId": "bank_bancolombia"
+              },
+              "amountOut": {
+                "amountType": "FIXED",
+                "value": "100",
+                "assetType": "EL_DORADO",
+                "asset": "TATUM-TRON-USDT"
+              },
+              "traits": {
+                "type": "p2p",
+                "duration": "PT5M"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

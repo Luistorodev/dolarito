@@ -51,7 +51,7 @@ describe('the registry today', () => {
     // line there and one number here, and nothing anywhere else.
     assert.deepEqual(
       ADAPTERS.map((adapter) => adapter.id),
-      ['trm', 'mid_market', 'bitso', 'dolarapp', 'buda'],
+      ['trm', 'mid_market', 'bitso', 'dolarapp', 'buda', 'eldorado'],
     );
   });
 
@@ -63,11 +63,11 @@ describe('the registry today', () => {
     );
   });
 
-  it('covers the three landed providers and reports the other five', () => {
+  it('covers the landed providers and reports the rest', () => {
     // The references cover no provider and never enter a ranking (Art. III.4),
     // so the count that shrinks is driven by the quote adapters alone. Edited
     // as T013 to T017 land.
-    const landed = ['bitso', 'dolarapp', 'buda'];
+    const landed = ['bitso', 'dolarapp', 'buda', 'eldorado'];
     const report = inspectRegistry();
     assert.equal(report.coveredProviderCount, landed.length);
     for (const id of landed) {

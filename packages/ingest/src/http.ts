@@ -31,7 +31,8 @@
  * | `bitso` | **No rate limit is stated in the response.** Checked 2026-09-13 on a live 200 of `/v3/ticker/?book=usdt_cop`: no `X-RateLimit-*`, no `Retry-After`, no `Cache-Control`. Bitso documents per-endpoint limits in its API reference, but **the figure was not read from the wire and is not asserted here**. The ticker carries its own `created_at`, which on that capture was seconds old — a continuously updating book, so there is no refresh cycle to be slower than, only a ceiling we have not measured. One request per 15 minutes. |
  * | `dolarapp` | **`Cache-Control: no-cache, no-store, max-age=0, must-revalidate`** plus `Expires: 0`, observed 2026-09-13 on a live 200. The source is telling clients not to cache at all — every read is meant to be live — so there is no refresh interval to be slower than. No rate-limit header of any kind either. **No published ceiling was read from the wire.** |
  * | `buda` | **`Cache-Control: max-age=2, public, s-maxage=2`**, observed 2026-09-13 on a live 200: Buda considers its own ticker fresh for 2 seconds. We poll 450x slower. No `X-RateLimit-*` or `Retry-After`. |
- * | `binance_p2p`, `eldorado` | P2P listings. They change continuously rather than on a published cycle, so what constrains us is the documented rate limit, not a refresh interval. **Rate limits unread.** Each adapter task (T015, T016) must record the real figure here. |
+ * | `eldorado` | **No rate limit is published anywhere on the wire.** Checked 2026-09-13 on live 200s of both `GET /methods` and `POST /public/v2/quote`: no `X-RateLimit-*`, no `Retry-After`, no `Cache-Control`. So the restraint here is entirely ours — and it is not about cadence but about **volume**: 4 payment methods x 4 brackets x 2 directions = 32 POSTs per cycle, each one creating a record on their side that is never traded (plan.md §7.1). The methods list is a deliberate 4 of 11 for that reason. `/methods` is not called per cycle at all: 289 KB of payment-form schemas we would discard. |
+ * | `binance_p2p` | P2P listings, changing continuously rather than on a published cycle. **Rate limit unread.** T016 must record the real figure here. |
  * | `wise` | Comparison endpoint. **Cadence and rate limit unread** (T017). |
  *
  * 15 minutes is comfortably conservative against every cadence in the first
@@ -60,6 +61,13 @@ const MAX_DELAY_MS = 60_000;
 
 export type HttpOptions = {
   headers?: Record<string, string>;
+  /** Defaults to GET. */
+  method?: string;
+  /**
+   * A JSON body. Only Eldorado needs one: its quotes are POSTs rather than
+   * reads, which is also why it is the provider §7.1 worries about.
+   */
+  json?: unknown;
   timeoutMs?: number;
   maxAttempts?: number;
   baseDelayMs?: number;
@@ -146,9 +154,13 @@ export async function httpRequest(url: string, options: HttpOptions = {}): Promi
   const sleep = options.sleep ?? defaultSleep;
   const random = options.random ?? Math.random;
 
+  const method = options.method ?? 'GET';
+  const body = options.json === undefined ? undefined : JSON.stringify(options.json);
+
   const headers: Record<string, string> = {
     'User-Agent': readIngestUserAgent(),
     Accept: 'application/json',
+    ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
@@ -159,7 +171,12 @@ export async function httpRequest(url: string, options: HttpOptions = {}): Promi
     let response: Response | undefined;
 
     try {
-      response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetchImpl(url, {
+        method,
+        headers,
+        ...(body === undefined ? {} : { body }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
     } catch (error) {
       // A timeout or a transport failure. Same treatment as a 5xx: rest, retry.
       lastStatus = undefined;
