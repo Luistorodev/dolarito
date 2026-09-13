@@ -72,6 +72,16 @@ detrás— y sale 1 con `T005 INCONCLUSIVE` en vez de mentir.
 Aplica a **T019** (una fuente muda por estar caída no es lo mismo que una fuente
 muda por un bug de ingesta) y a todo test que afirme una ausencia.
 
+**Y la versión positiva: una suite en verde no es evidencia hasta que se la vio
+fallar.** Antes de dar por cerrada una tarea con tests, romper la implementación
+a propósito y confirmar que caen los tests correctos. Restaurar con `cmp`, no a
+ojo.
+
+También ya pasó: los cuatro primeros casos dorados de T006b pasaban igual con el
+orden de comisiones invertido, porque ninguno llevaba las dos a la vez. La suite
+estaba verde y el orden canónico —la regla central de `plan.md` §3.1— no estaba
+probado. Lo destapó una mutación, no el verde.
+
 ## Estado actual
 
 **Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-13.
@@ -226,44 +236,38 @@ muda por un bug de ingesta) y a todo test que afirme una ausencia.
   dividir por la porcentual, `(bracket + fija) / (1 − pct)`. Hacerlo en orden
   directo subestimaría lo que la persona paga.
 
-  Verificado además con tres mutaciones deliberadas. Dos las atrapa la suite.
-  **La tercera no** — ver "A medias".
+  **Seis casos, tres por dirección.** A–D llegaron primero; E y F se sumaron
+  después de que una prueba de mutación mostrara que A–D **no fijaban el orden
+  canónico en absoluto**: con una sola comisión presente, aplicar la porcentual
+  antes que la fija da lo mismo que al revés, así que la regla sobre la que gira
+  §3.1 quedaba sin probar. E y F llevan **las dos** comisiones, que es la única
+  forma que separa los dos órdenes. Los seis los calculó el humano; los seis los
+  reproduje por separado con decimales exactos antes de tocar código.
+
+  Verificado con mutaciones deliberadas sobre `money.ts`, restaurado byte a byte
+  después. Invertir el orden en directo hace fallar **E** y nada más; invertirlo
+  en la inversa hace fallar **F** y nada más. Cada dirección tiene su propio
+  centinela y no se tapan entre sí. La separación es 653 COP en E y 154 COP en F
+  — chica, silenciosa, y ahora imposible de introducir sin que la suite lo grite.
+
+  El test de N3 dejó de calcular su propia expectativa desde la fórmula, que solo
+  probaba que el código concuerda consigo mismo. Ahora E y F sostienen la
+  afirmación positiva con números del humano, y lo que queda de ese bloque es la
+  mitad negativa, documental.
 
 
 ### Sigue
 
-**Cerrar el hueco de T006b** (abajo), y después **T006c — `http.ts`**: salida de
-red única, User-Agent identificable con contacto, timeout de 10 s y backoff ante
-429, 5xx **y 504** (ver la nota del arranque en frío).
+**T006c — `http.ts`.** Salida de red única: User-Agent identificable con forma
+de contacto (Art. V.4), timeout de 10 s, backoff ante 429, 5xx **y 504** (ver la
+nota del arranque en frío), y la cadencia declarada de cada fuente documentada
+en el propio archivo.
 
-Recién entonces los adapters. La barrera del Art. VII.1 está levantada por
-criterio, pero con la salvedad de abajo.
+Después **T007 — adapter falso**, y recién ahí los adapters reales. La barrera
+del Art. VII.1 está levantada limpia: T006b cerró con el orden canónico fijado
+en las dos direcciones.
 
 ### A medias
-
-- **El orden canónico en directo no está fijado por ningún caso dorado.**
-  Salió de una prueba de mutación: invertir el orden en `usd_to_cop` —aplicar la
-  fija antes que la porcentual— **pasa los diez tests**. El motivo es que ningún
-  caso directo lleva las dos comisiones a la vez: A no tiene ninguna y B solo la
-  fija, y con una sola el orden no cambia el resultado. La diferencia es
-  `fija × pct × rate`; con 500 USD, 21,40 fijos, 0,99 % y 3080 serían 653 COP,
-  hoy invisibles.
-
-  El criterio de T006b está cumplido —cuatro casos, dos por dirección,
-  verificados a mano— pero el criterio no alcanza para pinchar esto. **Hace
-  falta un quinto caso calculado a mano: `usd_to_cop` con `fee_pct` y
-  `fee_fixed_usd` los dos distintos de cero.** No lo genero yo.
-
-  Atenuante: de los tres adapters que usan `amounts_source: 'computed'`
-  (bitso, buda, dolarapp), **ninguno pasa comisiones** según `plan.md` §3.1 —
-  dolarapp las lleva dentro del precio y los otros dos cotizan del libro. Así
-  que hoy ninguna ruta de producción ejerce el camino sin fijar. Pero
-  `computeAmounts()` es fuente única y una fuente futura sí puede traer las dos.
-
-  El test de N3 tiene un problema emparentado, más leve: **la expectativa la
-  calcula el propio test** a partir de la fórmula, en vez de un número calculado
-  a mano. Atrapa la mutación, pero sobre base más débil que A–D. Un sexto caso
-  —`cop_to_usd` con ambas comisiones, a mano— lo arreglaría.
 
 - **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**
   El remoto existe: `origin` apunta a `https://github.com/Luistorodev/dolarito.git`

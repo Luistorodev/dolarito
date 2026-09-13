@@ -7,9 +7,12 @@
  * agrees with itself. If a case here fails, the suspect is the implementation
  * until proven otherwise — do not edit the expectations to make it pass.
  *
- * Two per direction, as tasks.md requires, and between them they pin every
- * branch of the canonical order: no fees, a fixed fee, a percentage fee, and
- * the inverse direction for each kind of fee.
+ * Six cases, three per direction. A-D came first; E and F were added after a
+ * mutation probe showed that A-D could not pin the canonical order at all.
+ * With only one kind of fee present, applying the percentage before the fixed
+ * amount gives the same answer as the reverse, so the rule that §3.1 is built
+ * around went untested. E and F carry BOTH fees, which is the only shape that
+ * separates the two orders.
  */
 
 import assert from 'node:assert/strict';
@@ -80,28 +83,84 @@ describe('computeAmounts — golden cases, hand-computed', () => {
       fixed_side: 'out',
     });
   });
-});
 
-describe('computeAmounts — the inverse is not the forward chain (N3)', () => {
-  it('undoes the fixed fee before the percentage, not after', () => {
-    // Running the forward order backwards would give
-    //   (1000 / 0.99) + 5 = 1015.10... USD
-    // instead of the correct
-    //   (1000 + 5) / 0.99 = 1015.15... USD.
-    // The difference is small and entirely silent, which is why it needs a test.
+  it('E — usd_to_cop, 500 USD @ 3080, 0.99% AND a fixed 21.40 USD', () => {
+    // Percentage first: 500 x 0.9901 = 495.05 USD.
+    // Then the fixed fee:  495.05 - 21.40 = 473.65 USD.
+    // Then convert:        473.65 x 3080 = 1,458,842 COP exactly.
+    //
+    // This is the case that pins the canonical order in the forward direction.
+    // Applying the fixed fee first would give 1,459,495 — 653 COP apart, and
+    // silent.
+    const result = computeAmounts({
+      direction: 'usd_to_cop',
+      bracket_usd: 500,
+      gross_rate: 3080,
+      fee_pct: 0.0099,
+      fee_fixed_usd: 21.4,
+    });
+
+    assert.deepEqual(result, {
+      in: { amount: 500, currency: 'USD' },
+      out: { amount: 1_458_842, currency: 'COP' },
+      fixed_side: 'in',
+    });
+  });
+
+  it('F — cop_to_usd, 1000 USD @ 3088, 0.99% AND a fixed 5 USD', () => {
+    // Undone in reverse: add the fixed fee back, THEN divide out the percentage.
+    //   (1000 + 5) / 0.9901 = 1015.048984... USD gross
+    //   x 3088              = 3,134,471.265... COP, which rounds to 3,134,471.
+    //
+    // The mirror of E: it pins the order in the inverse direction. Dividing
+    // first and adding after would give 3,134,317 — 154 COP apart.
     const result = computeAmounts({
       direction: 'cop_to_usd',
       bracket_usd: 1000,
-      gross_rate: 3000,
-      fee_pct: 0.01,
+      gross_rate: 3088,
+      fee_pct: 0.0099,
       fee_fixed_usd: 5,
     });
 
-    const correctGrossUsd = (1000 + 5) / 0.99;
-    const wrongGrossUsd = 1000 / 0.99 + 5;
+    assert.deepEqual(result, {
+      in: { amount: 3_134_471, currency: 'COP' },
+      out: { amount: 1000, currency: 'USD' },
+      fixed_side: 'out',
+    });
+  });
+});
 
-    assert.equal(result.in.amount, Math.round(correctGrossUsd * 3000));
-    assert.notEqual(result.in.amount, Math.round(wrongGrossUsd * 3000));
+/**
+ * N3, now pinned by hand-computed numbers rather than by the formula.
+ *
+ * An earlier version of this block asserted against a value the test itself
+ * derived from the formula, which only proved the code agreed with the code.
+ * E and F replaced that: their expectations come from the human. What remains
+ * here is the negative half — that the implementation does not land on the
+ * value the inverted order would produce — which is documentation, since the
+ * positive assertion in E and F is what actually holds the line.
+ */
+describe('computeAmounts — the fee order is not reversible (N3)', () => {
+  it('does not produce the inverted-order result in either direction', () => {
+    const forward = computeAmounts({
+      direction: 'usd_to_cop',
+      bracket_usd: 500,
+      gross_rate: 3080,
+      fee_pct: 0.0099,
+      fee_fixed_usd: 21.4,
+    });
+    assert.equal(forward.out.amount, 1_458_842);
+    assert.notEqual(forward.out.amount, 1_459_495);
+
+    const inverse = computeAmounts({
+      direction: 'cop_to_usd',
+      bracket_usd: 1000,
+      gross_rate: 3088,
+      fee_pct: 0.0099,
+      fee_fixed_usd: 5,
+    });
+    assert.equal(inverse.in.amount, 3_134_471);
+    assert.notEqual(inverse.in.amount, 3_134_317);
   });
 });
 
