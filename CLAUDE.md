@@ -91,7 +91,9 @@ probado. Lo destapó una mutación, no el verde.
 - **Revisión de specs previa a implementar.** Los cuatro documentos se revisaron
   contra sí mismos; los hallazgos se incorporaron y el constitution quedó en
   **v1.2.0** (Art. III.1 reescrito sobre el lado variable, corolario I.2, y V.6
-  nuevo). `plan.md` y `tasks.md` derivan de esa versión.
+  nuevo). Hoy va por **v1.3.0**: I.2 acotó qué significa "cruda" tras la
+  verificación en vivo de T008 — `jsonb` preserva el contenido, no los bytes.
+  `plan.md` y `tasks.md` derivan de esa versión.
 - **T001 — Inicializar monorepo.** Estructura de `plan.md` §4, workspaces de
   pnpm, TypeScript estricto, Biome, `.env.example` y `.gitignore`.
   Verificado: `pnpm install --frozen-lockfile` limpio, `pnpm lint` limpio, y una
@@ -496,7 +498,7 @@ compartir la de ingesta.
 
 ### Correcciones menores sin aplicar a los documentos
 
-`plan.md` §8 dice "enmendado a v1.1.0" (ya es v1.2.0); la URL de datos.gov.co
+La URL de datos.gov.co
 lleva un espacio sin codificar en `$order=vigenciadesde DESC`; `§3.1` se usa dos
 veces como número de sección; `**Reglas que todo adapter cumple:**` está
 duplicado en la misma línea; T017 aparece dos veces; la estimación de "unas 64

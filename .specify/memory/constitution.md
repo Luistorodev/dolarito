@@ -1,8 +1,8 @@
 # Constitution — Comparador USD/COP
 
-**Versión:** 1.2.0
+**Versión:** 1.3.0
 **Ratificada:** 2026-09-12
-**Última enmienda:** 2026-09-12
+**Última enmienda:** 2026-09-13
 **Ubicación esperada en el repo:** `.specify/memory/constitution.md`
 
 Este documento define los principios no negociables del proyecto. Cualquier
@@ -27,6 +27,16 @@ inventado no es un bug cosmético: es una mentira financiera.
    genera fila en `quotes`. Queda registrado en `runs.sources_failed`. Que un
    proveedor no opere a cierto monto **sí** es una observación, tiene respuesta
    cruda, y sí genera fila.
+   **Alcance de "cruda": se preserva el contenido, no los bytes.** `jsonb`
+   normaliza: reordena las claves de cada objeto —por longitud y después
+   alfabéticamente— y descarta el espaciado del original. Todo valor sobrevive
+   intacto, y para el uso que le damos —recalcular métricas sobre datos viejos—
+   eso es equivalente. Pero la frase "guardamos exactamente lo que la fuente
+   mandó" es cierta del contenido y **no** de la codificación. Si alguna vez hace
+   falta procedencia byte a byte —verificar una firma, reproducir un hash,
+   sostener una respuesta ante la propia fuente— `jsonb` es la columna
+   equivocada y haría falta guardar el texto original aparte. Verificado contra
+   la base real, no supuesto.
 3. **Ninguna fila se escribe sin `captured_at`.** Un precio sin momento no es un
    dato, es ruido.
 4. **No se rellenan huecos.** Si una fuente estuvo caída dos horas, esas dos
@@ -147,3 +157,12 @@ implementación:
 - V.6 (nuevo): se prohíbe explícitamente evadir bloqueos. La tabla de riesgos del
   plan proponía apoyarse en la rotación de IPs de los runners, lo cual
   contradecía el espíritu del Artículo V.
+
+**Versión 1.3.0** — una enmienda al Artículo I.2, derivada de la verificación en
+vivo de la persistencia en T008:
+- I.2: se acota qué significa "cruda". Una ida y vuelta contra la base real
+  mostró que `jsonb` reordena las claves de los objetos; todos los valores
+  sobreviven, pero los bytes no. La primera aserción de la prueba comparaba
+  serializaciones y falló, y el defecto estaba en la aserción, no en la
+  persistencia. Se documenta el límite antes de que alguien apoye una afirmación
+  de procedencia byte a byte sobre una columna que nunca lo prometió.

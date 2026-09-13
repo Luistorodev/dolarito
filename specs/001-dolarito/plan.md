@@ -1,7 +1,7 @@
 # Plan técnico — Dolarito
 
 **Ubicación esperada en el repo:** `specs/001-dolarito/plan.md`
-**Deriva de:** `spec.md` v1 y `constitution.md` v1.2.0
+**Deriva de:** `spec.md` v1 y `constitution.md` v1.3.0
 **Fecha:** 2026-09-12
 
 ---
@@ -497,4 +497,6 @@ real, que es la cobertura de un modo, no la cantidad.
   que es lo que HU-08 busca medir.
   *Riesgo aceptado:* el endpoint de Yahoo no está documentado oficialmente y
   puede cambiar. Por eso el respaldo y la columna `mid_market_src`.
-- `[RESUELTO]` Constitution enmendado a v1.1.0 (Artículo III.1 y III.5).
+- `[RESUELTO]` Constitution enmendado a v1.3.0. v1.1.0 tocó III.1 y III.5;
+  v1.2.0, III.1, el corolario de I.2 y V.6; v1.3.0 acotó el alcance de "cruda"
+  en I.2 tras verificar la persistencia contra la base real.

@@ -1,7 +1,7 @@
 # Tasks — Dolarito
 
 **Ubicación esperada en el repo:** `specs/001-dolarito/tasks.md`
-**Deriva de:** `plan.md` y `constitution.md` v1.2.0
+**Deriva de:** `plan.md` y `constitution.md` v1.3.0
 **Fecha:** 2026-09-12
 
 Convenciones:
