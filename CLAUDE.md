@@ -174,9 +174,11 @@ muda por un bug de ingesta) y a todo test que afirme una ausencia.
 
   `supabase/tests/t005_rls_verify.sql` separa las dos capas, que `check:rls` no
   puede distinguir: un `revoke` solo produce el mismo `permission denied` que
-  `revoke` + RLS. Lee del catálogo que RLS esté activo, que no haya políticas,
-  que `security_invoker` esté puesto y que `anon` no conserve privilegios.
-  **Sin correr todavía** — es DDL-adyacente, va por el SQL Editor.
+  `revoke` + RLS. Corrido en el SQL Editor, confirmó las dos por separado —
+  `RLS on all four tables, no policies, security_invoker on the view, no anon
+  privileges`. Así que el candado no depende de una sola capa: si alguien
+  volviera a otorgar privilegios a `anon`, RLS sin políticas sigue devolviendo
+  conjunto vacío.
 
 ### Sigue
 
