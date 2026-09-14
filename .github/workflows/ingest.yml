@@ -22,7 +22,19 @@ on:
     # what actually notices when this fails, rather than trusting the cron.
     - cron: '7,22,37,52 * * * *'
   # Manual trigger, for the first run and for debugging without waiting.
+  # Also the entry point pg_cron uses: it dispatches this workflow rather than
+  # running the ingest itself, so the work stays on the runtime the tests
+  # exercise and the logs stay here.
   workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who asked for this run'
+        required: false
+        default: 'manual'
+        type: choice
+        options:
+          - manual
+          - pg_cron
 
 # A late run must never overlap the next one: two cycles writing at once would
 # collide on the unique index of `quotes`, and the second would fail for a
@@ -76,4 +88,13 @@ jobs:
           # to send a request without it, so a missing secret fails loudly here
           # rather than quietly presenting no identity to eight providers.
           INGEST_USER_AGENT: ${{ secrets.INGEST_USER_AGENT }}
+          # Which route opened this run, landing in runs.trigger_src.
+          #
+          # `github_schedule` appears ONLY when GitHub's own scheduler fires,
+          # so while both routes are live this is what tells us whether that
+          # scheduler came back on its own — measured, not guessed.
+          #
+          # A value db.ts does not recognise is dropped rather than sent, so a
+          # typo here cannot fail every insert (Art. II).
+          INGEST_TRIGGER: ${{ github.event_name == 'schedule' && 'github_schedule' || inputs.trigger }}
         run: pnpm --filter @dolarito/ingest run ingest
