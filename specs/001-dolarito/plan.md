@@ -44,6 +44,54 @@ Dos limitaciones reales que hay que aceptar conscientemente:
 `pg_cron` + Edge Function dentro de Supabase. Es más confiable y elimina ambas
 limitaciones, a costa de peor depuración. No hacerlo al principio.
 
+#### El cron salió de los minutos redondos (2026-09-14)
+
+`*/15` dispara en **:00, :15, :30 y :45** — los cuatro minutos más contendidos
+del reloj, porque es donde programa todo el mundo. Ahora es
+**`7,22,37,52 * * * *`**: los intervalos siguen siendo de 15 minutos exactos,
+incluido el salto de hora (52 → 07). **Lo único que cambia es la fase, no la
+cadencia**, así que el Artículo V.3 queda donde estaba. `silence.yml` pasó de
+`0 13` a `38 13` por lo mismo.
+
+**Esto es una hipótesis, no una causa confirmada, y conviene que quede escrito
+así.** El síntoma: el schedule de ingest disparó una vez el 2026-09-13 — falló
+por el bump a `@v5`, ver `tasks.md` T018 — y después dejó de correr durante
+horas. Lo que **sí** quedó descartado con evidencia, revisando el repositorio:
+
+| Descartado | Cómo |
+|---|---|
+| Sintaxis del `cron:` | `*/15 * * * *` parsea bien, cinco campos, UTC |
+| `on:` mal anidado | Parsea a `{schedule: [...], workflow_dispatch: None}` |
+| Un commit reciente lo rompió | El bloque `on:` es idéntico en los 4 commits que tocaron el archivo |
+| Rama equivocada | `origin/HEAD → 001-dolarito`, y las dos ramas al día |
+| Workflow deshabilitado | Si lo estuviera, el disparo manual tampoco andaría — y anda |
+| Facturación o permisos de Actions | Por lo mismo: las manuales corren y terminan |
+
+Lo que **no** se puede ver desde el repositorio es el planificador de GitHub.
+Sin esa vista, "lo descarta por carga" y "el schedule se cayó" se ven igual, que
+es justo la clase de ambigüedad que este proyecto no acepta dejar abierta.
+
+#### Criterio de decisión — escrito por adelantado, para ejecutar sin deliberar
+
+**Si pasan 2 horas desde el push de este cambio sin ninguna corrida programada,
+la hipótesis de los minutos contendidos queda descartada y se activa la ruta a
+`pg_cron` de arriba.** Sin volver a discutirlo.
+
+- **2 horas** son 8 disparos esperados a esta cadencia. Que fallen los ocho no es
+  retraso de plataforma: es que el schedule no está corriendo.
+- **El umbral coincide con el de continuidad** que ya usa esta misma sección, así
+  que no introduce un número nuevo que después haya que justificar aparte.
+- **Quién lo mide:** `pnpm check:silence`, que desde el 2026-09-14 reporta el
+  hueco abierto (T019). No hace falta mirar la UI de Actions: si el chequeo dice
+  `it is down right now` con más de 120 minutos, el criterio se cumplió.
+- **Lo que NO cuenta como refutación:** una corrida manual. El disparo manual ya
+  se sabe que funciona y no dice nada sobre el planificador — fue exactamente
+  esa confusión la que dejó pasar el bump a `@v5`.
+
+Si el criterio se cumple, `pg_cron` deja de ser "cuando la ingesta esté estable"
+y pasa a ser la tarea siguiente: **la ingesta no puede estabilizarse si su
+disparador no corre**, y T020 no acumula nada mientras tanto.
+
 ## 2. Esquema de datos
 
 ```sql

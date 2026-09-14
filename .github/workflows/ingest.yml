@@ -10,10 +10,17 @@ name: ingest
 
 on:
   schedule:
-    # Every 15 minutes. GitHub queues rather than guarantees this, and skips
-    # runs under load — which is one of the reasons the silence alarm (T019)
-    # exists rather than trusting the cron.
-    - cron: '*/15 * * * *'
+    # Every 15 minutes, deliberately NOT on :00/:15/:30/:45.
+    #
+    # The interval is unchanged; only the phase is. Round minutes are the most
+    # contended slots on the platform, and GitHub queues rather than guarantees
+    # a schedule — it skips runs under load. Moving off them is the cheap half
+    # of the hypothesis in plan.md §1.2, which also carries the decision rule
+    # for when to stop waiting and migrate to pg_cron.
+    #
+    # It is a hypothesis, not a confirmed cause. The silence alarm (T019) is
+    # what actually notices when this fails, rather than trusting the cron.
+    - cron: '7,22,37,52 * * * *'
   # Manual trigger, for the first run and for debugging without waiting.
   workflow_dispatch:
 

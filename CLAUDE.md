@@ -853,6 +853,24 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   `git log --all -p`). El arreglo funciona para las dos explicaciones, porque
   pone pnpm en el PATH antes de que setup-node haga nada.
 
+  **Segundo síntoma, 2026-09-14:** con el YAML corregido, el disparo manual sale
+  verde (ingest 44 s, silence 17 s) pero **el schedule sigue sin correr**. El
+  repositorio está descartado como causa — sintaxis del cron, anidado del `on:`,
+  commits recientes, rama por defecto, workflow deshabilitado y facturación, los
+  seis verificados; la tabla está en `plan.md` §1.2.
+
+  Lo aplicado es **una hipótesis declarada como tal**: el cron salió de los
+  minutos redondos (`*/15` → `7,22,37,52`, misma cadencia, otra fase; silence de
+  `0 13` a `38 13`), porque :00/:15/:30/:45 son los slots más contendidos.
+
+  **⚠️ Hay criterio de decisión escrito por adelantado en `plan.md` §1.2, y es
+  para ejecutar sin volver a deliberar:** si pasan **2 horas desde el push del
+  2026-09-14T03:57Z** sin corrida programada, la hipótesis queda descartada y se
+  activa la ruta a `pg_cron`. Lo mide `pnpm check:silence` — `it is down right
+  now` con más de 120 min cumple el criterio. **Una corrida manual no refuta
+  nada**: ya se sabe que anda, y fue esa confusión la que dejó pasar el bump a
+  `@v5`.
+
   **Faltan las dos rutas vistas en verde**: un disparo manual y un ciclo
   programado, sobre el YAML corregido. Ninguna de las dos la puedo disparar yo
   (`gh` no está instalado). Hasta entonces esto es un arreglo plausible, no un

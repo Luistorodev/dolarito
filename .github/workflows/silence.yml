@@ -10,7 +10,9 @@ name: silence
 
 on:
   schedule:
-    - cron: '0 13 * * *'
+    # Daily, deliberately off the top of the hour: :00 is the most contended
+    # slot on the platform. Same reasoning as ingest.yml and plan.md §1.2.
+    - cron: '38 13 * * *'
   workflow_dispatch:
 
 jobs:
