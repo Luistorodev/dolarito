@@ -171,3 +171,32 @@ describe('a reference becomes fields on the run', () => {
     assert.ok(!('mid_market_at' in fields));
   });
 });
+
+describe('which trigger opened the run', () => {
+  // The field is only descriptive, so the rule is that a bad value must never
+  // be able to take the ingest down (Art. II) — and that an absent value stays
+  // absent rather than becoming a guess (Art. I.1).
+  const { readTrigger } = __testing;
+
+  it('accepts the four the column allows', () => {
+    for (const t of ['github_schedule', 'pg_cron', 'manual', 'local']) {
+      assert.equal(readTrigger(t), t);
+    }
+  });
+
+  it('drops an unset variable, which is what makes this safe before the migration', () => {
+    // With no variable set the insert is byte-for-byte today's, so this can
+    // ship before the column exists.
+    assert.equal(readTrigger(undefined), undefined);
+    assert.equal(readTrigger(''), undefined);
+  });
+
+  it('drops a typo instead of failing the whole run', () => {
+    // A misspelling in a workflow would otherwise be rejected by the check
+    // constraint on every insert, taking the ingest down to mislabel a field
+    // that only describes it.
+    assert.equal(readTrigger('github-schedule'), undefined);
+    assert.equal(readTrigger('GITHUB_SCHEDULE'), undefined);
+    assert.equal(readTrigger('pg_cron '), undefined);
+  });
+});

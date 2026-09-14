@@ -84,12 +84,39 @@ function referenceToRunFields(reference: Reference): Record<string, unknown> {
   };
 }
 
+/** The triggers `runs.trigger_src` accepts. Mirrors the column's check constraint. */
+const TRIGGERS = ['github_schedule', 'pg_cron', 'manual', 'local'] as const;
+export type TriggerSrc = (typeof TRIGGERS)[number];
+
+/**
+ * Which route opened this run, read from `INGEST_TRIGGER`.
+ *
+ * Returns `undefined` when the variable is absent or holds something the column
+ * would reject, and the insert then omits the field entirely. That is what
+ * makes this safe to ship BEFORE the migration that adds the column: with no
+ * variable set, the insert is byte-for-byte the one that runs today.
+ *
+ * An unrecognised value is dropped rather than passed through. A typo in a
+ * workflow would otherwise fail every insert, taking the whole ingest down to
+ * mislabel a field that only describes it (Art. II).
+ */
+export function readTrigger(raw: string | undefined): TriggerSrc | undefined {
+  return TRIGGERS.includes(raw as TriggerSrc) ? (raw as TriggerSrc) : undefined;
+}
+
 export function createSupabaseRunStore(): RunStore {
   const supabase = createServiceRoleClient();
+  const trigger = readTrigger(process.env['INGEST_TRIGGER']);
 
   return {
     async openRun(): Promise<string> {
-      const { data, error } = await supabase.from('runs').insert({}).select('id').single();
+      // Built as a record rather than a union of two object shapes: the union
+      // makes the client's excess-property check reject the field outright,
+      // which is it telling us the column is not in its schema yet.
+      const row: Record<string, string> = {};
+      if (trigger !== undefined) row['trigger_src'] = trigger;
+
+      const { data, error } = await supabase.from('runs').insert(row).select('id').single();
 
       if (error) throw new Error(`could not open a run: ${error.message}`);
       return (data as { id: string }).id;
@@ -137,4 +164,4 @@ export function createSupabaseRunStore(): RunStore {
   };
 }
 
-export const __testing = { quoteToRow, referenceToRunFields };
+export const __testing = { quoteToRow, referenceToRunFields, readTrigger };
