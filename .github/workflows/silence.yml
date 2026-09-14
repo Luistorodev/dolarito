@@ -44,6 +44,15 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Runs after the silence check, and with if:always() so a damaged
+      # document cannot mask a real outage — nor the other way round. Here
+      # because this is already the guard workflow, and because a truncated
+      # governance file that nobody notices costs the next session its whole
+      # context (see CLAUDE.md, "Escribir archivos desde el shell").
+      - name: Check the governance documents are intact
+        if: always()
+        run: pnpm --filter @dolarito/ingest run check:docs
+
       - name: Look for silence
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -69,6 +69,66 @@ Toda migración va con su script de verificación en `supabase/tests/`, fuera de
 `migrations/` para que `db push` no lo levante nunca. El verificador no deja
 filas y no depende del manejo de transacciones del editor.
 
+### Escribir archivos desde el shell
+
+**Tres veces en dos días un script truncó CLAUDE.md a cero bytes.** Siempre el
+mismo patrón: abrir el archivo en modo escritura —lo que lo vacía— y después
+fallar antes de escribir nada. Las dos primeras las salvó que un humano mirara
+el tamaño después. Eso no es una defensa; la tercera la atrapó `check:docs`.
+
+**1. Nada de emojis literales en código que escribe archivos.** El primer
+truncamiento fue un emoji escrito como par suplente, que Python rechaza al
+codificar a UTF-8 con `UnicodeEncodeError: surrogates not allowed`. Usar el
+punto de código:
+
+```python
+CHART = chr(0x1F4CA)   # bien
+CHART = "\ud83d\udcca" # revienta al escribir, después de vaciar el archivo
+```
+
+**2. Nada de backticks sin escapar dentro de comillas dobles en shell.** El
+segundo incidente fue un `python -c "..."` cuyo texto incluía una palabra entre
+backticks: el shell la ejecutó como sustitución de comandos y la borró del
+archivo, dejando una frase sin sujeto. Usar `chr(96)`, comillas simples, o un
+archivo aparte.
+
+**3. Para cualquier script de más de unas líneas, escribirlo a un archivo y
+ejecutarlo**, en vez de pasarlo por heredoc. El tercer truncamiento fue eso: un
+heredoc donde `\u` perdió un nivel de escape y se volvió un par suplente real.
+Los heredocs largos también fallan por contenido, con un error de sintaxis del
+shell que no dice cuál fue el carácter culpable.
+
+**4. Nada de secuencias de escape con barra invertida en scripts pasados por
+el shell.** `chr(92)` para la barra, `chr(96)` para el backtick. Un nivel de
+escape que se pierde en el camino no da error: da otro carácter.
+
+**5. Copia antes de reescribir un documento de gobierno, y verificar el tamaño
+después.** `shutil.copy` antes, `wc -c` después.
+
+**6. Y la defensa que no depende de acordarse:**
+
+```
+corepack pnpm --filter @dolarito/ingest run check:docs
+```
+
+Comprueba los cinco documentos de gobierno — piso de tamaño, secciones
+obligatorias, fences y spans de código balanceados, huecos en la prosa donde el
+shell se comió una palabra, y caracteres de reemplazo por encoding roto. Sale 1
+si algo está dañado. Corre también en el workflow diario de `silence`, para que
+un truncamiento no dependa de que alguien mire. Las reglas y el motivo de cada
+una viven en `packages/ingest/src/docs-integrity.ts`.
+
+**Dos reglas hubo que medirlas antes de confiar en ellas**, porque la primera
+versión marcaba cuatro líneas sanas de CLAUDE.md: los backticks se cuentan a lo
+largo del documento y no por línea —un span puede partirse en dos líneas— y los
+huecos en la prosa se cuentan solo fuera de fences y de tablas, donde el conteo
+medido es cero en los cinco archivos. Un chequeo que ladra sobre archivos sanos
+se apaga a la semana.
+
+**Límite conocido:** la regla del hueco excluye bloques con fence, no bloques
+indentados de cuatro espacios. Acá se usan fences en todos lados, así que en la
+práctica no molesta — pero código indentado con columnas alineadas se va a
+marcar. Lo descubrí marcando esta misma sección.
 ### Tests negativos
 
 **Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que

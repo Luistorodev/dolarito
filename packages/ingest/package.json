@@ -14,6 +14,7 @@
     "check:db": "node src/scripts/check-db-roundtrip.ts",
     "check:references": "node src/scripts/check-references.ts",
     "check:silence": "node src/scripts/check-silence.ts",
+    "check:docs": "node src/scripts/check-docs.ts",
     "seed:providers": "node src/scripts/seed-providers.ts",
     "seed:history": "node src/scripts/seed-market-history.ts"
   },
