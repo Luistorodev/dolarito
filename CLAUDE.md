@@ -183,24 +183,64 @@ de T020 dejo de acumular, y eso se atiende antes que nada: **el reloj de la
 ventana no corre mientras el disparador no corra** -- ya costo una semana.
 
 Desde el 2026-09-14 el disparador es **`pg_cron`**, no el planificador de
-GitHub. El porque esta en "T018 -- CERRADA", mas abajo.
+GitHub. El porqué está en "T018 — CERRADA", más abajo.
 
-### ⚠️ Pendiente del humano: una migración a mano antes de T023/T024
+Y el segundo comando, que desde hoy tiene su propia razón de existir:
 
-`latest_quotes` **no expone tres columnas de `runs` que la Fase 5 necesita**:
+```
+corepack pnpm --filter @dolarito/ingest run check:docs
+```
 
-- **`trm_from` y `trm_to`** — sin ellas **T024 no puede marcar la TRM congelada**
-  en fines de semana y festivos, que es su criterio de terminado. Las columnas ya
-  existen en la tabla; solo faltan en el `select` de la vista.
-- **`mid_market_src`** — sin ella, mostrar un margen contra mid-market mezcla en
-  silencio dos mediciones distintas: Yahoo es intradía y er-api una foto diaria
-  (T011).
+#### El plan de la próxima sesión: T021 y T022
 
-**Van en la misma migración que la corrección de márgenes de `plan.md` §2.2**,
-que reescribe esa vista de todos modos: junto cuesta una aplicación en el SQL
-Editor y separado cuesta dos. Descubierto el 2026-09-14 al acotar la barrera — y
-se descubrió barato **porque se escribió el análisis antes de necesitarlo**.
+**Ninguna de las dos depende de datos**, así que la ventana de T020 no las
+bloquea — la barrera está acotada a tres decisiones de presentación (regla 4).
 
+- **T021 — Proyecto Astro + adapter de Vercel.** Estructura, tipografía,
+  tokens, móvil primero (RF-12). **Ojo con el criterio de terminado: dice
+  "despliega en Vercel", y eso necesita la cuenta del humano.** El scaffolding
+  y el build se verifican solos; el despliegue no. Dejarlo listo y decir qué
+  falta del otro lado, en vez de dar la tarea por cerrada a medias.
+  Evaluar ahí las dos mitigaciones de N4: que el servidor consulte solo
+  `latest_quotes`, y que la llave viva únicamente en variables de entorno del
+  hosting. Ninguna de las dos resuelve N4 — sigue siendo riesgo aceptado.
+- **T022 — Middleware de contraseña.** Quitar la protección tiene que ser
+  cambiar la variable de entorno, no el código (HU-07). Esta sí se verifica
+  entera sin intervención.
+
+Después vienen T023, T024 y T026, que tampoco esperan: la migración que
+necesitaban ya está aplicada. T025 va parcial — el ranking sí, la
+representación de Eldorado no.
+
+**Lo único que espera al 21** son las tres decisiones de presentación listadas
+en `tasks.md` bajo T020: cuántos métodos de Eldorado se muestran, si el
+selector de bracket se destaca, y si el cruce de `binance_p2p` se explica.
+
+### ✅ La migración de `latest_quotes` está aplicada (2026-09-14)
+
+Aplicada y verificada en el SQL Editor con
+`supabase/tests/t020_margins_and_trigger_src_verify.sql`. Llevó cuatro cosas
+que caían sobre los mismos objetos, en una sola pegada:
+
+- **Los dos defectos de los márgenes de `plan.md` §2.2, corregidos.** El
+  margen sale del monto efectivo, no de `gross_rate`, y **positivo significa
+  siempre peor que la referencia** en las dos direcciones. Ya no hay nada que
+  implementar al cerrar la ventana: lo que queda es medir cuánto se movieron
+  las cifras. La vista expone `effective_rate`, que es el número por el que
+  se ordena.
+- **`trm_from` y `trm_to`**, que T024 necesita para marcar la TRM congelada.
+- **`mid_market_src`**, sin la cual un margen contra mid-market mezclaría en
+  silencio dos mediciones distintas (T011).
+- **`runs.trigger_src`**, que es lo que hace verificable la ruta de `pg_cron`.
+
+**Un detalle que casi se escapa:** la vista hay que borrarla y recrearla, y
+ese `drop` **se lleva `security_invoker` y los revokes de `anon` de T005** en
+silencio — el agujero que T005 existía para cerrar. La migración los repone y
+el verificador los comprueba. Olvidarlo no habría dado error: habría dado
+`anon` leyendo todo.
+
+**Nada queda pendiente del humano en la base.** T023 y T024 tienen sus
+columnas.
 ### Completado
 
 - **Revisión de specs previa a implementar.** Los cuatro documentos se revisaron
@@ -864,15 +904,17 @@ Escribirlo antes del cierre fue justamente para eso:
    selector de monto aporta poco y conviene saberlo antes de construirlo; si
    cambia, es el argumento central del producto y la interfaz debe destacarlo.
 
-6. **Los dos defectos de los márgenes — ver "A medias".** La corrección ya está
-   decidida y escrita en `plan.md` §2.2; el 20 es implementarla. Lo que se mide
-   con la semana: cuánto se separa el margen anunciado del efectivo en los tres
-   proveedores con comisión fija, y **cuántas filas de `cop_to_usd` cambian de
-   signo** — que son todas, pero interesa la magnitud.
+6. **Los dos defectos de los márgenes — YA CORREGIDOS el 2026-09-14.** No queda
+   nada que implementar el 21. Lo que queda es **medir con la semana** cuánto
+   se separa el margen anunciado del efectivo en los tres proveedores con
+   comisión fija, y **cuántas filas de `cop_to_usd` cambiaron de signo**.
+   Medido con 3 corridas el 14: **101 de 216 filas** cambian de signo, y la
+   separación es despreciable en los de libro único (≤0,02 %) y grande donde
+   hay comisión fija — wise 9,16 %, western_union 1,99 %.
 
 #### Primera lectura — 2026-09-14, 3 corridas
 
-Línea base contra la cual comparar el 20. **Nada de esto es concluyente con 3
+Línea base contra la cual comparar el 21. **Nada de esto es concluyente con 3
 corridas**, y el script lo dice solo antes de imprimir nada. Lo que ya sirve es
 la *forma*, y dos puntos apuntan fuerte en una dirección.
 
@@ -1178,8 +1220,8 @@ Queda una sola, y venía de los specs originales:
 
 Las que se abrieron durante la implementación están arriba, en "A medias" y en
 la revisión de cierre de T020: la asimetría del ranking de Eldorado
-(`[NECESITA DECISIÓN]` en T025) y los dos defectos de los márgenes, ya decididos
-en dirección y pendientes de implementar el 20.
+(`[NECESITA DECISIÓN]` en T025). Los dos defectos de los márgenes **ya están
+corregidos** — ver "La migración de `latest_quotes` está aplicada", arriba.
 
 ### Correcciones menores — todas aplicadas (2026-09-14)
 
