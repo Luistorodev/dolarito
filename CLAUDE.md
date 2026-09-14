@@ -21,8 +21,14 @@ Proyecto desarrollado con Spec Driven Development.
 2. **Una tarea a la vez.** Ejecuta la tarea, verifica su criterio de terminado y
    detente. No encadenes tareas sin confirmación.
 3. **Detente al final de cada fase** y resume qué quedó hecho antes de seguir.
-4. **T020 es una barrera dura.** Ninguna tarea de la Fase 5 (frontend) puede
-   iniciarse antes de completar la ventana de acumulación de datos.
+4. **T020 es una barrera acotada** desde el 2026-09-14 — antes era total.
+   Bloquea **tres decisiones de presentación**, no la Fase 5 entera: cuántos
+   métodos de Eldorado se muestran, si el selector de bracket se destaca, y si
+   el cruce de `binance_p2p` se explica. **T021–T024 y T026 están libres; T025
+   va parcial** (ranking sí, representación de Eldorado no). El detalle y el
+   motivo están en `tasks.md`, bajo T020.
+   Lo que se construya mientras tanto marca lo pendiente con un **parámetro
+   obligatorio sin default**, nunca con un valor provisional.
 5. **No inventes datos.** Si una fuente no devuelve un campo, queda `undefined`.
    Nunca cero, nunca estimado, nunca copiado de otro proveedor.
 6. **No cambies el contrato de datos** (`plan.md` §3) sin avisarme. Es un cambio
@@ -1077,6 +1083,11 @@ artículo por artículo:
 - T017 aparecía dos veces en `tasks.md`; el bloque de continuación se fusionó.
 - La estimación de "unas 64 filas" → **74 medidas** en la primera corrida real.
   La diferencia es Eldorado, que aporta 32 él solo.
+  **Corregido a medias, detectado el 2026-09-14:** se había aplicado en
+  `plan.md` pero no en `tasks.md` T023, mientras este encabezado decía "todas
+  aplicadas". Ya está en los dos. La lección es del encabezado, no de la cifra:
+  **"todas aplicadas" es una afirmación verificable y no se escribe sin
+  verificarla en cada archivo que la corrección tocaba.**
 - "rail" sobrevivía en Art. III.2, RF-05, RF-10, RF-15 y T027 → `asset` +
   `channel`. El constitution subió a **v1.4.0** por esa enmienda, que es
   editorial y sin efecto funcional.

@@ -316,16 +316,70 @@ quieto, no interpolarlo.
 distingue una ingesta colgada —marca y valor repetidos en corridas sucesivas— de
 un fin de semana con el mercado cerrado, **sin marcar el segundo**.
 
-**T020 — Ventana de acumulación (7 días)** ⛔
-**No iniciar ninguna tarea de frontend hasta completar esta.** Dejar la ingesta
-corriendo una semana. Al final, revisar: qué adapters se rompieron, qué tan
+**T020 — Ventana de acumulación (7 días)** ⛔ *barrera acotada — ver abajo*
+Dejar la ingesta corriendo una semana. Al final, revisar: qué adapters se rompieron, qué tan
 ruidoso es cada dato, si algún bracket nunca tiene datos.
 *Terminado cuando:* hay 7 días de datos y un resumen escrito de los hallazgos.
 
 > Artículo VI.3. Esta tarea existe para que no se diseñe interfaz sobre datos
 > hipotéticos. Es trabajo, no espera.
 
+### Qué bloquea T020, y qué no — acotado el 2026-09-14
+
+La barrera decía "ninguna tarea de la Fase 5 empieza antes". **Era más ancha que
+su propio motivo.** El Artículo VI.3 prohíbe diseñar interfaz sobre datos
+**hipotéticos**; no prohíbe construirla sobre datos que ya existen. Con 3
+corridas reales y 222 filas, los rankings ya ordenan de verdad. Lo que falta no
+es *dato*: es *estabilidad del dato*, y eso solo condiciona las decisiones de
+**presentación** que dependen de cómo se comporta la serie a lo largo de una
+semana.
+
+**No bloqueadas** — se pueden hacer ya:
+
+| Tarea | Por qué no depende de la ventana |
+|---|---|
+| T021 | Estructura, tipografía, despliegue. Cero dato. |
+| T022 | Autenticación. Cero dato. |
+| T023 | Lee lo que ya hay. Ver la advertencia dentro de la tarea. |
+| T024 | La vigencia de la TRM sale del propio dato, no de la serie (T010). |
+| T025 **parcial** | El ranking y su orden (Art. III.1). **No** la representación de Eldorado. |
+| T026 | La marca se prueba forzando un dato viejo, no esperando. |
+
+**Siguen bloqueadas** — son exactamente las preguntas que la semana existe para
+responder, y las tres tienen ya una primera lectura que apunta en una dirección:
+
+1. **Cuántos métodos de Eldorado se muestran y cómo** — el `[NECESITA DECISIÓN]`
+   de T025. Depende del punto 3 de la revisión de cierre: al 2026-09-14 los 4
+   métodos **no** colapsan (14 de 24 celdas difieren, hasta 10,5 % comprando en
+   el bracket de 1), así que recortar la lista borraría diferencias reales.
+2. **Si el selector de bracket se destaca o se esconde** — punto 5: vendiendo el
+   líder cambia con el bracket, comprando no cambia nunca. La asimetría **entre
+   direcciones** no estaba prevista y cambia cómo HU-04 se presenta.
+3. **Si el cruce de `binance_p2p` se explica en la interfaz** (RF-11c) — punto 4:
+   3 de 9 celdas, concentrado en los brackets grandes.
+
+**Regla para lo que se construya mientras tanto:** todo lo que dependa de esos
+tres puntos se marca en el código como **pendiente de datos** —parámetro
+explícito y sin valor por defecto, que obligue a elegir— y **nunca** con un
+default provisional, que es la forma en que una decisión no tomada se vuelve
+permanente por inercia.
+
+> ⚠️ **El cron sigue sin disparar, y eso sí bloquea todo.** El Artículo VI.3
+> exige que la ingesta se **opere**, no solo que exista; las 3 corridas son
+> disparos manuales. Eso no es T020 incompleta: es **T018 incompleta**, y acotar
+> esta barrera no lo toca ni lo disimula.
+
 ## Fase 5 — Frontend
+
+> **Prerrequisito de DDL, descubierto al acotar la barrera (2026-09-14).**
+> `latest_quotes` no expone tres columnas de `runs` que la Fase 5 necesita:
+> **`trm_from` y `trm_to`** —sin ellas T024 no puede marcar la TRM congelada, y
+> las columnas ya existen en la tabla, solo faltan en el `select`— y
+> **`mid_market_src`**, sin la cual mostrar un margen contra mid-market mezcla
+> en silencio dos mediciones distintas (Yahoo intradía y er-api diaria, T011).
+> Van en la **misma migración** que la corrección de márgenes de `plan.md` §2.2,
+> que reescribe esa vista de todos modos: junto cuesta una aplicación a mano en
+> el SQL Editor, separado cuesta dos.
 
 **T021 — Proyecto Astro + adapter de Vercel**
 Estructura base, tipografía, tokens. Móvil primero (RF-12).
@@ -339,8 +393,15 @@ env var, no el código (HU-07).
 **T023 — Cliente de datos (servidor)**
 Leer `latest_quotes` **desde el servidor** con clave de servidor. Ninguna clave
 llega al navegador (`plan.md` §2.3). El servidor entrega en la carga inicial las
-cotizaciones de los cuatro brackets —unas 64 filas— para que el selector filtre
-en cliente sin consultar la base.
+cotizaciones de los cuatro brackets —**74 filas medidas** en la primera corrida
+real, no las 64 estimadas— para que el selector filtre en cliente sin consultar
+la base.
+
+**Advertencia:** cuántas filas son depende de la decisión pendiente de T025, que
+dice de sí misma que "afecta qué consulta el servidor". Mientras siga abierta,
+T023 trae **todas** las filas y el recorte ocurre más arriba — decisión
+deliberada, no un descuido, para que elegir la política no obligue a reescribir
+el cliente de datos.
 *Terminado cuando:* una página imprime las cotizaciones actuales y el bundle del
 navegador no contiene ninguna credencial de Supabase.
 
@@ -381,14 +442,29 @@ de Wise no reporta la ausencia ni su causa (`plan.md` §3.3), así que la interf
 esté fuera de rango, ni que el proveedor no opere a ese monto. Verificado: en el
 bracket de 1 USD faltan Wise y Western Union en cada corrida.
 
+**Corte parcial (2026-09-14):** el ranking, su orden y el bracket de 1 USD se
+construyen ya; la **representación de Eldorado** espera a la ventana. Las dos
+mitades no son capas separadas —la política decide qué *es* una fila— así que la
+forma de dejarla pendiente sin decidirla es implementar **las tres opciones**
+detrás de un parámetro obligatorio **sin default**: el código no compila ni corre
+sin que alguien elija. Medido al 2026-09-14, las tres coinciden en el líder
+porque Eldorado no lidera ninguna celda; eso lo hace seguro de construir y es
+justamente por qué no debe colarse como default.
+
 *Terminado cuando:* cambiar de bracket reordena, el bracket de 1 USD muestra
 los no disponibles con explicación, y la decisión de arriba está tomada y
-aplicada.
+aplicada. **Parcialmente terminable antes de T020**, salvo esa decisión.
 
 **T026 — Frescura del dato**
 Momento de captura visible en cada fila. Marca de desactualizado sobre 60
 minutos. Aviso si una fuente lleva tiempo muda (HU-06, RF-11).
 *Terminado cuando:* forzando un dato viejo, la marca aparece.
+
+**Construible ya, pero el umbral no es calibrable todavía.** Los 60 minutos solo
+se pueden juzgar contra una cadencia real, y hoy los huecos entre corridas son de
+31 y 81 minutos **por el cron ausente**, no por las fuentes. Implementar el
+mecanismo y dejar el umbral como constante nombrada; revisarlo cuando el cron
+corra.
 
 **T027 — Fichas de proveedor** `[P]`
 Una página por proveedor: qué es, `asset` y `channel`, modo, métodos de pago (RF-15).
@@ -422,17 +498,27 @@ T001 → T002 → T003 → T004 → T005
                                      ↓
               [T012 T013 T014] → T015 → T016 → T017
                                                  ↓
-                                       T018 → T019 → T020 ⛔
-                                                       ↓
-                          T021 → T022 → T023 → [T024 T025 T026]
-                                                       ↓
-                                              [T027 T028] → T029 → T030
+                                       T018 → T019 → T020 ⛔ acotada
+                                         │                     │
+            ┌────────────────────────────┘                     ↓
+            ↓                                        3 decisiones de
+   T021 → T022 → T023 → [T024 T025 ◐ T026]            presentación
+                                ↓                             │
+                        [T027 T028] → T029 → T030 ←───────────┘
+
+   ◐ T025 va parcial: el ranking y su orden se construyen ya; la
+     representación de Eldorado espera a que cierre la ventana.
 ```
 
 ## Bloqueos conocidos
 
 - **T030** requiere el dominio, aún sin decidir. Único pendiente abierto.
-- **T020** es una barrera dura: ninguna tarea de la Fase 5 empieza antes.
+- **T020** es una barrera **acotada** desde el 2026-09-14: bloquea las tres
+  decisiones de presentación listadas bajo la tarea, no la Fase 5 entera.
+  T021–T024 y T026 quedan libres; T025 va parcial.
+- **T018 está incompleta y no se había registrado así:** el cron programado
+  nunca disparó, y el Artículo VI.3 pide que la ingesta se *opere*. Bloquea de
+  hecho a T020, que no acumula nada sin él.
 - **T006b** es barrera dura hacia la Fase 3: sin la función de montos probada, no
   se escribe ningún adapter.
 - **T011b** depende de T003 (necesita `market_history`).
