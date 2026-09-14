@@ -110,33 +110,20 @@ probado. Lo destapó una mutación, no el verde.
 ## Estado actual
 
 **Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-14.
-256 tests en verde, lint y typecheck limpios, todo pusheado a las dos ramas.
+260 tests en verde, lint y typecheck limpios, todo pusheado a las dos ramas.
 
-### 🔜 Lo primero al retomar — correr `pnpm check:silence`
+### 🔜 Lo primero al retomar
 
 ```
 corepack pnpm --filter @dolarito/ingest run check:silence
 ```
 
-Contesta de una vez si el cron revivió, porque desde el 2026-09-14 reporta el
-hueco abierto además de las fuentes mudas. **No hace falta abrir la UI de
-Actions.** El criterio vencía a las **2026-09-14T05:58Z** (push `96918c5` a las
-03:58Z, más 2 h).
+Debe decir **`Nothing is silent.`**. Cualquier otra cosa significa que la ventana
+de T020 dejo de acumular, y eso se atiende antes que nada: **el reloj de la
+ventana no corre mientras el disparador no corra** -- ya costo una semana.
 
-| Lo que imprime | Qué significa | Qué hacer |
-|---|---|---|
-| `Nothing is silent.` | El cron corrió dentro de la última hora. **La hipótesis de los minutos contendidos funcionó.** | Cerrar T018: faltaba ver la ruta programada en verde, y esto lo es. Seguir con la barrera acotada de T020. |
-| `the ingest has not run for N min`, **N < 120** | Ambiguo — puede ser retraso normal de plataforma. | Esperar a que N pase de 120 y volver a correrlo. **No decidir todavía.** |
-| `the ingest has not run for N min`, **N > 120** | **Criterio cumplido: la hipótesis queda descartada.** | Activar la ruta a `pg_cron` de `plan.md` §1.2. **Sin volver a deliberar** — la decisión se tomó el 2026-09-14 justamente para no rediscutirla. |
-| `no run between X and Y` (hueco cerrado) | El cron **sí** corrió después del hueco. | Buena señal: es la alarma nueva trabajando sobre un hueco ya superado. Leer igual la fila del hueco abierto, si la hay. |
-
-**Una corrida manual no refuta nada.** Ya se sabe que anda, y no dice nada sobre
-el planificador. Fue exactamente esa confusión —tomar un verde manual como
-evidencia sobre la ruta programada— la que dejó pasar el bump a `@v5`.
-
-**Si el cron revivió, lo que sigue** es la Fase 5 con la barrera acotada: T021 y
-T022 no dependen de dato ninguno, y antes de T023/T024 hay **una migración que
-aplicar a mano** — justo abajo.
+Desde el 2026-09-14 el disparador es **`pg_cron`**, no el planificador de
+GitHub. El porque esta en "T018 -- CERRADA", mas abajo.
 
 ### ⚠️ Pendiente del humano: una migración a mano antes de T023/T024
 
@@ -743,16 +730,24 @@ se descubrió barato **porque se escribió el análisis antes de necesitarlo**.
 
 ## ⛔ T020 — Ventana de acumulación, EN CURSO
 
-**Inicio: 2026-09-13. Cierre previsto: 2026-09-20.**
+**Reiniciada el 2026-09-14. Cierre previsto: 2026-09-21.**
+
+La fecha se corrió una semana entera porque **la ventana nunca llegó a
+acumular**: del 13 al 14 el disparador no funcionó y las únicas corridas fueron
+manuales. El reloj arranca de nuevo hoy, con `pg_cron` disparando y verificado
+de punta a punta.
 
 **Ninguna tarea de Fase 5 puede empezar antes de cerrarla** (Art. VI.3, regla 4
 de este archivo). No es una formalidad: existe para que no se diseñe interfaz
 sobre datos que todavía no se sabe cómo se comportan.
 
-Estado al 2026-09-14: **3 corridas, 222 filas, 8 de 8 fuentes en las tres,
-cero fallos**. Las tres son manuales — el cron programado sigue sin disparar,
-ver "A medias" —, así que **la ventana todavía no acumula por sí sola** y la
-fecha de cierre se corre tanto como tarde el cron.
+Estado al reiniciar: 8 corridas en la base, 8 de 8 fuentes en todas, cero
+fallos. Seis son anteriores a `runs.trigger_src` y tienen disparador
+desconocido; de las dos etiquetadas, **una la disparó `pg_cron` y otra el
+planificador de GitHub**. Ahora sí acumula sola.
+
+La primera lectura de los seis puntos, medida el 2026-09-14 con 3 corridas,
+sigue más abajo: es la línea base contra la que se compara el 21.
 
 ### Qué revisar al cerrar la semana
 
@@ -852,77 +847,97 @@ la *forma*, y dos puntos apuntan fuerte en una dirección.
 
 ### Mientras tanto
 
-Nada de frontend. Lo que sí se puede hacer sin tocar Fase 5: las decisiones
-abiertas (N1, N4, la asimetría de T025), las correcciones menores de documentos
-antes de T029, y revisar `site_url`/`notes` del catálogo.
+**La barrera está acotada** (regla 4): **T021, T022, T023, T024 y T026 se pueden
+hacer ya**; T025 va parcial. Lo único que espera al 21 son las tres decisiones
+de presentación listadas en `tasks.md` bajo T020.
+
+La migración de `latest_quotes` **ya está aplicada**, así que T023 y T024 tienen
+las columnas que necesitan y los márgenes ya están corregidos.
+
+También sin tocar Fase 5: la asimetría de T025, las correcciones menores antes
+de T029, y revisar `site_url`/`notes` del catálogo.
 
 
 ### A medias
 
-- **✅ El cron disparó el 2026-09-14 y falló en 8 segundos. Causa encontrada,
-  arreglo aplicado, verificación pendiente.**
+- **✅ T018 — CERRADA el 2026-09-14. El disparador es `pg_cron`, no el
+  planificador de GitHub.**
 
-  `ingest #2: Scheduled` murió en `actions/setup-node@v5` con
-  `Unable to locate executable file: pnpm`, sin llegar a consultar una sola
-  fuente.
+  Cuatro pasos en dos días. La conclusión sola se reimplementa mal, así que
+  queda escrito el camino:
 
-  **La variable no era programada-contra-manual: era `@v4` contra `@v5`.** La
-  corrida manual verde de 50 s se disparó **antes** del commit `460db1a`, que
-  subió las actions a v5 y no tocó nada más. La programada fue **la primera
-  ejecución de cualquier tipo sobre v5**. No hay misterio de "el mismo YAML se
-  comportó distinto": no era el mismo YAML.
+  1. El cron programado no corría. Se descartó el repositorio como causa —
+     sintaxis, anidado del `on:`, commits recientes, rama por defecto, workflow
+     deshabilitado y facturación; los seis verificados (tabla en `plan.md` §1.2).
+  2. La única programada que sí disparó murió en 8 s: el **bump de actions a
+     `@v5`** (`460db1a`) dejó a `setup-node` sin `pnpm`. La variable no era
+     programada-contra-manual: era **v4 contra v5**. Arreglado con
+     `pnpm/action-setup` antes de `setup-node`, en los dos workflows.
+  3. Ya arreglado, el planificador seguía descartando el **~97 %** de los
+     disparos. Se movió el cron fuera de los minutos redondos como hipótesis
+     declarada, con **criterio de decisión escrito por adelantado**. Se cumplió.
+  4. El disparador pasó a **`pg_cron` + `pg_net` → `workflow_dispatch`**.
 
-  **Lección, que es la de este archivo aplicada a CI:** subir una action de
-  major es un cambio que necesita su propia verificación. Un verde anterior es
-  evidencia sobre la versión anterior y sobre ninguna otra. El bump se hizo y se
-  dio por inocuo sin correr nada.
+  **Por qué esa forma y no una Edge Function:** el *runner* de GitHub funciona
+  — 44 s, verde, 8 de 8 fuentes. Lo que falla es el *planificador*. Mover el
+  trabajo a Deno habría cambiado el runtime que los 260 tests ejercitan, y los
+  logs de Actions por un visor más pobre: cambiar lo que anda para arreglar lo
+  que no.
 
-  **Arreglo:** `pnpm/action-setup@v4` **antes** de `setup-node`, en los dos
-  workflows. La versión de pnpm **no** se repite en el YAML: action-setup lee el
-  campo `packageManager` de `package.json` (`pnpm@10.18.0`), así que hay una
-  sola fuente de verdad y ningún segundo lugar del que se desincronice. De paso
-  reemplaza a `corepack enable`, que ahora sólo añadiría una forma de que dos
-  pnpm distintos discutan cuál corre.
+  Verificado con `supabase/tests/t018_pg_cron_verify.sql`: job activo, secreto
+  legible en Vault, disparo `succeeded`, **GitHub respondió 204**, y una fila
+  quedó etiquetada `pg_cron`. Las dos rutas vistas en verde, que era el criterio.
 
-  **`silence.yml` tenía el mismo orden y nunca se lo había visto fallar** — su
-  cron diario todavía no había corrido sobre v5. Arreglado junto. Un guardián
-  caído es peor que no tener guardián: se cree que está cubierto.
+  **Lección, la de este archivo aplicada a CI:** subir una action de major es un
+  cambio que necesita su propia verificación. Un verde anterior es evidencia
+  sobre la versión anterior y sobre ninguna otra.
 
-  **Lo que NO está verificado, y por qué no lo puedo verificar yo:** el
-  mecanismo exacto dentro de `setup-node@v5`. El log muestra `Environment
-  details` justo antes del error, lo que sugiere que v5 sondea gestores de
-  paquetes al terminar y trata la ausencia de pnpm como error duro. **No lo
-  confirmé contra el código de la action y no lo afirmo.** Lo descartado sí es
-  firme: la hipótesis de `cache: 'pnpm'` **no aplica** — ese input no está en
-  los workflows y nunca estuvo en la historia del repo (verificado con
-  `git log --all -p`). El arreglo funciona para las dos explicaciones, porque
-  pone pnpm en el PATH antes de que setup-node haga nada.
+- **✅ T019 — CERRADA el 2026-09-14, después de dos falsos verdes propios.**
 
-  **Segundo síntoma, 2026-09-14:** con el YAML corregido, el disparo manual sale
-  verde (ingest 44 s, silence 17 s) pero **el schedule sigue sin correr**. El
-  repositorio está descartado como causa — sintaxis del cron, anidado del `on:`,
-  commits recientes, rama por defecto, workflow deshabilitado y facturación, los
-  seis verificados; la tabla está en `plan.md` §1.2.
+  Tres criterios, y los dos últimos existen porque el chequeo pasó en verde
+  mientras el sistema estaba roto:
+  1. Un proveedor sin filas en la ventana.
+  2. Una referencia congelada — marca **y** valor repetidos, lo único que separa
+     ingesta colgada de mercado cerrado.
+  3. **La cadencia.** Pasó verde con el cron caído 2 h 39 min: medía "¿el dato
+     más nuevo es reciente?" cuando la pregunta era "¿corrió cuando debía?". Y
+     un disparo manual para diagnosticar **borraba la evidencia del problema**.
 
-  Lo aplicado es **una hipótesis declarada como tal**: el cron salió de los
-  minutos redondos (`*/15` → `7,22,37,52`, misma cadencia, otra fase; silence de
-  `0 13` a `38 13`), porque :00/:15/:30/:45 son los slots más contendidos.
+  Dentro del tercero, un cuarto arreglo: **mira una corrida más allá del borde
+  de la ventana**, porque un hueco que empieza antes y termina dentro era
+  invisible. Verificado en vivo — el hueco de 375 min apareció donde antes no
+  había nada.
 
-  **⚠️ Hay criterio de decisión escrito por adelantado en `plan.md` §1.2, y es
-  para ejecutar sin volver a deliberar:** si pasan **2 horas desde el push del
-  2026-09-14T03:58Z (vence 05:58Z)** sin corrida programada, la hipótesis queda descartada y se
-  activa la ruta a `pg_cron`. Lo mide `pnpm check:silence` — `it is down right
-  now` con más de 120 min cumple el criterio. **Una corrida manual no refuta
-  nada**: ya se sabe que anda, y fue esa confusión la que dejó pasar el bump a
-  `@v5`.
+- **📊 SEGUIMIENTO ABIERTO: ¿se retira el cron de `ingest.yml`?**
 
-  **Faltan las dos rutas vistas en verde**: un disparo manual y un ciclo
-  programado, sobre el YAML corregido. Ninguna de las dos la puedo disparar yo
-  (`gh` no está instalado). Hasta entonces esto es un arreglo plausible, no un
-  arreglo probado, y **T018 sigue incompleta** — `tasks.md` lo registra así.
+  Hoy **conviven las dos rutas**, deliberadamente: `ingest.yml` conserva su
+  `7,22,37,52` y `pg_cron` despacha en `*/15`. Mientras convivan, `trigger_src`
+  cuenta cuánto aporta cada una.
 
-  **T020 depende enteramente de esto.** La ventana no acumula nada mientras el
-  cron no corra, así que la fecha de cierre del 20 se corre otro tanto.
+  Al 2026-09-14 el planificador de GitHub llevaba **1 corrida**, contra las ~4
+  por hora que le tocarían. No está muerto: está degradado.
+
+  **En unos días se decide si retirarlo y dejar `pg_cron` como única ruta.**
+
+  ```sql
+  select trigger_src, count(*), min(started_at), max(started_at)
+  from runs group by trigger_src order by 2 desc;
+  ```
+
+  **La decisión se toma con ese conteo, no con impresiones.** Ni "parece que ya
+  anda" ni "parece que sigue roto": razonar así es lo que hizo perder dos días
+  acá, y ahora hay una columna que lo contesta.
+
+  A favor de retirarlo: una sola ruta es más simple, y el doble disparo duplica
+  el tráfico a las ocho fuentes — toca el Art. V.3 y el riesgo de Eldorado de
+  §7.1. A favor de dejarlo: es respaldo gratis si `pg_cron` cae, y hoy ninguna
+  ruta tiene red.
+
+  **Nota de atribución, medida:** en la UI de Actions un despacho de `pg_cron`
+  aparece como *"Manually run by (dueño del PAT)"*, porque GitHub lo atribuye a
+  quién firma el token. **Desde Actions las dos rutas son indistinguibles.**
+  `trigger_src` es el único lugar donde vive la respuesta, y es el mejor
+  argumento a favor de esa columna.
 
 - **`quotes.gross_rate` también es `numeric(14,4)`, y eso produjo una falsa
   alarma.** Verificando que el ponderado de `binance_p2p` se reconstruye desde

@@ -346,6 +346,11 @@ Dejar la ingesta corriendo una semana. Al final, revisar: qué adapters se rompi
 ruidoso es cada dato, si algún bracket nunca tiene datos.
 *Terminado cuando:* hay 7 días de datos y un resumen escrito de los hallazgos.
 
+**Reiniciada el 2026-09-14; cierre previsto el 2026-09-21.** El primer intento
+no acumuló nada: el disparador no funcionaba y las únicas corridas eran
+manuales. El reloj de esta ventana cuenta desde que `pg_cron` dispara, no desde
+que la tarea se abrió.
+
 > Artículo VI.3. Esta tarea existe para que no se diseñe interfaz sobre datos
 > hipotéticos. Es trabajo, no espera.
 
@@ -541,14 +546,22 @@ T001 → T002 → T003 → T004 → T005
 - **T020** es una barrera **acotada** desde el 2026-09-14: bloquea las tres
   decisiones de presentación listadas bajo la tarea, no la Fase 5 entera.
   T021–T024 y T026 quedan libres; T025 va parcial.
-- **T018 sigue incompleta.** El cron disparó por primera vez el 2026-09-14 y
-  **falló en 8 s** en `setup-node@v5`, sin consultar ninguna fuente. La causa
-  fue el bump de actions a v5 (`460db1a`), no el `cron:`; el arreglo
-  —`pnpm/action-setup` antes de `setup-node`, en los dos workflows— está
-  aplicado. **Cierra cuando se hayan visto en verde las dos rutas sobre el YAML
-  corregido: un disparo manual y un ciclo programado.** Un verde manual no es
-  evidencia sobre la ruta programada, y fue justamente esa suposición la que
-  dejó pasar el bump. El Artículo VI.3 pide que la ingesta se *opere*.
+- **T018 — CERRADA el 2026-09-14.** El disparador ya no es el planificador de
+  GitHub: es **`pg_cron` + `pg_net` → `workflow_dispatch`**. Se llegó ahí
+  después de descartar el repositorio como causa, arreglar el bump a `@v5` que
+  mataba la corrida en 8 s, y comprobar que aun arreglado el planificador
+  descartaba el ~97 % de los disparos. Verificado con
+  `supabase/tests/t018_pg_cron_verify.sql`: job activo, secreto en Vault,
+  **GitHub respondió 204**, y una fila quedó etiquetada `pg_cron`. Las dos rutas
+  vistas en verde, que era el criterio.
+
+  **Sigue abierto un seguimiento, no un bloqueo:** las dos rutas conviven a
+  propósito y `runs.trigger_src` cuenta cuánto aporta cada una. En unos días se
+  decide si se retira el `cron:` de `ingest.yml`. **Con el conteo, no con
+  impresiones** — detalle y consulta en CLAUDE.md, "SEGUIMIENTO ABIERTO".
+- **T019 — CERRADA el 2026-09-14**, con un tercer criterio que no estaba en el
+  enunciado: la cadencia. Los dos originales preguntaban "¿el dato más nuevo es
+  reciente?" y dejaban pasar una caída del disparador entera.
 - **T006b** es barrera dura hacia la Fase 3: sin la función de montos probada, no
   se escribe ningún adapter.
 - **T011b** depende de T003 (necesita `market_history`).
