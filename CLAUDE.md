@@ -90,7 +90,7 @@ probado. Lo destapó una mutación, no el verde.
 
 ## Estado actual
 
-**Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-13.
+**Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-14.
 
 ### Completado
 
@@ -684,9 +684,10 @@ probado. Lo destapó una mutación, no el verde.
 de este archivo). No es una formalidad: existe para que no se diseñe interfaz
 sobre datos que todavía no se sabe cómo se comportan.
 
-Estado al arrancar: cron verde, disparado a mano desde Actions —50 s, corrida
-ingest #1—, 2 corridas en la base, 148 filas, 8 de 8 fuentes en ambas, cero
-fallos.
+Estado al 2026-09-14: **3 corridas, 222 filas, 8 de 8 fuentes en las tres,
+cero fallos**. Las tres son manuales — el cron programado sigue sin disparar,
+ver "A medias" —, así que **la ventana todavía no acumula por sí sola** y la
+fecha de cierre se corre tanto como tarde el cron.
 
 ### Qué revisar al cerrar la semana
 
@@ -749,6 +750,41 @@ Escribirlo antes del cierre fue justamente para eso:
    proveedores con comisión fija, y **cuántas filas de `cop_to_usd` cambian de
    signo** — que son todas, pero interesa la magnitud.
 
+#### Primera lectura — 2026-09-14, 3 corridas
+
+Línea base contra la cual comparar el 20. **Nada de esto es concluyente con 3
+corridas**, y el script lo dice solo antes de imprimir nada. Lo que ya sirve es
+la *forma*, y dos puntos apuntan fuerte en una dirección.
+
+- **1 — Cobertura.** 8 de 8 al 100 %, sin un solo fallo de adapter. Sin señal
+  todavía; el valor de este punto aparece cuando algo falle.
+- **2 — Huecos.** Dos, de 31 y 81 minutos, **~5 ciclos perdidos** en menos de
+  dos horas. Eso no mide a las fuentes: **mide la ausencia del cron**. El
+  bracket de 1 USD se comporta como se esperaba — `below_minimum` en
+  `binance_p2p` las 3 veces, y cero filas en `wise` y `western_union` las 3.
+- **3 — Los 4 métodos de Eldorado NO colapsan.** 14 de 24 celdas difieren. El
+  spread entre métodos llega a **10,5 % comprando en el bracket de 1** y ronda
+  0,6 % vendiendo en 100/500/1000. Iba a ser el argumento para recortar la lista
+  y bajar el riesgo de §7.1; **el dato dice lo contrario**. Recortar borraría
+  diferencias reales, así que se quedan las 4 y la asimetría de T025 pesa más,
+  no menos.
+- **4 — El cruce de `binance_p2p` no es una curiosidad.** 3 de 9 celdas (33 %),
+  y **concentrado en los brackets grandes**: 2 de 3 en 500, 1 de 3 en 1000,
+  **0 de 3 en 100**. Si se sostiene una semana, RF-11c deja de ser hipotético.
+- **5 — El líder cambia, pero solo en una dirección.** Vendiendo **cambia** con
+  el bracket en las 3 corridas (`binance_p2p` 9 celdas, `bitso` 3); comprando
+  **nunca** cambia (`bitso` 12 de 12). Es justo la pregunta de HU-04, y la
+  asimetría entre direcciones no estaba prevista.
+  **Las tres políticas de T025 coinciden hoy**, porque Eldorado no lidera
+  ninguna celda. Mientras siga así, **la decisión de T025 no mueve el ranking**
+  y puede tomarse por legibilidad en vez de por su efecto. Si divergen en la
+  semana, ahí está su consecuencia medida.
+- **6 — Márgenes.** **101 de 216 filas cambian de signo** al corregir. La
+  separación entre tasa anunciada y efectiva es despreciable en los tres de
+  libro único (≤0,02 %) y grande donde hay comisión fija: **wise 9,16 %**,
+  `western_union` 1,99 %. Confirma que el defecto no es uniforme: castiga
+  exactamente a los proveedores que cobran aparte.
+
 ### Mientras tanto
 
 Nada de frontend. Lo que sí se puede hacer sin tocar Fase 5: las decisiones
@@ -761,6 +797,11 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
 - **⏳ El cron programado todavía no disparó. Revisar el 2026-09-15.**
   Al 2026-09-13T23:55Z: una hora desde la única corrida, 3 programadas
   esperadas, **0 registradas**. Actions muestra una sola corrida y es la manual.
+
+  **Medido desde la base el 2026-09-14** (`pnpm analyse:window`, punto 2): las 3
+  corridas que existen están separadas por **31 y 81 minutos**, ~5 ciclos
+  perdidos en menos de dos horas. Con el cron vivo estarían a 15. Las tres son
+  disparos manuales.
 
   Descartado: el workflow **sí** está en la rama por defecto — el `HEAD` del
   remoto es `001-dolarito`. Y el disparo manual funcionó (50 s, verde), así que
@@ -841,6 +882,18 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
   porque **`market_history` no tiene columna `raw`**: a diferencia de `quotes`, no
   guarda la respuesta original. Lo único que preserva el crudo es el fixture.
 
+
+- **`quotes.gross_rate` también es `numeric(14,4)`, y eso produjo una falsa
+  alarma.** Verificando que el ponderado de `binance_p2p` se reconstruye desde
+  el `taken` que ahora guarda `raw`, **tres filas dieron "DIFIERE"**. No era un
+  defecto del camino recorrido: **era la columna**. Las diferencias iban de 1e-5
+  a 2,6e-5 — medio ulp de 4 decimales — y la tolerancia de mi comprobación era
+  más fina que la precisión que la base puede guardar.
+
+  La reconstrucción es **exacta en memoria y exacta a 4 decimales** a través de
+  la base. Queda anotado en el test porque la lección se reaplica sola en enero:
+  **una verificación más precisa que su propia columna se acusa a sí misma.**
+  Misma familia que la nota de `market_history.close` de arriba.
 
 - **Las cadencias de las dos referencias ya son cifras medidas, no descripción.**
   Yahoo manda `Cache-Control: public, max-age=10` —considera su propia respuesta
