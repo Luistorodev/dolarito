@@ -734,6 +734,26 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
 
 ### A medias
 
+- **⏳ El cron programado todavía no disparó. Revisar el 2026-09-15.**
+  Al 2026-09-13T23:55Z: una hora desde la única corrida, 3 programadas
+  esperadas, **0 registradas**. Actions muestra una sola corrida y es la manual.
+
+  Descartado: el workflow **sí** está en la rama por defecto — el `HEAD` del
+  remoto es `001-dolarito`. Y el disparo manual funcionó (50 s, verde), así que
+  el YAML y los secretos están bien.
+
+  Plausible y sin confirmar: un schedule recién creado tarda en entrar al
+  planificador, y GitHub **no garantiza** el `*/15` — encola y descarta bajo
+  carga, con retrasos habituales en schedules de alta frecuencia.
+
+  **Si el 15 sigue sin corridas programadas, se revisa el `cron:` del YAML.**
+  Cómo distinguirlo en Actions: si figuran corridas *programadas y saltadas*, es
+  carga de GitHub; si no figura ninguna, el schedule nunca se activó.
+
+  **T020 depende enteramente de esto.** La ventana no acumula nada mientras el
+  cron no corra, así que la fecha de cierre del 20 se corre otro tanto.
+
+
 - **`markup_vs_trm` y `markup_vs_mid` usan la tasa anunciada, no la efectiva.**
   `plan.md` §2.2 las define como `(trm - gross_rate) / trm`, y para los tres
   proveedores con comisión fija eso **contradice el Art. III.1**, que dice que
