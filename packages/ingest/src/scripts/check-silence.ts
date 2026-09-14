@@ -37,21 +37,27 @@ async function main(): Promise<void> {
     .order('started_at', { ascending: false });
   if (runsError) throw new Error(`could not read runs: ${runsError.message}`);
 
-  let runs = windowRuns ?? [];
+  // One run from BEYOND the window edge, always.
+  //
+  // A hole that starts before the window and ends inside it is otherwise
+  // invisible: the run that opens it falls outside the query, so the check
+  // sees a lone run and can only describe the trailing hole. Measured on
+  // 2026-09-14 — an 8h51m overnight hole would not have been reported, and had
+  // anything landed just before the daily check it would have said "nothing is
+  // silent" with that hole right behind it. Same family as the false green of
+  // the day before: the window bounds what the check can see.
+  //
+  // It also covers the case where nothing ran inside the window at all, which
+  // is the longest outage of all and was otherwise the quietest.
+  const { data: edgeRun, error: edgeError } = await supabase
+    .from('runs')
+    .select('started_at, mid_market, mid_market_at')
+    .lt('started_at', since)
+    .order('started_at', { ascending: false })
+    .limit(1);
+  if (edgeError) throw new Error(`could not read runs: ${edgeError.message}`);
 
-  // If nothing ran inside the window at all, the window holds no evidence of
-  // the outage — the hole has to be measured against the last run that does
-  // exist, however old. Without this the longest outages are the quietest,
-  // which is exactly backwards.
-  if (runs.length === 0) {
-    const { data: newest, error: newestError } = await supabase
-      .from('runs')
-      .select('started_at, mid_market, mid_market_at')
-      .order('started_at', { ascending: false })
-      .limit(1);
-    if (newestError) throw new Error(`could not read runs: ${newestError.message}`);
-    runs = newest ?? [];
-  }
+  const runs = [...(windowRuns ?? []), ...(edgeRun ?? [])];
 
   const report = buildReport(
     PROVIDERS.map((provider) => provider.id),
@@ -64,7 +70,10 @@ async function main(): Promise<void> {
     `providers reporting: ${PROVIDERS.length - report.silentProviders.length} of ${PROVIDERS.length}`,
   );
   console.log(`mid_market: ${report.reference.kind}`);
-  console.log(`runs in window: ${runs.length} (cadence: every ${EXPECTED_INTERVAL_MINUTES} min)`);
+  console.log(
+    `runs in window: ${(windowRuns ?? []).length} (cadence: every ${EXPECTED_INTERVAL_MINUTES} min` +
+      `${(edgeRun ?? []).length > 0 ? ', plus one from before the edge' : ''})`,
+  );
 
   if (report.problems.length === 0) {
     console.log('');

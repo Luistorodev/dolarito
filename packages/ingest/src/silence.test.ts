@@ -319,6 +319,23 @@ describe('the ingest not running at all', () => {
     assert.ok(report.problems[0]?.includes('no run between'));
   });
 
+  it('sees a hole that straddles the window edge, given the run that opens it', () => {
+    // The blind spot found on 2026-09-14. The check queries a 6-hour window;
+    // a hole that starts before it and ends inside it is only visible if the
+    // run that OPENS the hole comes along too. check-silence.ts fetches one
+    // run from beyond the edge for exactly this.
+    const openedBefore = runsAt([9, 0.5]); // 8.5h apart, edge run + one inside
+
+    const withEdge = findGaps(openedBefore, NOW);
+    assert.equal(withEdge.length, 1, 'the straddling hole is reported');
+    assert.ok(Math.abs((withEdge[0]?.minutes ?? 0) - 510) < 1);
+
+    // And the proof that the edge run is what makes it visible: drop it and
+    // the hole vanishes, leaving only whatever the trailing gap says.
+    const withoutEdge = findGaps(runsAt([0.5]), NOW);
+    assert.deepEqual(withoutEdge, [], 'a lone run inside the window sees nothing');
+  });
+
   it('names an ongoing outage as ongoing, not as history', () => {
     const report = buildReport(ALL, seen(ALL, 0.1), runsAt([2.7, 2.95, 3.2]), NOW);
     assert.ok(report.problems.some((p) => p.includes('it is down right now')));
