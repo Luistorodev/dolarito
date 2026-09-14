@@ -84,6 +84,19 @@ detrás— y sale 1 con `T005 INCONCLUSIVE` en vez de mentir.
 Aplica a **T019** (una fuente muda por estar caída no es lo mismo que una fuente
 muda por un bug de ingesta) y a todo test que afirme una ausencia.
 
+**Y ya pasó una segunda vez, en el mismo T019 (2026-09-14).** `check:silence`
+pasó en verde con el cron caído 2 h 39 min. No era un bug de cálculo: el
+criterio medía **"¿el dato más nuevo es reciente?"** y la pregunta que importá
+era **"¿corrió cuando debía?"**. Como solo guardaba el avistamiento más reciente
+por proveedor, **cualquier caída se volvía invisible apenas aterrizaba una
+corrida después** — y un disparo manual para diagnosticar el problema **borraba
+la evidencia del problema**.
+
+La forma generalizable: **preguntarle a un chequeo qué pregunta contesta, no si
+da verde.** Los dos se parecen mucho cuando el sistema está sano, y se separan
+exactamente cuando hace falta. Un chequeo de ausencia que solo mira el último
+dato no puede distinguir "todo bien" de "estuvo muerto y volvió recién".
+
 **Y la versión positiva: una suite en verde no es evidencia hasta que se la vio
 fallar.** Antes de dar por cerrada una tarea con tests, romper la implementación
 a propósito y confirmar que caen los tests correctos. Restaurar con `cmp`, no a
@@ -668,7 +681,8 @@ probado. Lo destapó una mutación, no el verde.
     `workflow_dispatch` y `concurrency` para que una corrida lenta no se solape.
   - `silence.ts` + `check-silence.ts` + workflow diario. Distingue **ingesta
     colgada** de **mercado cerrado** por repetición de marca **y** valor a lo
-    largo de corridas, que es lo único que las separa.
+    largo de corridas, que es lo único que las separa. **Y desde el 2026-09-14,
+    un tercer criterio: la cadencia** — ver abajo, salió de un falso verde.
 
   **Primera corrida real contra la base:** 74 filas, 2 referencias, 8 de 8
   fuentes ok, exit 0, 37,5 s. `latest_quotes` devuelve rankings con márgenes.

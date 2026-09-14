@@ -316,6 +316,31 @@ quieto, no interpolarlo.
 distingue una ingesta colgada —marca y valor repetidos en corridas sucesivas— de
 un fin de semana con el mercado cerrado, **sin marcar el segundo**.
 
+**Tercer criterio, agregado el 2026-09-14 después de un falso verde real.** Los
+dos criterios de arriba preguntan "¿el dato más nuevo es suficientemente
+reciente?", y **ninguno ve un hueco que ya se cerró**: `findSilentProviders`
+guarda solo el avistamiento *más reciente* por proveedor, así que cualquier
+caída se vuelve invisible en cuanto aterriza una corrida después. Medido contra
+los datos reales: en el peor instante del hueco de 81 minutos, **0 de 8
+proveedores figuraban mudos**, y con el cron caído 2 h 39 min el informe seguía
+diciendo "nothing is silent".
+
+Por eso la cadencia se chequea **contra el horario, no contra el dato**: cuánto
+hace de la última corrida y qué huecos hay dentro de la ventana. El hueco
+abierto es el que permite notar una caída **mientras sigue ocurriendo**; los
+históricos existen para que una revisión posterior a la recuperación no dé por
+limpio un periodo que nunca cubrió.
+
+Esto es **más ancho que el Artículo VI.2**, cuya unidad es "una fuente sin datos
+durante N corridas": si no corre nada, ninguna fuente está muda en ese sentido y
+el artículo se cumple de forma vacía. Que el sistema entero esté caído estaba
+simplemente fuera de lo que describe.
+
+*Terminado cuando (añadido):* con el historial de corridas que pasó limpio el
+2026-09-14 —ocho proveedores frescos, referencia sana— el informe **falla**, y
+una mutación que quite la detección del hueco abierto voltea sus tres tests y
+ningún otro.
+
 **T020 — Ventana de acumulación (7 días)** ⛔ *barrera acotada — ver abajo*
 Dejar la ingesta corriendo una semana. Al final, revisar: qué adapters se rompieron, qué tan
 ruidoso es cada dato, si algún bracket nunca tiene datos.

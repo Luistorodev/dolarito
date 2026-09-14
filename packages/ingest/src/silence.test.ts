@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildReport,
+  findGaps,
   findSilentProviders,
   inspectReference,
   type QuoteSighting,
@@ -232,5 +233,94 @@ describe('the report', () => {
     assert.equal(report.problems.length, 2);
     assert.ok(report.problems.some((p) => p.startsWith('wise:')));
     assert.ok(report.problems.some((p) => p.includes('stuck ingest, not a closed market')));
+  });
+});
+
+describe('the ingest not running at all', () => {
+  // Added 2026-09-14, after this suite passed green through a real outage.
+  //
+  // Checks 1 and 2 both ask "is the newest datum recent enough?", and neither
+  // can see a hole that has already closed. Measured against the real data: at
+  // the worst instant of the 81-minute hole, 0 of 8 providers read as silent.
+
+  function runsAt(hoursAgoList: number[]): RunSighting[] {
+    return hoursAgoList.map((h) => ({
+      started_at: hoursAgo(h),
+      mid_market: 3079.23 + h,
+      mid_market_at: hoursAgo(h),
+    }));
+  }
+
+  it('says nothing when the cadence is kept', () => {
+    // Every 15 minutes for two hours.
+    const runs = runsAt(Array.from({ length: 8 }, (_, i) => i * 0.25));
+    assert.deepEqual(findGaps(runs, NOW), []);
+  });
+
+  it('tolerates a missed cycle or two, because Actions drops them under load', () => {
+    // 30 and 45 minute holes. GitHub documents that it does not guarantee the
+    // interval; alarming here would train everyone to ignore this.
+    const runs = runsAt([0, 0.5, 1.25, 1.5]);
+    assert.deepEqual(findGaps(runs, NOW), []);
+  });
+
+  it('reports a hole in the middle even though every provider looks fresh', () => {
+    // THE false green, reproduced. A 3-hour hole, then a run that lands just
+    // before the check — the shape a manual run after an outage produces.
+    const runs = runsAt([0.1, 3.2, 3.4, 3.6]);
+    const gaps = findGaps(runs, NOW);
+
+    assert.equal(gaps.length, 1);
+    assert.ok(gaps[0] !== undefined);
+    assert.ok(Math.abs(gaps[0].minutes - 186) < 1, `got ${gaps[0].minutes}`);
+    assert.equal(gaps[0].missedCycles, 11);
+
+    // And the point of the test: the providers are NOT silent by the old check.
+    assert.deepEqual(findSilentProviders(ALL, seen(ALL, 0.1), NOW), []);
+  });
+
+  it('reports the open hole — the ingest being down RIGHT NOW', () => {
+    // The only way to notice an outage while it is still happening.
+    const gaps = findGaps(runsAt([2.7, 2.95, 3.2]), NOW);
+
+    assert.equal(gaps.length, 1);
+    assert.equal(gaps[0]?.to, NOW.toISOString());
+    assert.ok((gaps[0]?.minutes ?? 0) > 160);
+  });
+
+  it('measures the open hole against the last run even if it is ancient', () => {
+    // The longest outages must not be the quietest ones.
+    const gaps = findGaps(runsAt([72]), NOW);
+    assert.equal(gaps.length, 1);
+    assert.ok((gaps[0]?.minutes ?? 0) > 4300);
+  });
+
+  it('finds nothing in an empty database — that case is loud elsewhere', () => {
+    // Every provider reads as "no rows at all, ever"; a gap would be noise.
+    assert.deepEqual(findGaps([], NOW), []);
+  });
+
+  it('does not care what order the runs arrive in', () => {
+    const ordered = runsAt([0.1, 3.2, 3.4, 3.6]);
+    const shuffled = [ordered[2], ordered[0], ordered[3], ordered[1]] as RunSighting[];
+    assert.deepEqual(findGaps(shuffled, NOW), findGaps(ordered, NOW));
+  });
+
+  it('the report now fails on the run history that used to pass clean', () => {
+    // The regression test proper: same inputs that produced zero problems
+    // before, against buildReport.
+    const runs = runsAt([0.1, 3.2, 3.4, 3.6]);
+    const report = buildReport(ALL, seen(ALL, 0.1), runs, NOW);
+
+    assert.equal(report.silentProviders.length, 0, 'no provider is mute');
+    assert.equal(report.reference.kind, 'healthy', 'the reference is fine');
+    assert.equal(report.gaps.length, 1);
+    assert.equal(report.problems.length, 1, 'and yet the run history is not fine');
+    assert.ok(report.problems[0]?.includes('no run between'));
+  });
+
+  it('names an ongoing outage as ongoing, not as history', () => {
+    const report = buildReport(ALL, seen(ALL, 0.1), runsAt([2.7, 2.95, 3.2]), NOW);
+    assert.ok(report.problems.some((p) => p.includes('it is down right now')));
   });
 });

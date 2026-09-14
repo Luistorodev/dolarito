@@ -37,6 +37,27 @@
  * A still value on its own means nothing: a whole weekend produces one
  * legitimately, and Art. I.4 requires leaving it still rather than
  * interpolating. What is not legitimate is the timestamp never changing.
+ *
+ * ## 3. The ingest itself not running
+ *
+ * **Added 2026-09-14, after this file passed green through a real outage.**
+ *
+ * Checks 1 and 2 both ask "is the newest datum recent enough?". Neither can
+ * see a hole that has already closed: `findSilentProviders` keeps only the
+ * *most recent* sighting per provider, so an outage of any length is invisible
+ * the moment one run lands afterwards. Measured on the real data — at the worst
+ * instant of an 81-minute hole, 0 of 8 providers read as silent, and with the
+ * cron down for 2h39m the report still said nothing was wrong.
+ *
+ * That is the false green this repo keeps warning about: a check that cannot
+ * tell "everything is fine" from "the ingest was dead and just came back".
+ *
+ * So cadence is checked directly, against the schedule rather than against the
+ * data: how long since the last run, and what holes are inside the window. Note
+ * this is **wider than Art. VI.2**, whose unit is "a source with no data across
+ * N runs" — when nothing runs at all, no source is mute in that sense, and the
+ * article's check is vacuously satisfied. The whole system being down was
+ * simply outside what it describes.
  */
 
 /** Six hours, per the task. */
@@ -44,6 +65,21 @@ export const SILENCE_HOURS = 6;
 
 /** How many consecutive identical runs count as stuck rather than quiet. */
 export const STUCK_RUNS = 3;
+
+/** How often the ingest is meant to run. Mirrors the cron in ingest.yml. */
+export const EXPECTED_INTERVAL_MINUTES = 15;
+
+/**
+ * How big a hole has to be before it is an incident rather than GitHub being
+ * GitHub. Actions queues scheduled runs and drops them under load, and
+ * documents that it does not guarantee the interval, so one or two missed
+ * cycles are normal and alarming on them would train everyone to ignore this.
+ *
+ * Four missed cycles is not noise. It also matches the staleness threshold
+ * T026 shows in the interface, so the alarm and the UI agree on what "stale"
+ * means instead of drifting apart.
+ */
+export const TOLERATED_GAP_MINUTES = 60;
 
 export type QuoteSighting = { provider_id: string; captured_at: string };
 
@@ -139,9 +175,63 @@ export function inspectReference(
   return { kind: 'healthy' };
 }
 
+/**
+ * A hole in the run history. A database with no runs at all produces none:
+ * that case is already covered, loudly, by every provider reading as "no rows
+ * at all, ever".
+ */
+export type Gap = { from: string; to: string; minutes: number; missedCycles: number };
+
+/**
+ * Holes in the cadence, including the open one that runs up to `now`.
+ *
+ * The trailing hole is the one that matters for an alarm: it is the only way to
+ * notice that the ingest is down **while it is still down**. The historical
+ * ones matter because a check that runs after recovery would otherwise report
+ * a clean bill for a period it never covered.
+ *
+ * `runs` may arrive in any order.
+ */
+export function findGaps(
+  runs: readonly RunSighting[],
+  now: Date = new Date(),
+  toleratedMinutes: number = TOLERATED_GAP_MINUTES,
+): Gap[] {
+  const times = runs
+    .map((run) => Date.parse(run.started_at))
+    .filter((time) => !Number.isNaN(time))
+    .sort((a, b) => a - b);
+
+  const gaps: Gap[] = [];
+  const record = (from: number, to: number): void => {
+    const minutes = (to - from) / 60_000;
+    if (minutes <= toleratedMinutes) return;
+    gaps.push({
+      from: new Date(from).toISOString(),
+      to: new Date(to).toISOString(),
+      minutes,
+      missedCycles: Math.floor(minutes / EXPECTED_INTERVAL_MINUTES) - 1,
+    });
+  };
+
+  for (let i = 1; i < times.length; i += 1) {
+    const from = times[i - 1];
+    const to = times[i];
+    if (from !== undefined && to !== undefined) record(from, to);
+  }
+
+  // The open hole. Without this the alarm can only ever describe the past,
+  // which is the whole defect this function exists to close.
+  const newest = times[times.length - 1];
+  if (newest !== undefined) record(newest, now.getTime());
+
+  return gaps;
+}
+
 export type SilenceReport = {
   silentProviders: SilentProvider[];
   reference: ReferenceVerdict;
+  gaps: Gap[];
   problems: string[];
 };
 
@@ -153,6 +243,7 @@ export function buildReport(
 ): SilenceReport {
   const silentProviders = findSilentProviders(expected, sightings, now);
   const reference = inspectReference(runs);
+  const gaps = findGaps(runs, now);
   const problems: string[] = [];
 
   for (const provider of silentProviders) {
@@ -170,5 +261,16 @@ export function buildReport(
     );
   }
 
-  return { silentProviders, reference, problems };
+  for (const gap of gaps) {
+    const open = gap.to === now.toISOString();
+    problems.push(
+      open
+        ? `the ingest has not run for ${gap.minutes.toFixed(0)} min ` +
+            `(last ${gap.from}, about ${gap.missedCycles} cycle(s) missed) — it is down right now`
+        : `no run between ${gap.from} and ${gap.to}: ${gap.minutes.toFixed(0)} min, ` +
+            `about ${gap.missedCycles} cycle(s) missed`,
+    );
+  }
+
+  return { silentProviders, reference, gaps, problems };
 }
