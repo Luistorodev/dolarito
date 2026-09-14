@@ -516,9 +516,14 @@ T001 → T002 → T003 → T004 → T005
 - **T020** es una barrera **acotada** desde el 2026-09-14: bloquea las tres
   decisiones de presentación listadas bajo la tarea, no la Fase 5 entera.
   T021–T024 y T026 quedan libres; T025 va parcial.
-- **T018 está incompleta y no se había registrado así:** el cron programado
-  nunca disparó, y el Artículo VI.3 pide que la ingesta se *opere*. Bloquea de
-  hecho a T020, que no acumula nada sin él.
+- **T018 sigue incompleta.** El cron disparó por primera vez el 2026-09-14 y
+  **falló en 8 s** en `setup-node@v5`, sin consultar ninguna fuente. La causa
+  fue el bump de actions a v5 (`460db1a`), no el `cron:`; el arreglo
+  —`pnpm/action-setup` antes de `setup-node`, en los dos workflows— está
+  aplicado. **Cierra cuando se hayan visto en verde las dos rutas sobre el YAML
+  corregido: un disparo manual y un ciclo programado.** Un verde manual no es
+  evidencia sobre la ruta programada, y fue justamente esa suposición la que
+  dejó pasar el bump. El Artículo VI.3 pide que la ingesta se *opere*.
 - **T006b** es barrera dura hacia la Fase 3: sin la función de montos probada, no
   se escribe ningún adapter.
 - **T011b** depende de T003 (necesita `market_history`).

@@ -35,12 +35,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # pnpm goes BEFORE setup-node, deliberately.
+      #
+      # setup-node@v5 probes the environment for package managers as it
+      # finishes. On a runner where pnpm does not exist yet that probe is a
+      # hard error rather than a warning, and the job dies in 8 seconds
+      # without reaching a single source. That is exactly what happened on
+      # the first scheduled run after the @v4 -> @v5 bump (460db1a): the
+      # green manual run before it had never executed this version.
+      #
+      # The pnpm version is deliberately NOT restated here: action-setup
+      # reads the `packageManager` field of package.json, so there is one
+      # source of truth for it and no second place to drift.
+      #
+      # This also replaces `corepack enable`: with action-setup providing
+      # pnpm, corepack shims on top would only add a way for the two to
+      # disagree about which pnpm runs.
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-
-      - name: Enable corepack
-        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -800,94 +800,52 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
 
 ### A medias
 
-- **⏳ El cron programado todavía no disparó. Revisar el 2026-09-15.**
-  Al 2026-09-13T23:55Z: una hora desde la única corrida, 3 programadas
-  esperadas, **0 registradas**. Actions muestra una sola corrida y es la manual.
+- **✅ El cron disparó el 2026-09-14 y falló en 8 segundos. Causa encontrada,
+  arreglo aplicado, verificación pendiente.**
 
-  **Medido desde la base el 2026-09-14** (`pnpm analyse:window`, punto 2): las 3
-  corridas que existen están separadas por **31 y 81 minutos**, ~5 ciclos
-  perdidos en menos de dos horas. Con el cron vivo estarían a 15. Las tres son
-  disparos manuales.
+  `ingest #2: Scheduled` murió en `actions/setup-node@v5` con
+  `Unable to locate executable file: pnpm`, sin llegar a consultar una sola
+  fuente.
 
-  Descartado: el workflow **sí** está en la rama por defecto — el `HEAD` del
-  remoto es `001-dolarito`. Y el disparo manual funcionó (50 s, verde), así que
-  el YAML y los secretos están bien.
+  **La variable no era programada-contra-manual: era `@v4` contra `@v5`.** La
+  corrida manual verde de 50 s se disparó **antes** del commit `460db1a`, que
+  subió las actions a v5 y no tocó nada más. La programada fue **la primera
+  ejecución de cualquier tipo sobre v5**. No hay misterio de "el mismo YAML se
+  comportó distinto": no era el mismo YAML.
 
-  Plausible y sin confirmar: un schedule recién creado tarda en entrar al
-  planificador, y GitHub **no garantiza** el `*/15` — encola y descarta bajo
-  carga, con retrasos habituales en schedules de alta frecuencia.
+  **Lección, que es la de este archivo aplicada a CI:** subir una action de
+  major es un cambio que necesita su propia verificación. Un verde anterior es
+  evidencia sobre la versión anterior y sobre ninguna otra. El bump se hizo y se
+  dio por inocuo sin correr nada.
 
-  **Si el 15 sigue sin corridas programadas, se revisa el `cron:` del YAML.**
-  Cómo distinguirlo en Actions: si figuran corridas *programadas y saltadas*, es
-  carga de GitHub; si no figura ninguna, el schedule nunca se activó.
+  **Arreglo:** `pnpm/action-setup@v4` **antes** de `setup-node`, en los dos
+  workflows. La versión de pnpm **no** se repite en el YAML: action-setup lee el
+  campo `packageManager` de `package.json` (`pnpm@10.18.0`), así que hay una
+  sola fuente de verdad y ningún segundo lugar del que se desincronice. De paso
+  reemplaza a `corepack enable`, que ahora sólo añadiría una forma de que dos
+  pnpm distintos discutan cuál corre.
+
+  **`silence.yml` tenía el mismo orden y nunca se lo había visto fallar** — su
+  cron diario todavía no había corrido sobre v5. Arreglado junto. Un guardián
+  caído es peor que no tener guardián: se cree que está cubierto.
+
+  **Lo que NO está verificado, y por qué no lo puedo verificar yo:** el
+  mecanismo exacto dentro de `setup-node@v5`. El log muestra `Environment
+  details` justo antes del error, lo que sugiere que v5 sondea gestores de
+  paquetes al terminar y trata la ausencia de pnpm como error duro. **No lo
+  confirmé contra el código de la action y no lo afirmo.** Lo descartado sí es
+  firme: la hipótesis de `cache: 'pnpm'` **no aplica** — ese input no está en
+  los workflows y nunca estuvo en la historia del repo (verificado con
+  `git log --all -p`). El arreglo funciona para las dos explicaciones, porque
+  pone pnpm en el PATH antes de que setup-node haga nada.
+
+  **Faltan las dos rutas vistas en verde**: un disparo manual y un ciclo
+  programado, sobre el YAML corregido. Ninguna de las dos la puedo disparar yo
+  (`gh` no está instalado). Hasta entonces esto es un arreglo plausible, no un
+  arreglo probado, y **T018 sigue incompleta** — `tasks.md` lo registra así.
 
   **T020 depende enteramente de esto.** La ventana no acumula nada mientras el
   cron no corra, así que la fecha de cierre del 20 se corre otro tanto.
-
-
-- **`markup_vs_trm` y `markup_vs_mid` usan la tasa anunciada, no la efectiva.**
-  `plan.md` §2.2 las define como `(trm - gross_rate) / trm`, y para los tres
-  proveedores con comisión fija eso **contradice el Art. III.1**, que dice que
-  nunca se ordena ni se compara por la tasa anunciada.
-
-  Visto en datos reales, vender 100 USD:
-
-  | Proveedor | `gross_rate` | fee USD | `markup_vs_trm` | Tasa efectiva | Puesto |
-  |---|---|---|---|---|---|
-  | wise | 3087,23 | 9,16 | **−0,0049** | 2804,44 | **11 de 11** |
-  | western_union | 2971,71 | 1,99 | 0,0327 | 2912,58 | 10 |
-  | binance_p2p | 3085,00 | — | −0,0041 | 3085,00 | 1 |
-
-  **Wise aparece con el mejor margen de los once y entrega el peor monto**, en la
-  misma fila. El orden del ranking está bien —va por `amount_out`— pero la
-  columna de margen dice lo contrario, y es la que HU-05 y la ficha de proveedor
-  van a mostrar.
-
-  **Y hay un segundo defecto, más grande: el signo está invertido en
-  `cop_to_usd`, en los ocho proveedores.** La fórmula es la misma para las dos
-  direcciones, pero en una se reciben pesos y en la otra se pagan. Comprar 100
-  USD en DolarApp cuesta 319.426 COP —4% por encima de la TRM— y la columna
-  informa −0,0397, que se lee como descuento. Es la mitad de las filas de cada
-  proveedor, no solo las de los tres con comisión.
-
-  **Decisión tomada el 2026-09-13: el margen se calcula desde el monto efectivo,
-  nunca desde `gross_rate`, y positivo significa siempre peor que la
-  referencia.** Un solo par de márgenes, no dos columnas etiquetadas: si la tasa
-  anunciada no es base válida de comparación (Art. III.1), no se muestra.
-
-  **No implementado a propósito.** El SQL corregido está escrito en `plan.md`
-  §2.2; el 20 es aplicarlo, no volver a decidir. La espera es para medir con una
-  semana cuánto se separan las cifras antes y después.
-
-
-- **El riesgo de acceso de Eldorado, anotado en `plan.md` §7.1.** Es el único
-  proveedor que se consulta con `POST` y **cada cotización crea un registro del
-  lado de ellos** — `preview: true` no lo evita, el `quoteId` se recupera después,
-  y no existe endpoint de solo precio. Son ~3.072 registros diarios que nunca se
-  operan, todos `GUEST`, todos vencidos a los 2 minutos. Desde su lado se ve como
-  abuso aunque la intención sea la contraria. **Es el proveedor con más
-  probabilidad de cortarnos el acceso y el más justificado en hacerlo.** Si pasa,
-  el Art. V.6 no admite creatividad: bajar cadencia o retirar la fuente.
-
-
-
-- **El límite de tasa de Bitso tampoco viene en la respuesta.** Verificado el
-  2026-09-13 sobre un 200 en vivo de `/v3/ticker/?book=usdt_cop`: sin
-  `X-RateLimit-*`, sin `Retry-After`, sin `Cache-Control`. Bitso documenta
-  límites por endpoint en su referencia de API, pero **la cifra no la leí del
-  cable y no la afirmo**. El ticker sí trae su `created_at`, que en esa captura
-  tenía segundos: es un libro que actualiza en continuo, así que no hay ciclo de
-  refresco al que ir más lento, solo un techo que no medí.
-
-
-- **`market_history.close` guarda menos precisión de la que manda Yahoo.**
-  Yahoo devuelve `4283.6298828125` —artefacto de coma flotante— y la columna es
-  `numeric(14,4)`, así que queda `4283.6299`. Es el esquema haciendo lo que
-  `plan.md` §2 define, no una invención, y 4 decimales sobre una tasa de ~4283
-  COP es precisión de sobra. Se anota porque es una transformación en el borde, y
-  porque **`market_history` no tiene columna `raw`**: a diferencia de `quotes`, no
-  guarda la respuesta original. Lo único que preserva el crudo es el fixture.
-
 
 - **`quotes.gross_rate` también es `numeric(14,4)`, y eso produjo una falsa
   alarma.** Verificando que el ponderado de `binance_p2p` se reconstruye desde
