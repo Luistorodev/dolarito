@@ -113,8 +113,13 @@ describe('the eligibility filter, which the plan did not specify', () => {
 
 describe('below_minimum, which fires every single run', () => {
   it('the 1 USD bracket has no eligible ad in either direction', () => {
-    assert.deepEqual(walkBook(parseOffers(BUY), 1), { kind: 'below_minimum' });
-    assert.deepEqual(walkBook(parseOffers(SELL), 1), { kind: 'below_minimum' });
+    for (const book of [BUY, SELL]) {
+      const walk = walkBook(parseOffers(book), 1);
+      assert.equal(walk.kind, 'below_minimum');
+      assert.ok(walk.kind === 'below_minimum');
+      assert.equal(walk.eligibleCount, 0, 'nothing qualified, which is the reason');
+      assert.equal(walk.eligibleCapacity, 0);
+    }
   });
 
   it('produces an out_of_range row with the reason and no amounts', () => {
@@ -272,6 +277,95 @@ describe('the adapter', () => {
       sent.map((s) => s.tradeType),
       ['SELL', 'BUY'],
     );
+  });
+
+  it('the weighted price is reconstructible from raw alone', async () => {
+    // The point of storing the decomposition. `top` keeps ten ads and the walk
+    // can reach past them — measured 2026-09-13, the eligible capacity inside
+    // the stored ten was 197 USDT against a bracket of 100, a factor of two.
+    // A thinner book and the stored ads no longer explain the number. `taken`
+    // does not depend on how many were kept.
+    const { impl } = router();
+    const rows = await createBinanceP2pAdapter({
+      fetchImpl: impl,
+      now: () => CAPTURED,
+    }).fetchQuotes([100, 500, 1000]);
+
+    for (const row of rows) {
+      assert.ok(row.status === 'ok');
+      const raw = row.raw as { walk: { taken: Array<{ price: number; amount: number }> } };
+
+      const cost = raw.walk.taken.reduce((sum, t) => sum + t.price * t.amount, 0);
+      const filled = raw.walk.taken.reduce((sum, t) => sum + t.amount, 0);
+
+      assert.equal(
+        filled,
+        row.bracket_usd,
+        `${row.direction} @${row.bracket_usd}: fills the bracket`,
+      );
+      assert.ok(
+        Math.abs(cost / filled - (row.gross_rate ?? 0)) < 1e-9,
+        `${row.direction} @${row.bracket_usd}: ${cost / filled} should rebuild ${row.gross_rate}`,
+      );
+
+      // In memory this is exact. Read back from the database it is exact to
+      // four decimals, because gross_rate is numeric(14,4) — differences of
+      // about 2e-5 are the column, not the walk. Verified against a real run.
+    }
+  });
+
+  it('the decomposition never claims more than the ads could give', async () => {
+    const { impl } = router();
+    const rows = await createBinanceP2pAdapter({
+      fetchImpl: impl,
+      now: () => CAPTURED,
+    }).fetchQuotes([100, 500, 1000]);
+
+    for (const row of rows) {
+      const raw = row.raw as {
+        walk: { taken: Array<{ amount: number }>; eligibleCapacity: number; adsUsed: number };
+      };
+      const total = raw.walk.taken.reduce((sum, t) => sum + t.amount, 0);
+      assert.ok(total <= raw.walk.eligibleCapacity, 'cannot take more than was available');
+      assert.equal(raw.walk.taken.length, raw.walk.adsUsed);
+    }
+  });
+
+  it('records how far short the book fell, not just that it did', async () => {
+    // "By how much?" is a product question, and it had no answer while only
+    // the verdict was stored.
+    const thin: Offer[] = [
+      { price: 3080, minUsdt: 10, maxUsdt: 50 },
+      { price: 3085, minUsdt: 10, maxUsdt: 30 },
+    ];
+    const walk = walkBook(thin, 500);
+
+    assert.ok(walk.kind === 'insufficient_liquidity');
+    assert.equal(walk.eligibleCapacity, 80);
+    assert.equal(walk.eligibleCount, 2);
+
+    const row = buildQuote(walk, { walk }, 'cop_to_usd', 500, CAPTURED);
+    const raw = row.raw as { walk: { eligibleCapacity: number } };
+    assert.equal(raw.walk.eligibleCapacity, 80, 'and it reaches the row');
+  });
+
+  it('records the eligible count and capacity on a successful walk too', async () => {
+    const { impl } = router();
+    const rows = await createBinanceP2pAdapter({
+      fetchImpl: impl,
+      now: () => CAPTURED,
+    }).fetchQuotes([100]);
+
+    for (const row of rows) {
+      const raw = row.raw as {
+        walk: { adsUsed: number; eligibleCount: number; eligibleCapacity: number };
+        adsSeen: number;
+      };
+      assert.ok(raw.walk.adsUsed >= 1);
+      assert.ok(raw.walk.eligibleCount >= raw.walk.adsUsed, 'used cannot exceed eligible');
+      assert.ok(raw.walk.eligibleCapacity >= row.bracket_usd, 'capacity covered the bracket');
+      assert.equal(raw.adsSeen, 20, 'and how many the walk actually saw, against the ten kept');
+    }
   });
 
   it('keeps only the top ads in raw', async () => {

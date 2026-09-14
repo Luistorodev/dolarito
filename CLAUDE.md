@@ -690,6 +690,25 @@ fallos.
 
 ### Qué revisar al cerrar la semana
 
+`pnpm analyse:window` responde los seis. Corrible hoy; dice con cuántos datos
+contó en vez de fingir confianza de una semana con dos corridas.
+
+**Dos capturas se agregaron el 2026-09-14 porque el script descubrió que faltaban.**
+Escribirlo antes del cierre fue justamente para eso:
+- `runs.sources_failed` guarda `{ kind, message, status, attempts }` en vez de
+  texto suelto. `HttpError` ya sabía el status y los intentos y se perdían al
+  convertir a mensaje — y son lo que separa un 504 transitorio de un bloqueo.
+- El `raw` de `binance_p2p` guarda el camino: `adsUsed`, `eligibleCount`,
+  `eligibleCapacity` y **el desglose exacto de lo tomado por anuncio**. Sin eso
+  el ponderado no siempre era reconstruible: `raw` guarda 10 anuncios y el
+  camino recorre hasta 20, y medido el 13-09 la capacidad elegible dentro de los
+  10 guardados era 197 USDT contra un bracket de 100 — factor de 2. Con el libro
+  un poco más fino, el número dejaba de ser verificable **sin que nadie se
+  enterara**. `insufficient_liquidity` ahora también registra cuánta capacidad
+  había: "¿por cuánto faltó?" es pregunta de producto y no tenía respuesta.
+
+
+
 1. **Cobertura por fuente.** Cuántas corridas de ~672 (7 días × 96) registró cada
    proveedor. Un proveedor al 95% y otro al 60% son problemas distintos: el
    primero es ruido de red, el segundo es una fuente que no sirve. Mirar también
@@ -714,7 +733,12 @@ fallos.
    pasa. Si es frecuente y sistemático, deja de ser una curiosidad y pasa a ser
    algo que la interfaz tiene que explicar (como RF-11c).
 
-5. **Si el líder del ranking cambia según el bracket.** Es la pregunta que HU-04
+5. **Si el líder del ranking cambia según el bracket.** El script lo reporta con
+   **las tres políticas de T025** —mejor método, peor método y promedio— en vez
+   de asumir una. El 20 se decide T025 con este número, así que verlo de las
+   tres formas es lo que lo hace decidible: si las tres coinciden, la decisión no
+   afecta al ranking y se puede tomar por otros motivos; si divergen, ahí está su
+   consecuencia medida. Es la pregunta que HU-04
    existe para responder. Si el líder es el mismo en los cuatro brackets, el
    selector de monto aporta poco y conviene saberlo antes de construirlo; si
    cambia, es el argumento central del producto y la interfaz debe destacarlo.

@@ -16,7 +16,7 @@
 
 import type { Quote, Reference } from './contract.ts';
 import { createServiceRoleClient } from './lib/supabase.ts';
-import type { RunStore } from './orchestrator.ts';
+import type { RunStore, SourceFailure } from './orchestrator.ts';
 
 /** Adapter `undefined` becomes database `null`, once, here. */
 function orNull<T>(value: T | undefined): T | null {
@@ -121,7 +121,7 @@ export function createSupabaseRunStore(): RunStore {
 
     async closeRun(
       runId: string,
-      summary: { sourcesOk: string[]; sourcesFailed: Record<string, string> },
+      summary: { sourcesOk: string[]; sourcesFailed: Record<string, SourceFailure> },
     ): Promise<void> {
       const { error } = await supabase
         .from('runs')

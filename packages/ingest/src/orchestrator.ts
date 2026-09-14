@@ -21,6 +21,46 @@
  */
 
 import type { Adapter, Quote, QuoteAdapter, Reference, ReferenceAdapter } from './contract.ts';
+import { HttpError } from './http.ts';
+
+/**
+ * Why a source failed, structured rather than as prose.
+ *
+ * A free-text message cannot be grouped: "a 504 for ten minutes" and "the
+ * response shape changed" are different incidents with different responses, and
+ * telling them apart by matching strings is guesswork against messages nobody
+ * has seen yet. `HttpError` already knows the status and how many attempts it
+ * took; both were being thrown away at the boundary.
+ *
+ * | `kind` | Means |
+ * |---|---|
+ * | `http` | The source answered, with a status we would not accept. `status` is set. |
+ * | `transport` | No answer at all: timeout, DNS, connection refused. |
+ * | `adapter` | We got a response and could not read it — a shape change, most likely. |
+ */
+export type FailureKind = 'http' | 'transport' | 'adapter';
+
+export type SourceFailure = {
+  kind: FailureKind;
+  message: string;
+  /** Present only for `http`. */
+  status?: number;
+  /** How many attempts the shared client made before giving up. */
+  attempts?: number;
+};
+
+export function classifyFailure(error: unknown): SourceFailure {
+  if (error instanceof HttpError) {
+    return error.status === undefined
+      ? { kind: 'transport', message: error.message, attempts: error.attempts }
+      : { kind: 'http', message: error.message, status: error.status, attempts: error.attempts };
+  }
+
+  // Anything the adapter itself threw: a field missing, a rate that will not
+  // parse, a book that came back crossed. In practice this is what a silent
+  // format change looks like from here.
+  return { kind: 'adapter', message: error instanceof Error ? error.message : String(error) };
+}
 
 /** What the orchestrator needs from persistence. `db.ts` implements it. */
 export type RunStore = {
@@ -29,7 +69,7 @@ export type RunStore = {
   saveQuotes(runId: string, quotes: Quote[]): Promise<void>;
   closeRun(
     runId: string,
-    summary: { sourcesOk: string[]; sourcesFailed: Record<string, string> },
+    summary: { sourcesOk: string[]; sourcesFailed: Record<string, SourceFailure> },
   ): Promise<void>;
 };
 
@@ -37,8 +77,8 @@ export type RunOutcome = {
   runId: string;
   /** Adapter ids that answered. Provider-level coverage derives from these. */
   sourcesOk: string[];
-  /** Adapter id to the reason it failed. */
-  sourcesFailed: Record<string, string>;
+  /** Adapter id to why it failed, classified. */
+  sourcesFailed: Record<string, SourceFailure>;
   quotesSaved: number;
   referencesSaved: number;
   /** Providers nobody can see this run, summed from the failed adapters. */
@@ -70,10 +110,6 @@ function isReferenceAdapter(adapter: Adapter): adapter is ReferenceAdapter {
   return adapter.kind === 'reference';
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export async function runIngest(options: RunOptions): Promise<RunOutcome> {
   const { adapters, store, brackets } = options;
   const maxProvidersLost = options.maxProvidersLost ?? DEFAULT_MAX_PROVIDERS_LOST;
@@ -84,7 +120,7 @@ export async function runIngest(options: RunOptions): Promise<RunOutcome> {
   const runId = await store.openRun();
 
   const sourcesOk: string[] = [];
-  const sourcesFailed: Record<string, string> = {};
+  const sourcesFailed: Record<string, SourceFailure> = {};
 
   // --- References first: they populate trm and mid_market on this same row.
   const referenceResults = await Promise.allSettled(
@@ -105,7 +141,7 @@ export async function runIngest(options: RunOptions): Promise<RunOutcome> {
       references.push(result.value.reference);
       sourcesOk.push(adapter.id);
     } else {
-      sourcesFailed[adapter.id] = describe(result.reason);
+      sourcesFailed[adapter.id] = classifyFailure(result.reason);
       referencesFailed.push(adapter.id);
     }
   });
@@ -135,7 +171,7 @@ export async function runIngest(options: RunOptions): Promise<RunOutcome> {
       sourcesOk.push(adapter.id);
     } else {
       // Deliberately no row of any kind. See rule 1 at the top.
-      sourcesFailed[adapter.id] = describe(result.reason);
+      sourcesFailed[adapter.id] = classifyFailure(result.reason);
       failedQuoteAdapters.push(adapter);
     }
   });

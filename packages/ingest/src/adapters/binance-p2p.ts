@@ -112,10 +112,32 @@ export function parseOffers(body: BinanceResponse): Offer[] {
   return offers;
 }
 
+/** One ad's contribution to a filled bracket. */
+export type Taken = { price: number; amount: number };
+
 export type WalkResult =
-  | { kind: 'ok'; weightedPrice: number; filled: number; adsUsed: number }
-  | { kind: 'below_minimum' }
-  | { kind: 'insufficient_liquidity'; eligibleCapacity: number };
+  | {
+      kind: 'ok';
+      weightedPrice: number;
+      filled: number;
+      adsUsed: number;
+      eligibleCount: number;
+      eligibleCapacity: number;
+      /**
+       * Exactly what was taken from each ad, in order.
+       *
+       * This is what makes the weighted price auditable later. `raw` keeps only
+       * the top ten ads, and the walk can reach past them: measured on
+       * 2026-09-13, the eligible capacity inside the stored ten was 197 USDT
+       * against a bracket of 100 — a factor of two. A slightly thinner book and
+       * the walk uses ads nobody stored, and the number stops being checkable
+       * without anyone noticing. The decomposition does not depend on how many
+       * ads were kept.
+       */
+      taken: Taken[];
+    }
+  | { kind: 'below_minimum'; eligibleCount: 0; eligibleCapacity: 0 }
+  | { kind: 'insufficient_liquidity'; eligibleCount: number; eligibleCapacity: number };
 
 /**
  * Walks the book best-first, taking what each ad will give until the bracket is
@@ -128,27 +150,42 @@ export type WalkResult =
 export function walkBook(offers: Offer[], bracketUsd: number): WalkResult {
   const eligible = offers.filter((offer) => offer.minUsdt <= bracketUsd);
 
-  if (eligible.length === 0) return { kind: 'below_minimum' };
+  if (eligible.length === 0)
+    return { kind: 'below_minimum', eligibleCount: 0, eligibleCapacity: 0 };
 
   const capacity = eligible.reduce((sum, offer) => sum + offer.maxUsdt, 0);
   if (capacity < bracketUsd) {
-    return { kind: 'insufficient_liquidity', eligibleCapacity: capacity };
+    // How short it fell is a product question — "by how much?" — and it had no
+    // answer while only the verdict was recorded.
+    return {
+      kind: 'insufficient_liquidity',
+      eligibleCount: eligible.length,
+      eligibleCapacity: capacity,
+    };
   }
 
   let remaining = bracketUsd;
   let cost = 0;
-  let adsUsed = 0;
+  const taken: Taken[] = [];
 
   for (const offer of eligible) {
     if (remaining <= 0) break;
-    const taken = Math.min(remaining, offer.maxUsdt);
-    cost += taken * offer.price;
-    remaining -= taken;
-    adsUsed += 1;
+    const amount = Math.min(remaining, offer.maxUsdt);
+    cost += amount * offer.price;
+    remaining -= amount;
+    taken.push({ price: offer.price, amount });
   }
 
   const filled = bracketUsd - remaining;
-  return { kind: 'ok', weightedPrice: cost / filled, filled, adsUsed };
+  return {
+    kind: 'ok',
+    weightedPrice: cost / filled,
+    filled,
+    adsUsed: taken.length,
+    eligibleCount: eligible.length,
+    eligibleCapacity: capacity,
+    taken,
+  };
 }
 
 export function buildQuote(
@@ -234,11 +271,15 @@ export function createBinanceP2pAdapter(options: BinanceOptions = {}): QuoteAdap
         const offers = parseOffers(body);
         // Only the top ads are kept: the full page is ~65 KB of publisher
         // profiles per direction, every fifteen minutes (plan.md §3.1).
-        const raw = { top: (body.data ?? []).slice(0, RAW_TOP_N), kept: RAW_TOP_N };
+        const top = (body.data ?? []).slice(0, RAW_TOP_N);
         const capturedAt = clock();
 
         for (const bracket of wanted) {
-          out.push(buildQuote(walkBook(offers, bracket), raw, direction, bracket, capturedAt));
+          const walk = walkBook(offers, bracket);
+          // Per bracket, because the walk is: the ads kept are the same, what
+          // the walk did with them is not.
+          const raw = { top, kept: RAW_TOP_N, adsSeen: offers.length, walk };
+          out.push(buildQuote(walk, raw, direction, bracket, capturedAt));
         }
       }
 

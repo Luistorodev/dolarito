@@ -36,8 +36,10 @@ async function main(): Promise<void> {
   console.log(`  references saved: ${outcome.referencesSaved}`);
   console.log(`  sources ok:       ${outcome.sourcesOk.join(', ') || '(none)'}`);
 
-  for (const [id, reason] of Object.entries(outcome.sourcesFailed)) {
-    console.log(`  FAILED ${id}: ${reason}`);
+  for (const [id, failure] of Object.entries(outcome.sourcesFailed)) {
+    const status = failure.status === undefined ? '' : ` ${failure.status}`;
+    const attempts = failure.attempts === undefined ? '' : ` after ${failure.attempts} attempt(s)`;
+    console.log(`  FAILED ${id} [${failure.kind}${status}]${attempts}: ${failure.message}`);
   }
 
   if (outcome.providersLost.length > 0) {

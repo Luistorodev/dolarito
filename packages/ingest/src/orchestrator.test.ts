@@ -18,7 +18,8 @@ import {
   createThrowingReferenceAdapter,
 } from './adapters/fake.ts';
 import type { Quote, Reference } from './contract.ts';
-import { type RunStore, runIngest } from './orchestrator.ts';
+import { HttpError } from './http.ts';
+import { type RunStore, runIngest, type SourceFailure } from './orchestrator.ts';
 
 const BRACKETS = [1, 100, 500, 1000];
 
@@ -28,7 +29,9 @@ function memoryStore() {
     runId: 'run-under-test',
     quotes: [] as Quote[],
     references: [] as Reference[],
-    closed: undefined as { sourcesOk: string[]; sourcesFailed: Record<string, string> } | undefined,
+    closed: undefined as
+      | { sourcesOk: string[]; sourcesFailed: Record<string, SourceFailure> }
+      | undefined,
     openCalls: 0,
   };
 
@@ -97,7 +100,7 @@ describe('a healthy adapter beside one that throws', () => {
 
     assert.deepEqual(outcome.sourcesOk, ['healthy']);
     assert.deepEqual(Object.keys(outcome.sourcesFailed), ['broken']);
-    assert.match(outcome.sourcesFailed['broken'] ?? '', /could not be reached/);
+    assert.match(outcome.sourcesFailed['broken']?.message ?? '', /could not be reached/);
 
     assert.deepEqual(saved.closed?.sourcesOk, ['healthy']);
     assert.deepEqual(Object.keys(saved.closed?.sourcesFailed ?? {}), ['broken']);
@@ -221,6 +224,59 @@ describe('the unit of the count is the provider lost, not the adapter down', () 
     assert.deepEqual(outcome.modesEmpty, []);
     assert.deepEqual(outcome.referencesFailed, []);
     assert.equal(outcome.exitCode, 0);
+  });
+});
+
+describe('why a source failed is recorded, not just that it did', () => {
+  it('keeps status and attempts when the source answered badly', async () => {
+    const { store } = memoryStore();
+    const failing = createThrowingQuoteAdapter({ id: 'broken', providerId: 'bitso' });
+    // Stand in for what the shared client throws on an exhausted 504.
+    failing.fetchQuotes = async () => {
+      throw new HttpError(
+        'https://example.test -> HTTP 504 after 4 attempt(s)',
+        'https://example.test',
+        504,
+        4,
+      );
+    };
+
+    const outcome = await runIngest({ adapters: [failing], store, brackets: BRACKETS });
+    const failure = outcome.sourcesFailed['broken'];
+
+    assert.equal(failure?.kind, 'http');
+    assert.equal(failure?.status, 504, 'the status is what separates a blip from a block');
+    assert.equal(failure?.attempts, 4);
+  });
+
+  it('calls a transport failure by its own name, with no status', async () => {
+    const { store } = memoryStore();
+    const failing = createThrowingQuoteAdapter({ id: 'broken', providerId: 'bitso' });
+    failing.fetchQuotes = async () => {
+      throw new HttpError(
+        'https://example.test -> fetch failed',
+        'https://example.test',
+        undefined,
+        4,
+      );
+    };
+
+    const outcome = await runIngest({ adapters: [failing], store, brackets: BRACKETS });
+    assert.equal(outcome.sourcesFailed['broken']?.kind, 'transport');
+    assert.equal(outcome.sourcesFailed['broken']?.status, undefined);
+  });
+
+  it('calls anything the adapter threw an adapter failure', async () => {
+    // In practice this is what a silent format change looks like from here.
+    const { store } = memoryStore();
+    const outcome = await runIngest({
+      adapters: [createThrowingQuoteAdapter({ id: 'broken', providerId: 'bitso' })],
+      store,
+      brackets: BRACKETS,
+    });
+
+    assert.equal(outcome.sourcesFailed['broken']?.kind, 'adapter');
+    assert.equal(outcome.sourcesFailed['broken']?.status, undefined);
   });
 });
 

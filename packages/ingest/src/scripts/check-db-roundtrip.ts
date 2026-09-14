@@ -124,7 +124,14 @@ async function main(): Promise<void> {
     // --- 4. closeRun: the summary.
     await store.closeRun(runId, {
       sourcesOk: [BORROWED_PROVIDER, 'trm'],
-      sourcesFailed: { broken_source: 'fake failure for the round trip' },
+      sourcesFailed: {
+        broken_source: {
+          kind: 'http',
+          message: 'fake failure for the round trip',
+          status: 504,
+          attempts: 4,
+        },
+      },
     });
     check(true, 'closeRun wrote the summary');
 
@@ -150,9 +157,9 @@ async function main(): Promise<void> {
       'sources_ok survived as an array',
     );
     check(
-      JSON.stringify(run['sources_failed']) ===
-        JSON.stringify({ broken_source: 'fake failure for the round trip' }),
-      'sources_failed survived as jsonb',
+      (run['sources_failed'] as Record<string, { status?: number }>)['broken_source']?.status ===
+        504,
+      'sources_failed survived as jsonb, with the status intact',
     );
 
     const { data: quoteRows, error: quoteError } = await supabase

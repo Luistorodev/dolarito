@@ -290,56 +290,95 @@ async function main(): Promise<void> {
   // ── 5 ──────────────────────────────────────────────────────────────────
   heading(5, 'Whether the ranking leader changes with the bracket');
 
+  // Eldorado contributes four rows per bracket and everyone else one, so any
+  // answer here depends on the T025 decision that has NOT been taken. Rather
+  // than assume one, all three candidate policies are reported: the decision
+  // on the 20th is going to be made with this number, so seeing it three ways
+  // is what makes it decidable.
+  const POLICIES = ['best method', 'worst method', 'average of methods'] as const;
+  type Policy = (typeof POLICIES)[number];
+
+  /** Collapses a provider's rows for one cell into a single COP figure. */
+  function collapse(rows: QuoteRow[], direction: string, policy: Policy): number | null {
+    const values = rows.map(copAmount).filter((v): v is number => v !== null);
+    if (values.length === 0) return null;
+    if (values.length === 1 || policy === 'average of methods') {
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+
+    // "Best" and "worst" are from the user's side, which flips with direction:
+    // selling, more pesos received is better; buying, fewer pesos paid is.
+    const wantsMax = direction === 'usd_to_cop';
+    const best = wantsMax ? Math.max(...values) : Math.min(...values);
+    const worst = wantsMax ? Math.min(...values) : Math.max(...values);
+    return policy === 'best method' ? best : worst;
+  }
+
   for (const direction of ['usd_to_cop', 'cop_to_usd']) {
     console.log(`  ${direction}:`);
-    const leadersPerRun = new Map<string, Map<number, string>>();
 
-    for (const run of runs) {
-      const byBracket = new Map<number, string>();
-      for (const bracket of BRACKETS) {
-        const rows = quotes.filter(
-          (q) =>
-            q.run_id === run.id &&
-            q.direction === direction &&
-            q.bracket_usd === bracket &&
-            q.status === 'ok' &&
-            copAmount(q) !== null,
-        );
-        if (rows.length === 0) continue;
+    for (const policy of POLICIES) {
+      let sameAcrossBrackets = 0;
+      let changed = 0;
+      const leaderCounts = new Map<string, number>();
 
-        // usd_to_cop: more pesos received wins. cop_to_usd: fewer pesos paid.
-        const sorted = [...rows].sort((a, b) => {
-          const ca = copAmount(a) ?? 0;
-          const cb = copAmount(b) ?? 0;
-          return direction === 'usd_to_cop' ? cb - ca : ca - cb;
-        });
-        const winner = sorted[0];
-        if (winner !== undefined) byBracket.set(bracket, winner.provider_id);
+      for (const run of runs) {
+        const byBracket = new Map<number, string>();
+
+        for (const bracket of BRACKETS) {
+          const cell = quotes.filter(
+            (q) =>
+              q.run_id === run.id &&
+              q.direction === direction &&
+              q.bracket_usd === bracket &&
+              q.status === 'ok' &&
+              copAmount(q) !== null,
+          );
+          if (cell.length === 0) continue;
+
+          const byProvider = new Map<string, QuoteRow[]>();
+          for (const row of cell) {
+            byProvider.set(row.provider_id, [...(byProvider.get(row.provider_id) ?? []), row]);
+          }
+
+          const scored: Array<{ provider: string; cop: number }> = [];
+          for (const [provider, rows] of byProvider) {
+            const cop = collapse(rows, direction, policy);
+            if (cop !== null) scored.push({ provider, cop });
+          }
+          if (scored.length === 0) continue;
+
+          scored.sort((a, b) => (direction === 'usd_to_cop' ? b.cop - a.cop : a.cop - b.cop));
+          const winner = scored[0];
+          if (winner !== undefined) byBracket.set(bracket, winner.provider);
+        }
+
+        if (byBracket.size === 0) continue;
+        const leaders = [...byBracket.values()];
+        for (const leader of leaders) leaderCounts.set(leader, (leaderCounts.get(leader) ?? 0) + 1);
+        if (new Set(leaders).size === 1) sameAcrossBrackets += 1;
+        else changed += 1;
       }
-      if (byBracket.size > 0) leadersPerRun.set(run.id, byBracket);
-    }
 
-    let sameAcrossBrackets = 0;
-    let changed = 0;
-    const leaderCounts = new Map<string, number>();
+      const top = [...leaderCounts]
+        .sort((a, b) => b[1] - a[1])
+        .map(([provider, n]) => `${provider} ${n}`)
+        .join(', ');
 
-    for (const byBracket of leadersPerRun.values()) {
-      const leaders = [...byBracket.values()];
-      for (const leader of leaders) leaderCounts.set(leader, (leaderCounts.get(leader) ?? 0) + 1);
-      if (new Set(leaders).size === 1) sameAcrossBrackets += 1;
-      else changed += 1;
-    }
-
-    console.log(`    runs where one provider led every bracket: ${sameAcrossBrackets}`);
-    console.log(`    runs where the leader changed:             ${changed}`);
-    for (const [provider, count] of [...leaderCounts].sort((a, b) => b[1] - a[1])) {
-      console.log(`      ${provider.padEnd(15)} led ${count} bracket-run(s)`);
+      console.log(
+        `    ${policy.padEnd(20)} same across brackets: ${String(sameAcrossBrackets).padStart(4)}   changed: ${String(changed).padStart(4)}`,
+      );
+      console.log(`      ${top || '(no data)'}`);
     }
   }
+
   console.log('');
   console.log('  VERDICT: if the leader never changes, the bracket selector earns little');
   console.log('  and that is worth knowing before building it. If it changes, it is the');
   console.log('  central argument of the product.');
+  console.log('');
+  console.log('  If the three policies disagree, that IS the T025 decision showing its');
+  console.log('  consequences — pick the policy first, then read the answer.');
 
   // ── 6 ──────────────────────────────────────────────────────────────────
   heading(6, 'The two margin defects, measured');
