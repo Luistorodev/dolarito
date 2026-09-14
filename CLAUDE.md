@@ -110,6 +110,49 @@ probado. Lo destapó una mutación, no el verde.
 ## Estado actual
 
 **Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-14.
+256 tests en verde, lint y typecheck limpios, todo pusheado a las dos ramas.
+
+### 🔜 Lo primero al retomar — correr `pnpm check:silence`
+
+```
+corepack pnpm --filter @dolarito/ingest run check:silence
+```
+
+Contesta de una vez si el cron revivió, porque desde el 2026-09-14 reporta el
+hueco abierto además de las fuentes mudas. **No hace falta abrir la UI de
+Actions.** El criterio vencía a las **2026-09-14T05:58Z** (push `96918c5` a las
+03:58Z, más 2 h).
+
+| Lo que imprime | Qué significa | Qué hacer |
+|---|---|---|
+| `Nothing is silent.` | El cron corrió dentro de la última hora. **La hipótesis de los minutos contendidos funcionó.** | Cerrar T018: faltaba ver la ruta programada en verde, y esto lo es. Seguir con la barrera acotada de T020. |
+| `the ingest has not run for N min`, **N < 120** | Ambiguo — puede ser retraso normal de plataforma. | Esperar a que N pase de 120 y volver a correrlo. **No decidir todavía.** |
+| `the ingest has not run for N min`, **N > 120** | **Criterio cumplido: la hipótesis queda descartada.** | Activar la ruta a `pg_cron` de `plan.md` §1.2. **Sin volver a deliberar** — la decisión se tomó el 2026-09-14 justamente para no rediscutirla. |
+| `no run between X and Y` (hueco cerrado) | El cron **sí** corrió después del hueco. | Buena señal: es la alarma nueva trabajando sobre un hueco ya superado. Leer igual la fila del hueco abierto, si la hay. |
+
+**Una corrida manual no refuta nada.** Ya se sabe que anda, y no dice nada sobre
+el planificador. Fue exactamente esa confusión —tomar un verde manual como
+evidencia sobre la ruta programada— la que dejó pasar el bump a `@v5`.
+
+**Si el cron revivió, lo que sigue** es la Fase 5 con la barrera acotada: T021 y
+T022 no dependen de dato ninguno, y antes de T023/T024 hay **una migración que
+aplicar a mano** — justo abajo.
+
+### ⚠️ Pendiente del humano: una migración a mano antes de T023/T024
+
+`latest_quotes` **no expone tres columnas de `runs` que la Fase 5 necesita**:
+
+- **`trm_from` y `trm_to`** — sin ellas **T024 no puede marcar la TRM congelada**
+  en fines de semana y festivos, que es su criterio de terminado. Las columnas ya
+  existen en la tabla; solo faltan en el `select` de la vista.
+- **`mid_market_src`** — sin ella, mostrar un margen contra mid-market mezcla en
+  silencio dos mediciones distintas: Yahoo es intradía y er-api una foto diaria
+  (T011).
+
+**Van en la misma migración que la corrección de márgenes de `plan.md` §2.2**,
+que reescribe esa vista de todos modos: junto cuesta una aplicación en el SQL
+Editor y separado cuesta dos. Descubierto el 2026-09-14 al acotar la barrera — y
+se descubrió barato **porque se escribió el análisis antes de necesitarlo**.
 
 ### Completado
 
@@ -686,7 +729,9 @@ probado. Lo destapó una mutación, no el verde.
 
   **Primera corrida real contra la base:** 74 filas, 2 referencias, 8 de 8
   fuentes ok, exit 0, 37,5 s. `latest_quotes` devuelve rankings con márgenes.
-  `check:silence` responde "nothing is silent".
+  `check:silence` respondía "nothing is silent" — **y ese verde resultó falso**:
+  el criterio de entonces no miraba la cadencia. Corregido el 2026-09-14; la
+  lección vive arriba, en "Tests negativos".
 
   **Cinco suposiciones del plan resultaron falsas y están corregidas**, todas
   contra respuesta verificada: el mínimo de 5 USD de Eldorado, las 12 filas fijas
@@ -865,7 +910,7 @@ antes de T029, y revisar `site_url`/`notes` del catálogo.
 
   **⚠️ Hay criterio de decisión escrito por adelantado en `plan.md` §1.2, y es
   para ejecutar sin volver a deliberar:** si pasan **2 horas desde el push del
-  2026-09-14T03:57Z** sin corrida programada, la hipótesis queda descartada y se
+  2026-09-14T03:58Z (vence 05:58Z)** sin corrida programada, la hipótesis queda descartada y se
   activa la ruta a `pg_cron`. Lo mide `pnpm check:silence` — `it is down right
   now` con más de 120 min cumple el criterio. **Una corrida manual no refuta
   nada**: ya se sabe que anda, y fue esa confusión la que dejó pasar el bump a

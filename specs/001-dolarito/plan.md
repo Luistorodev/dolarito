@@ -77,6 +77,9 @@ es justo la clase de ambigüedad que este proyecto no acepta dejar abierta.
 la hipótesis de los minutos contendidos queda descartada y se activa la ruta a
 `pg_cron` de arriba.** Sin volver a discutirlo.
 
+Concreto: push `96918c5` el **2026-09-14T03:58Z**, así que **el plazo vence el
+2026-09-14T05:58Z**.
+
 - **2 horas** son 8 disparos esperados a esta cadencia. Que fallen los ocho no es
   retraso de plataforma: es que el schedule no está corriendo.
 - **El umbral coincide con el de continuidad** que ya usa esta misma sección, así
