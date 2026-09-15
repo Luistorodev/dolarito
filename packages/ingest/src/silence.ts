@@ -81,15 +81,74 @@ export const EXPECTED_INTERVAL_MINUTES = 15;
  */
 export const TOLERATED_GAP_MINUTES = 60;
 
+/**
+ * How long the mid-market datum may stay frozen before it is an incident
+ * whatever the cause.
+ *
+ * A stale upstream and a caching adapter of our own look **identical** from the
+ * database — both show a frozen `mid_market_at` while our runs keep landing.
+ * Rather than guess, the verdict says what it can prove and escalates on
+ * duration: a couple of hours frozen at an illiquid time is ordinary, twelve is
+ * not, and by then somebody has to look regardless of which it turned out to be.
+ *
+ * Twelve rather than forty-eight because T011 measured that Yahoo advances its
+ * timestamp even across a closed weekend. A frozen timestamp is not how a
+ * weekend looks here.
+ */
+export const STALE_REFERENCE_HOURS = 12;
+
 export type QuoteSighting = { provider_id: string; captured_at: string };
 
 export type RunSighting = {
   started_at: string;
   mid_market: number | null;
   mid_market_at: string | null;
+  /**
+   * Which sources answered. Optional because older callers do not pass it —
+   * and when it is missing the reference verdict deliberately errs LOUD, since
+   * without it we cannot show our own ingest was healthy.
+   */
+  sources_ok?: string[] | null | undefined;
 };
 
 export type SilentProvider = { providerId: string; lastSeen: string | undefined; hoursAgo: number };
+
+/** Returns the newest `captured_at` for one provider, or undefined if it has none. */
+export type LatestSightingFetcher = (providerId: string) => Promise<string | undefined>;
+
+/**
+ * One sighting per provider, asked for one provider at a time.
+ *
+ * **Never fetch the window in bulk.** Doing that produced a false RED on
+ * 2026-09-15: PostgREST caps a result set (1000 rows by default), the window
+ * held 1924, and the 924 it dropped happened to contain every row of
+ * `wise`, `instarem` and `western_union`. The check reported all three as
+ * having "no rows at all, ever" while they had written seconds earlier.
+ *
+ * The bug was not invisible, it was **unreachable**: when this was written the
+ * window never held more than a few hundred rows, so no amount of testing
+ * against real data would have found it. It appeared the day the ingest started
+ * working properly — fixing T018 is what exposed it.
+ *
+ * A false red is worse than a false green. A green that lies gets believed once;
+ * a red that lies teaches everyone to ignore the alarm.
+ *
+ * Eight one-row queries have no cap to hit, so the failure cannot recur with
+ * scale. Cost is bounded by the size of the catalogue, not by the window.
+ */
+export async function collectSightings(
+  expected: readonly string[],
+  fetchLatest: LatestSightingFetcher,
+): Promise<QuoteSighting[]> {
+  const sightings: QuoteSighting[] = [];
+
+  for (const providerId of expected) {
+    const captured = await fetchLatest(providerId);
+    if (captured !== undefined) sightings.push({ provider_id: providerId, captured_at: captured });
+  }
+
+  return sightings;
+}
 
 /**
  * Providers with no row inside the window.
@@ -133,17 +192,39 @@ export function findSilentProviders(
 export type ReferenceVerdict =
   | { kind: 'healthy' }
   | { kind: 'market_closed'; runs: number }
+  /** Frozen datum, and our ingest is demonstrably alive. Not our fault. */
+  | { kind: 'stale_source'; runs: number; since: string; value: number; frozenHours: number }
+  /** Frozen datum, and we cannot show our ingest was healthy. Ours to answer for. */
   | { kind: 'stuck'; runs: number; since: string; value: number }
   | { kind: 'not_enough_runs'; runs: number };
 
 /**
- * Decides whether the mid-market reference is stuck, or merely quiet.
+ * What the mid-market reference is doing, in three categories rather than two.
  *
- * `runs` must arrive newest first. Only the most recent `STUCK_RUNS` are
- * considered: an incident is about now, not about the week.
+ * The two-category version said "that is a stuck ingest, not a closed market"
+ * about a frozen datum — and on 2026-09-15 it said exactly that while the
+ * ingest was demonstrably fine: 26 runs in six hours, eight of eight sources
+ * answering, fresh quotes landing. What was frozen was Yahoo's datum at an
+ * illiquid hour, and recording a still rate is the correct answer (Art. I.4).
+ *
+ * | Across N runs | `mid_market_at` | value | our ingest | verdict |
+ * |---|---|---|---|---|
+ * | Open market | advances | moves | — | `healthy` |
+ * | Closed market | advances | still | — | `market_closed` |
+ * | Stale upstream | frozen | frozen | alive | `stale_source` |
+ * | Something ours | frozen | frozen | unproven | `stuck` |
+ *
+ * "Our ingest is alive" means the runs kept coming (`started_at` advances) AND
+ * the other sources kept answering. When `sources_ok` is absent we cannot show
+ * that, so the verdict errs toward `stuck` — an unknown makes this louder, not
+ * quieter.
+ *
+ * `runs` must arrive newest first. Only the most recent `STUCK_RUNS` count: an
+ * incident is about now, not about the week.
  */
 export function inspectReference(
   runs: readonly RunSighting[],
+  now: Date = new Date(),
   minimumRuns: number = STUCK_RUNS,
 ): ReferenceVerdict {
   const usable = runs.filter((run) => run.mid_market !== null && run.mid_market_at !== null);
@@ -157,15 +238,26 @@ export function inspectReference(
   const sameTimestamp = window.every((run) => run.mid_market_at === first.mid_market_at);
   const sameValue = window.every((run) => run.mid_market === first.mid_market);
 
-  // The timestamp frozen across runs is the thing that cannot happen while the
-  // ingest is working, whatever the market is doing.
   if (sameTimestamp && sameValue) {
-    return {
-      kind: 'stuck',
-      runs: window.length,
-      since: first.mid_market_at ?? '',
-      value: first.mid_market ?? 0,
-    };
+    const since = first.mid_market_at ?? '';
+    const value = first.mid_market ?? 0;
+
+    // Did the runs keep coming? Distinct started_at across the window means new
+    // captures really happened rather than one row being re-read.
+    const startedAt = new Set(window.map((run) => run.started_at));
+    const runsKeptComing = startedAt.size === window.length;
+
+    // Did everything else keep answering? Absent information is not evidence
+    // of health, so an unset sources_ok fails this deliberately.
+    const sourcesAnswered = window.every((run) => (run.sources_ok ?? []).length > 0);
+
+    if (runsKeptComing && sourcesAnswered) {
+      const frozenSince = Date.parse(since);
+      const frozenHours = Number.isNaN(frozenSince) ? 0 : (now.getTime() - frozenSince) / 3_600_000;
+      return { kind: 'stale_source', runs: window.length, since, value, frozenHours };
+    }
+
+    return { kind: 'stuck', runs: window.length, since, value };
   }
 
   // The price holding while the clock moves is what a closed market looks
@@ -242,7 +334,7 @@ export function buildReport(
   now: Date = new Date(),
 ): SilenceReport {
   const silentProviders = findSilentProviders(expected, sightings, now);
-  const reference = inspectReference(runs);
+  const reference = inspectReference(runs, now);
   const gaps = findGaps(runs, now);
   const problems: string[] = [];
 
@@ -254,10 +346,22 @@ export function buildReport(
     );
   }
 
+  // Only escalated on duration, because a stale upstream and a caching adapter
+  // of ours are indistinguishable from here. Saying which it is would be
+  // asserting more than the data supports.
+  if (reference.kind === 'stale_source' && reference.frozenHours >= STALE_REFERENCE_HOURS) {
+    problems.push(
+      `mid_market has been frozen at ${reference.value} since ${reference.since} ` +
+        `(${reference.frozenHours.toFixed(1)}h) while the ingest kept running — ` +
+        'too long to be an illiquid hour, whatever the cause',
+    );
+  }
+
   if (reference.kind === 'stuck') {
     problems.push(
       `mid_market has repeated the same timestamp AND value across ${reference.runs} runs ` +
-        `(${reference.since}, ${reference.value}) — that is a stuck ingest, not a closed market`,
+        `(${reference.since}, ${reference.value}), and the runs do not show a healthy ` +
+        'ingest behind it — that one is ours to answer for',
     );
   }
 

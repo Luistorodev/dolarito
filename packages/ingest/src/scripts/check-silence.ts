@@ -13,8 +13,8 @@ import { PROVIDERS } from '../lib/providers.ts';
 import { createServiceRoleClient } from '../lib/supabase.ts';
 import {
   buildReport,
+  collectSightings,
   EXPECTED_INTERVAL_MINUTES,
-  type QuoteSighting,
   type RunSighting,
   SILENCE_HOURS,
 } from '../silence.ts';
@@ -22,17 +22,36 @@ import {
 async function main(): Promise<void> {
   const supabase = createServiceRoleClient();
   const since = new Date(Date.now() - SILENCE_HOURS * 3_600_000).toISOString();
+  const providerIds = PROVIDERS.map((provider) => provider.id);
 
-  const { data: quotes, error: quotesError } = await supabase
-    .from('quotes')
-    .select('provider_id, captured_at')
-    .gte('captured_at', since);
-  if (quotesError) throw new Error(`could not read quotes: ${quotesError.message}`);
+  // One query per provider, asking only for its newest row.
+  //
+  // NOT a bulk query over the window. That is what produced the false RED on
+  // 2026-09-15: PostgREST capped the result at 1000 of the 1924 rows present,
+  // and the rows it dropped happened to be every single one belonging to wise,
+  // instarem and western_union. All three were reported as having "no rows at
+  // all, ever" while they had written seconds before.
+  //
+  // Eight one-row queries have no cap to reach, so this cannot come back as the
+  // window grows — and the window only grows from here.
+  const sightings = await collectSightings(providerIds, async (providerId) => {
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('captured_at')
+      .eq('provider_id', providerId)
+      .order('captured_at', { ascending: false })
+      .limit(1);
+    if (error) throw new Error(`could not read quotes for ${providerId}: ${error.message}`);
+    const row = data?.[0] as { captured_at?: string } | undefined;
+    return row?.captured_at;
+  });
 
   // Runs inside the window, for the cadence check and the reference verdict.
   const { data: windowRuns, error: runsError } = await supabase
     .from('runs')
-    .select('started_at, mid_market, mid_market_at')
+    // sources_ok comes along because the reference verdict needs it to tell a
+    // stale upstream from something of ours — without it, it errs loud.
+    .select('started_at, mid_market, mid_market_at, sources_ok')
     .gte('started_at', since)
     .order('started_at', { ascending: false });
   if (runsError) throw new Error(`could not read runs: ${runsError.message}`);
@@ -51,7 +70,7 @@ async function main(): Promise<void> {
   // is the longest outage of all and was otherwise the quietest.
   const { data: edgeRun, error: edgeError } = await supabase
     .from('runs')
-    .select('started_at, mid_market, mid_market_at')
+    .select('started_at, mid_market, mid_market_at, sources_ok')
     .lt('started_at', since)
     .order('started_at', { ascending: false })
     .limit(1);
@@ -59,17 +78,18 @@ async function main(): Promise<void> {
 
   const runs = [...(windowRuns ?? []), ...(edgeRun ?? [])];
 
-  const report = buildReport(
-    PROVIDERS.map((provider) => provider.id),
-    (quotes ?? []) as QuoteSighting[],
-    runs as RunSighting[],
-  );
+  const report = buildReport(providerIds, sightings, runs as RunSighting[]);
 
   console.log(`window: ${SILENCE_HOURS}h, from ${since}`);
   console.log(
     `providers reporting: ${PROVIDERS.length - report.silentProviders.length} of ${PROVIDERS.length}`,
   );
-  console.log(`mid_market: ${report.reference.kind}`);
+  console.log(
+    `mid_market: ${report.reference.kind}` +
+      (report.reference.kind === 'stale_source'
+        ? ` (frozen ${report.reference.frozenHours.toFixed(1)}h — our ingest is fine)`
+        : ''),
+  );
   console.log(
     `runs in window: ${(windowRuns ?? []).length} (cadence: every ${EXPECTED_INTERVAL_MINUTES} min` +
       `${(edgeRun ?? []).length > 0 ? ', plus one from before the edge' : ''})`,

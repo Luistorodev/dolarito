@@ -11,11 +11,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildReport,
+  collectSightings,
   findGaps,
   findSilentProviders,
   inspectReference,
   type QuoteSighting,
   type RunSighting,
+  STALE_REFERENCE_HOURS,
 } from './silence.ts';
 
 const NOW = new Date('2026-09-14T12:00:00.000Z');
@@ -232,7 +234,7 @@ describe('the report', () => {
 
     assert.equal(report.problems.length, 2);
     assert.ok(report.problems.some((p) => p.startsWith('wise:')));
-    assert.ok(report.problems.some((p) => p.includes('stuck ingest, not a closed market')));
+    assert.ok(report.problems.some((p) => p.includes('ours to answer for')));
   });
 });
 
@@ -339,5 +341,158 @@ describe('the ingest not running at all', () => {
   it('names an ongoing outage as ongoing, not as history', () => {
     const report = buildReport(ALL, seen(ALL, 0.1), runsAt([2.7, 2.95, 3.2]), NOW);
     assert.ok(report.problems.some((p) => p.includes('it is down right now')));
+  });
+});
+
+describe('the window outgrowing a single query', () => {
+  // The false RED of 2026-09-15, and the reason it could not have been caught
+  // earlier: when the bulk query was written the window held a few hundred
+  // rows, so there was nothing to truncate. The bug was not invisible, it was
+  // UNREACHABLE — and it arrived the day the ingest started working properly.
+
+  const ALL8 = [
+    'bitso',
+    'buda',
+    'dolarapp',
+    'eldorado',
+    'binance_p2p',
+    'wise',
+    'instarem',
+    'western_union',
+  ];
+  /** PostgREST's default ceiling. */
+  const POSTGREST_CAP = 1000;
+
+  /** A realistic window: 26 runs x 74 rows, every provider present throughout. */
+  function fullWindow(): QuoteSighting[] {
+    const rows: QuoteSighting[] = [];
+    for (let run = 0; run < 26; run += 1) {
+      const captured = new Date(NOW.getTime() - run * 15 * 60_000).toISOString();
+      for (const provider of ALL8) {
+        // Roughly the real shape: eldorado writes 32 a run, wise's three write 4 each.
+        const perRun = provider === 'eldorado' ? 32 : provider === 'bitso' ? 8 : 4;
+        for (let i = 0; i < perRun; i += 1)
+          rows.push({ provider_id: provider, captured_at: captured });
+      }
+    }
+    return rows;
+  }
+
+  it('a capped bulk read reports providers silent that wrote seconds ago', () => {
+    const all = fullWindow();
+    assert.ok(all.length > POSTGREST_CAP, `the window must exceed the cap, got ${all.length}`);
+
+    // The cap keeps an arbitrary slice. Ordered by provider, the tail it drops
+    // is entirely the last names — which is exactly what happened: all of
+    // wise, instarem and western_union vanished.
+    const truncated = [...all]
+      .sort((a, b) => a.provider_id.localeCompare(b.provider_id))
+      .slice(0, POSTGREST_CAP);
+
+    const wronglySilent = findSilentProviders(ALL8, truncated, NOW);
+
+    assert.ok(wronglySilent.length > 0, 'this is the false red, and it must reproduce');
+    assert.ok(
+      wronglySilent.some((p) => p.providerId === 'wise'),
+      'wise is one of the providers the cap dropped',
+    );
+    // And the damning part: the alarm says "ever" about a provider whose rows
+    // are right there in the full set.
+    assert.equal(wronglySilent.find((p) => p.providerId === 'wise')?.lastSeen, undefined);
+    assert.ok(all.some((r) => r.provider_id === 'wise'));
+  });
+
+  it('asking per provider is exact no matter how big the window gets', async () => {
+    const all = fullWindow();
+    const asked: string[] = [];
+
+    const sightings = await collectSightings(ALL8, async (providerId) => {
+      asked.push(providerId);
+      const mine = all.filter((r) => r.provider_id === providerId);
+      return mine
+        .map((r) => r.captured_at)
+        .sort()
+        .at(-1);
+    });
+
+    assert.deepEqual(asked, ALL8, 'one query per provider, no bulk read');
+    assert.equal(sightings.length, 8);
+    assert.deepEqual(findSilentProviders(ALL8, sightings, NOW), [], 'nobody is silent, correctly');
+  });
+
+  it('still reports a provider that genuinely has nothing', async () => {
+    // The fix must not buy its accuracy by going quiet.
+    const sightings = await collectSightings(ALL8, async (providerId) =>
+      providerId === 'buda' ? undefined : hoursAgo(0.25),
+    );
+    const silent = findSilentProviders(ALL8, sightings, NOW);
+
+    assert.equal(silent.length, 1);
+    assert.equal(silent[0]?.providerId, 'buda');
+    assert.equal(silent[0]?.lastSeen, undefined);
+  });
+});
+
+describe('a stale upstream against something of ours', () => {
+  // The over-confident verdict of 2026-09-15: it announced "that is a stuck
+  // ingest, not a closed market" while 26 runs in six hours were landing with
+  // eight of eight sources answering. What was frozen was Yahoo, at an hour
+  // with no liquidity, and recording a still rate is correct (Art. I.4).
+
+  function frozen(sourcesOk: string[] | undefined, hoursFrozen = 2): RunSighting[] {
+    const at = new Date(NOW.getTime() - hoursFrozen * 3_600_000).toISOString();
+    return [0, 0.25, 0.5].map((h) => ({
+      started_at: hoursAgo(h),
+      mid_market: 3105.99,
+      mid_market_at: at,
+      ...(sourcesOk === undefined ? {} : { sources_ok: sourcesOk }),
+    }));
+  }
+
+  const EIGHT = [
+    'trm',
+    'mid_market',
+    'bitso',
+    'buda',
+    'dolarapp',
+    'eldorado',
+    'binance_p2p',
+    'wise',
+  ];
+
+  it('calls it a stale source when our ingest is demonstrably alive', () => {
+    const verdict = inspectReference(frozen(EIGHT), NOW);
+
+    assert.equal(verdict.kind, 'stale_source');
+    assert.ok(verdict.kind === 'stale_source');
+    assert.ok(Math.abs(verdict.frozenHours - 2) < 0.1);
+  });
+
+  it('does NOT make a short freeze an incident', () => {
+    // Two hours frozen overnight is ordinary. Paging for it teaches everyone
+    // to ignore the alarm.
+    const report = buildReport(ALL, seen(ALL, 0.25), frozen(EIGHT), NOW);
+    assert.deepEqual(report.problems, []);
+    assert.equal(report.reference.kind, 'stale_source');
+  });
+
+  it('escalates on duration, without claiming to know the cause', () => {
+    // A stale upstream and a caching adapter of ours look identical from here.
+    // After long enough it stops mattering which: somebody has to look.
+    const report = buildReport(ALL, seen(ALL, 0.25), frozen(EIGHT, STALE_REFERENCE_HOURS + 1), NOW);
+
+    assert.equal(report.problems.length, 1);
+    assert.ok(report.problems[0]?.includes('whatever the cause'));
+    assert.ok(!report.problems[0]?.includes('stuck ingest'), 'it must not assert a cause');
+  });
+
+  it('errs LOUD when it cannot show the ingest was healthy', () => {
+    // No sources_ok means no evidence of our own health. An unknown makes this
+    // louder, not quieter.
+    assert.equal(inspectReference(frozen(undefined), NOW).kind, 'stuck');
+  });
+
+  it('errs loud when a source stopped answering behind the frozen datum', () => {
+    assert.equal(inspectReference(frozen([]), NOW).kind, 'stuck');
   });
 });

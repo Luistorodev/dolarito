@@ -157,6 +157,37 @@ da verde.** Los dos se parecen mucho cuando el sistema está sano, y se separan
 exactamente cuando hace falta. Un chequeo de ausencia que solo mira el último
 dato no puede distinguir "todo bien" de "estuvo muerto y volvió recién".
 
+**Tercera vez, y esta fue un falso ROJO (2026-09-15).** `check:silence` acusó a
+`wise`, `instarem` y `western_union` de no tener **ninguna fila, nunca** — los
+tres habían escrito segundos antes. La consulta traía la ventana entera de una
+vez, **PostgREST corta en 1000 filas**, la ventana tenía 1924, y las 924 que se
+perdieron eran justo todas las de esos tres.
+
+Dos cosas que vale separar:
+
+- **Un falso rojo es peor que un falso verde.** Un verde que miente se cree una
+  vez; un rojo que miente enseña a ignorar la alarma para siempre.
+- **El defecto no era invisible: era inalcanzable.** Cuando se escribió, la
+  ventana nunca pasaba de unos cientos de filas, así que ninguna cantidad de
+  pruebas contra datos reales lo habría encontrado. **Apareció el día que la
+  ingesta empezó a funcionar bien** — arreglar T018 fue lo que lo destapó.
+  De ahí el test nuevo: un escenario de más de 1000 filas, que fija la forma
+  del bug en vez de esperar a que la escala vuelva a traerlo.
+
+El arreglo no es paginar: es **no traer filas**. Solo hace falta el último
+`captured_at` por proveedor, o sea ocho consultas de una fila, que no tienen
+tope que alcanzar. El costo lo fija el catálogo, no la ventana.
+
+**Y el veredicto de `mid_market` afirmaba más de lo que el dato sostiene.**
+Decía *"that is a stuck ingest, not a closed market"* mientras 26 corridas en
+seis horas aterrizaban con 8 de 8 fuentes respondiendo. Lo congelado era el
+dato de Yahoo a una hora sin liquidez, y guardar una tasa quieta es correcto
+(Art. I.4). Ahora son **tres categorías**: mercado cerrado, **fuente vieja con
+nosotros sanos**, y algo nuestro. Una fuente vieja **no** es incidente hasta las
+`STALE_REFERENCE_HOURS` (12 h), porque desde la base una fuente estancada y un
+adapter nuestro que cachea **se ven idénticos** — así que en vez de adivinar la
+causa, escala por duración. Y cuando falta `sources_ok` no puede probar que
+estábamos sanos: **ahí yerra fuerte, no callado.**
 **Y la versión positiva: una suite en verde no es evidencia hasta que se la vio
 fallar.** Antes de dar por cerrada una tarea con tests, romper la implementación
 a propósito y confirmar que caen los tests correctos. Restaurar con `cmp`, no a
