@@ -61,7 +61,11 @@ const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
             <li class={position === 1 ? 'fila lider' : 'fila'}>
               <span class="pos">{position}</span>
               <span class="quien">
-                <strong>{providerName(quote.provider_id)}</strong>
+                <strong>
+                  <a href={`/proveedores/${quote.provider_id}`}>
+                    {providerName(quote.provider_id)}
+                  </a>
+                </strong>
                 {quote.payment_method !== null && (
                   <span class="faint"> · {quote.payment_method}</span>
                 )}

@@ -1,0 +1,164 @@
+---
+/**
+ * A page per provider (T027, RF-15).
+ *
+ * Everything shown is derived from captured rows. The `notes` field of the
+ * catalogue is deliberately NOT published: it was written from general
+ * knowledge, never reviewed, and one of its eight entries asserted a 5 USD
+ * minimum for El Dorado while citing the task that disproved it.
+ *
+ * The site link is published only where fetching it established that the
+ * address resolves to something calling itself this provider. DolarApp's
+ * redirects to a differently-named company and is withheld until reviewed.
+ */
+import Base from '../../layouts/Base.astro';
+import { linkable, PROVIDERS } from '../../lib/catalogue.ts';
+import { ageLabel, minutesSince } from '../../lib/freshness.ts';
+import { buildProfile, observations, summarise } from '../../lib/profile.ts';
+import { fetchLatestQuotes } from '../../lib/quotes.ts';
+import { directionLabel, limitReasonLabel } from '../../lib/ranking.ts';
+
+const { id } = Astro.params;
+const provider = PROVIDERS.find((p) => p.id === id);
+if (provider === undefined) return new Response(null, { status: 404 });
+
+const now = new Date();
+const result = await fetchLatestQuotes();
+const quotes = result.kind === 'ok' ? result.quotes : [];
+const profile = buildProfile(provider.id, quotes);
+---
+
+<Base title={provider.name} description={`Qué es ${provider.name} y qué precios da.`}>
+  <p class="faint"><a href="/">← Volver a la comparación</a></p>
+
+  <header>
+    <h1>{provider.name}</h1>
+    {profile && <p class="muted resumen">{summarise(profile)}</p>}
+  </header>
+
+  {
+    profile === undefined ? (
+      <p class="muted">
+        No hay capturas recientes de {provider.name}, así que no hay nada medido
+        que contar acá.
+      </p>
+    ) : (
+      <>
+        <section aria-labelledby="obs">
+          <h2 id="obs">Lo que observamos</h2>
+          <ul>
+            {observations(profile).map((line) => (
+              <li>{line}</li>
+            ))}
+          </ul>
+          <p class="faint">
+            Todo lo de arriba sale de los precios que capturamos, no de lo que el
+            proveedor dice de sí mismo.
+          </p>
+        </section>
+
+        {profile.paymentMethods.length > 0 && (
+          <section aria-labelledby="metodos">
+            <h2 id="metodos">Métodos de pago que cotiza</h2>
+            <ul class="metodos">
+              {profile.paymentMethods.map((method) => (
+                <li><code>{method}</code></li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section aria-labelledby="montos">
+          <h2 id="montos">En qué montos opera</h2>
+          <ul class="montos">
+            {profile.brackets.map((b) => (
+              <li>
+                <span>
+                  {directionLabel(b.direction)} · {b.bracket} USD
+                </span>
+                <span class={b.status === 'ok' ? 'si' : 'no'}>
+                  {b.status === 'ok' ? 'sí' : limitReasonLabel(b.limitReason)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <p class="faint">
+          {profile.rowCount} precios en la última captura
+          {profile.newestCapture !== undefined && (
+            <> · {ageLabel(minutesSince(profile.newestCapture, now))}</>
+          )}
+        </p>
+      </>
+    )
+  }
+
+  <section aria-labelledby="sitio">
+    <h2 id="sitio">Sitio</h2>
+    {
+      linkable(provider) ? (
+        <p>
+          <a href={provider.site} rel="noopener nofollow external">
+            {provider.site}
+          </a>
+          {provider.siteStatus === 'unverified' && (
+            <span class="faint"> · no pudimos comprobar esta dirección</span>
+          )}
+        </p>
+      ) : (
+        <p class="muted">
+          No publicamos el enlace todavía: la dirección que teníamos lleva a otro
+          lado y está sin revisar.
+        </p>
+      )
+    }
+  </section>
+</Base>
+
+<style>
+  header {
+    margin-bottom: var(--space-5);
+  }
+
+  .resumen {
+    font-size: var(--size-base);
+  }
+
+  section {
+    margin-bottom: var(--space-5);
+  }
+
+  ul {
+    margin: 0 0 var(--space-3);
+    padding-left: var(--space-4);
+  }
+
+  .metodos,
+  .montos {
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .metodos code {
+    font-size: var(--size-sm);
+  }
+
+  .montos li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--c-border);
+    font-size: var(--size-sm);
+  }
+
+  .no {
+    color: var(--c-text-faint);
+    text-align: right;
+  }
+
+  .si {
+    color: var(--c-accent);
+  }
+</style>

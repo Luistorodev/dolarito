@@ -675,13 +675,37 @@ ausencia no se encuentra mirando lo que está.
 ahí y renderiza tres escenarios reales: todo fresco, uno atrasado, y todo
 atrasado. **12 chequeos sobre el HTML renderizado**, no sobre la función.
 
-**T027 — Fichas de proveedor** `[P]`
+**T027 — Fichas de proveedor** `[P]` ✅ *cerrada el 2026-09-15*
 Una página por proveedor: qué es, `asset` y `channel`, modo, métodos de pago (RF-15).
 *Terminado cuando:* los 8 tienen página.
 
-**T028 — Contenido explicativo** `[P]`
+Los ocho responden 200; un id inexistente da 404.
+
+**Nada de la prosa del catálogo se publica.** `site_url` y `notes` se
+escribieron de conocimiento general y nunca se revisaron, así que en vez de
+mostrarlas la ficha **computa lo que dice desde las filas capturadas**: asset,
+channel, modo, métodos de pago que efectivamente cotizaron, en qué montos opera
+y en cuáles no, si el precio cambia con el monto, y si declara comisión. Cada
+frase es un hecho sobre una medición; si está mal, el dato está mal, que es un
+problema mucho más ruidoso que una prosa equivocada.
+
+**Y esa desconfianza se justificó dos veces el mismo día** — ver la lista de
+revisión en CLAUDE.md.
+
+**T028 — Contenido explicativo** `[P]` ✅ *cerrada el 2026-09-15*
 Página sobre qué es la TRM y por qué ninguna app la ofrece (RF-14). En Markdown.
 *Terminado cuando:* publicada y enlazada desde el bloque de TRM.
+
+`src/pages/trm.md` con layout propio, enlazada desde el bloque. Explica qué es,
+por qué ninguna app la ofrece —no es un precio, es una estadística—, cómo se
+calcula el margen contra ella, y por qué a veces no cambia.
+
+**Tiene una sección de "qué no dice esta página":** la metodología exacta de
+cálculo de la TRM. Sabemos de dónde la leemos y qué vigencia declara cada
+registro porque eso se verificó contra la fuente; parafrasear la metodología de
+memoria sería exactamente lo que este proyecto no hace.
+
+
 
 ## Fase 6 — Cierre
 

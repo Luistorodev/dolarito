@@ -1,0 +1,72 @@
+---
+/**
+ * Layout for the explanatory pages (T028).
+ *
+ * Narrow on purpose, at `--measure` rather than `--page-max`: the wide
+ * container exists to put two rankings side by side, and a line of prose that
+ * runs the width of a monitor is unreadable.
+ */
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={title} description={description}>
+  <p class="faint"><a href="/">← Volver a la comparación</a></p>
+  <article class="texto">
+    <slot />
+  </article>
+</Base>
+
+<style>
+  .texto {
+    max-width: var(--measure);
+  }
+
+  .texto :global(h1) {
+    margin-bottom: var(--space-4);
+  }
+
+  .texto :global(h2) {
+    margin-top: var(--space-6);
+  }
+
+  .texto :global(li) {
+    margin-bottom: var(--space-2);
+  }
+
+  .texto :global(blockquote) {
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid var(--c-accent);
+    background: var(--c-accent-soft);
+  }
+
+  .texto :global(blockquote p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .texto :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--space-4);
+    font-size: var(--size-sm);
+  }
+
+  .texto :global(th),
+  .texto :global(td) {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--c-border);
+    text-align: left;
+  }
+
+  .texto :global(td:not(:first-child)) {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

@@ -32,7 +32,12 @@ export const PROVIDERS: readonly ProviderRow[] = [
     asset: 'usdt',
     channel: 'p2p',
     site_url: 'https://eldorado.io',
-    notes: 'Quotes vary by payment method; 5 USD minimum (T015).',
+    // Corrected 2026-09-15: this said '5 USD minimum (T015)', citing the very
+    // task that disproved it. T015 measured 0.5, 1 and 5 all quoting 200; what
+    // exists is a 0.49 USDT fee floor, which makes the 1 USD bracket expensive
+    // rather than unavailable.
+    notes:
+      'Quotes vary by payment method. No minimum: the 1 USD bracket quotes, at a price its 0.49 USDT fee floor makes very high (T015).',
   },
   {
     id: 'dolarapp',

@@ -321,7 +321,7 @@ Y el segundo comando, que desde hoy tiene su propia razón de existir:
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### Desplegado. Lo que sigue: T027, T028 y la decisión del 21
+#### Fase 5 hecha salvo la decisión del 21
 
 **T021, T022, T023, T024 y T026 están cerradas.** El sitio está en Vercel
 detrás de la puerta, y la página imprime las 74 cotizaciones actuales desde el
@@ -332,9 +332,41 @@ servidor, con el bloque de TRM y las marcas de frescura.
 vista, porque `rank()` pide la política como parámetro obligatorio y
 `undefined` es el estado abierto.
 
-**Lo que queda antes del 21:** T027 (fichas de proveedor) y T028 (contenido
-explicativo), que son `[P]`. El 21 se resuelven las tres decisiones de
-presentación con `pnpm analyse:window`.
+**T021 a T028 están cerradas**, con T025 parcial. El 21 se resuelven las tres
+decisiones de presentación con `pnpm analyse:window`, y con eso cierra la fase.
+
+### ⚠️ Para tu revisión: afirmaciones sin fuente que encontré
+
+Los `site_url` y `notes` del catálogo los escribí yo de conocimiento general.
+**Ninguno se publica en las fichas** — T027 computa todo desde las filas
+capturadas — pero al verificarlos aparecieron dos cosas que sí necesitan tu ojo.
+
+**1. Una nota que era falsa y citaba como fuente a quien la desmintió.**
+`eldorado.notes` decía *"5 USD minimum (T015)"*. **T015 midió lo contrario**:
+0,5, 1 y 5 cotizan con 200, y lo que existe es un piso de comisión de 0,49 USDT.
+Corregida en `providers.ts` y resembrada el 2026-09-15. Era peor que una
+afirmación sin fuente: parecía tener una.
+
+**2. Las ocho URL, verificadas una por una contra la red.**
+
+| Proveedor | Resultado |
+|---|---|
+| El Dorado, Binance P2P, Bitso, Wise, Instarem, Western Union | 200, y el título es de la empresa correcta |
+| **DolarApp** | **Redirige a `arqfinance.com`, título "ARQ"** |
+| Buda | 403 de Cloudflare — no prueba nada en ninguna dirección |
+
+**El enlace de DolarApp no se publica** hasta que lo revises: la ficha dice que
+la dirección lleva a otro lado y está sin revisar. Ojo con dos cosas — el
+adaptador **sigue capturando precios**, así que la API vive y lo que cambió es
+el sitio o la marca; y si la marca cambió, **el nombre "DolarApp" que mostramos
+también estaría desactualizado**.
+
+Buda queda enlazado pero marcado como no comprobado. **No se rodea el bloqueo
+para averiguarlo** (Art. V.6).
+
+Las otras siete `notes` describen **nuestra propia implementación** —cómo
+cotiza, de dónde viene el dato— y las respaldan las tareas que las escribieron.
+Igual no se publican.
 
 **Para levantar el sitio en local hace falta una variable que el `.env` no
 tiene:** `SUPABASE_SERVER_READ_KEY`. Está cargada en Vercel pero no acá, así
