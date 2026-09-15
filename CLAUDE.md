@@ -881,6 +881,41 @@ columnas.
   `below_minimum` faltando en Binance mientras sobraba en Eldorado.
 
 
+- **T022 — Middleware de contraseña. CERRADA el 2026-09-15.**
+
+  El interruptor tiene **tres estados** y el tercero es el que importa: una
+  clave cierra, el literal `off` abre —el cambio de configuración que pide
+  HU-07— y **la variable sin poner devuelve 503 sin servir nada**. Una
+  variable ausente no puede significar abierto: el accidente más probable del
+  periodo privado es desplegar sin ponerla, y eso publicaría el sitio en
+  silencio. **Un despliegue sin la variable se cae en vez de exponerse.**
+
+  **La cookie es un candado, no una etiqueta:** un HMAC con la clave como
+  llave, comparado en tiempo constante. `autenticado=1` la pone cualquiera.
+
+  Verificado contra un servidor real, no solo con tests: toda ruta redirige
+  sin cookie, cookie inventada rechazada, la clave correcta devuelve a donde
+  ibas, `volver=https://…` no saca del sitio, y los estados 503 y `off` se
+  comportan. **Cinco mutaciones, las cinco atrapadas**, incluida la del `//`
+  que convierte el formulario en redirección abierta.
+
+  **Lo que los tests NO cubren, dicho para que no se crea cubierto:** que la
+  comparación sea de tiempo constante. Un test no distingue `timingSafeEqual`
+  de `===` sin medir, y medirlo en CI es ruido.
+
+- **T021 — Astro + adapter de Vercel. HECHA, sin cerrar: falta el despliegue.**
+
+  Astro 7.3.2 con `@astrojs/vercel` 11.0.10, `output: server`, tokens y
+  tipografía móvil primero, layout único. `astro check` limpio, build verde,
+  y **el único archivo que llega al navegador es el favicon** — verificado con
+  un grep de credenciales sobre todo lo servible, porque con N4 una llave
+  filtrada es la base entera.
+
+  **La home no muestra ningún precio**, a propósito: no hay cliente de datos
+  todavía y un número de ejemplo se termina creyendo (Art. I.1).
+
+  No se cierra hasta que el despliegue exista. Los dos pasos del humano están
+  arriba, en "Pendiente del humano".
 ### Sigue
 
 ## ⛔ T020 — Ventana de acumulación, EN CURSO
@@ -896,10 +931,18 @@ de punta a punta.
 de este archivo). No es una formalidad: existe para que no se diseñe interfaz
 sobre datos que todavía no se sabe cómo se comportan.
 
-Estado al reiniciar: 8 corridas en la base, 8 de 8 fuentes en todas, cero
-fallos. Seis son anteriores a `runs.trigger_src` y tienen disparador
-desconocido; de las dos etiquetadas, **una la disparó `pg_cron` y otra el
-planificador de GitHub**. Ahora sí acumula sola.
+**Estado al 2026-09-15T05:15Z: 46 corridas, 3.404 filas, 30,8 h de ventana.**
+8 de 8 fuentes en todas, cero fallos.
+
+| Disparador | Corridas |
+|---|---|
+| `pg_cron` | **37** |
+| `github_schedule` | 3 |
+| sin etiqueta (antes de la columna) | 6 |
+
+Acumula sola y a cadencia: 25 corridas en las últimas 6 h, que es `*/15`
+exacto. **El planificador de GitHub sigue en 3** — degradado, no muerto; es el
+número con el que se decide si se retira su cron (ver "SEGUIMIENTO ABIERTO").
 
 La primera lectura de los seis puntos, medida el 2026-09-14 con 3 corridas,
 sigue más abajo: es la línea base contra la que se compara el 21.
@@ -1004,9 +1047,10 @@ la *forma*, y dos puntos apuntan fuerte en una dirección.
 
 ### Mientras tanto
 
-**La barrera está acotada** (regla 4): **T021, T022, T023, T024 y T026 se pueden
-hacer ya**; T025 va parcial. Lo único que espera al 21 son las tres decisiones
-de presentación listadas en `tasks.md` bajo T020.
+**La barrera está acotada** (regla 4). **T021 y T022 ya están hechas**;
+**T023, T024 y T026 se pueden hacer ya** y T025 va parcial. Lo único que espera
+al 21 son las tres decisiones de presentación listadas en `tasks.md` bajo T020,
+declaradas como tipos sin default en `apps/web/src/lib/pending.ts`.
 
 La migración de `latest_quotes` **ya está aplicada**, así que T023 y T024 tienen
 las columnas que necesitan y los márgenes ya están corregidos.
