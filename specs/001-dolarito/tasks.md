@@ -411,9 +411,54 @@ permanente por inercia.
 > que reescribe esa vista de todos modos: junto cuesta una aplicación a mano en
 > el SQL Editor, separado cuesta dos.
 
-**T021 — Proyecto Astro + adapter de Vercel**
+**T021 — Proyecto Astro + adapter de Vercel** ⏳ *listo para desplegar*
 Estructura base, tipografía, tokens. Móvil primero (RF-12).
 *Terminado cuando:* despliega en Vercel.
+
+Hecho el 2026-09-15: Astro 7.3.2 con `@astrojs/vercel` 11.0.10, `output: 'server'`,
+tokens y tipografía móvil primero, layout único y `astro check` limpio.
+`corepack pnpm --filter @dolarito/web run build` compila, y el único archivo que
+llega al navegador es el favicon — verificado con un grep de credenciales sobre
+todo lo servible.
+
+**`output: 'server'` no es negociable**, y conviene que quede el motivo: la
+puerta de T022 no guardaría nada sobre un build estático; N4 dejó la base sin
+lectura pública, así que cada cotización se lee en el servidor con llave de
+servidor; y con captura cada 15 minutos una foto de build nace vieja.
+
+**NO cerrada.** El despliegue es del humano y no se da por hecho. Falta:
+crear el proyecto en Vercel con **Root Directory = `apps/web`**, y cargar
+`SITE_PASSWORD` (ver `.env.example`, tres estados). Nada más: el adapter ya
+emite `.vercel/output`.
+
+**T022 — Middleware de contraseña** ✅
+Contraseña compartida desde variable de entorno. Quitarla debe ser cambiar la
+env var, no el código (HU-07).
+*Terminado cuando:* sin cookie válida todo redirige al formulario.
+
+Hecho y verificado el 2026-09-15, contra un servidor real y no solo con tests.
+
+**El interruptor tiene tres estados, y el tercero es el que importa:** una clave
+cierra, el literal `off` abre —ese es el cambio de configuración que pide
+HU-07—, y **la variable sin poner devuelve 503 sin servir nada**. Una variable
+ausente no puede significar abierto: el accidente más probable del periodo
+privado es desplegar sin ponerla, y eso publicaría el sitio en silencio. Fallar
+hacia adentro cuesta una caída que solo ve el dueño.
+
+**La cookie es un candado, no una etiqueta.** Guarda un HMAC con la clave como
+llave, comparado en tiempo constante. Una cookie que dijera `autenticado=1` la
+puede poner cualquiera; esta hay que saber la clave para calcularla, y no hace
+falta administrar un segundo secreto.
+
+Cinco mutaciones, las cinco atrapadas: la cookie como etiqueta, la variable
+ausente abriendo el sitio, `safeReturnPath` sin el chequeo de `//` —que es la
+que convierte el formulario en redirección abierta—, `isPublicPath` comparando
+flojo, y el token sin depender de la clave.
+
+**Lo que los tests no cubren, dicho para que no se crea cubierto:** que la
+comparación sea de tiempo constante. Un test no distingue `timingSafeEqual` de
+`===` sin medir, y medir eso en CI da ruido. Queda como propiedad del código
+revisada a ojo.
 
 **T022 — Middleware de contraseña**
 Contraseña compartida desde variable de entorno. Quitarla debe ser cambiar la

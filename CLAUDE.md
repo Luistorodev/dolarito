@@ -129,6 +129,37 @@ se apaga a la semana.
 indentados de cuatro espacios. Acá se usan fences en todos lados, así que en la
 práctica no molesta — pero código indentado con columnas alineadas se va a
 marcar. Lo descubrí marcando esta misma sección.
+### El tier web (Astro)
+
+- **`output: "server"`, no estático, y no es negociable.** La puerta de T022
+  no guardaría nada sobre un build estático; N4 dejó la base sin lectura
+  pública, así que cada cotización se lee en el servidor con llave de
+  servidor (plan.md §2.3); y con captura cada 15 minutos una foto de build
+  nace vieja. El costo es una función por request, y se aceptó cuando N4
+  quedó como riesgo aceptado.
+
+- **Biome NO mira los `.astro`.** No parsea la plantilla, así que ve como no
+  usadas las variables que la plantilla sí usa — marcó cuatro líneas sanas.
+  Quedaron fuera de `includes` en `biome.json`, igual que `fixtures/`. **Lo
+  que los cubre es `astro check`**, que es `tsc` para Astro y corre con
+  `pnpm --filter @dolarito/web run typecheck`. Si se saca uno, no queda nada.
+
+- **`astro check` no cuenta un `return` del frontmatter como uso.** Una
+  variable consumida solo ahí sale como `ts(6133): declared but never read`,
+  aunque el código sea correcto. Salió en `entrar.astro`. La salida es poner
+  el valor en línea; anotado en el archivo para que nadie lo "arregle"
+  borrando la línea que sí hacía falta.
+
+- **Astro trae protección CSRF de fábrica** y rechaza un POST de formulario
+  sin cabecera `Origin` con 403. Apareció probando con `curl`, no en un
+  fallo: si un POST de prueba da 403 y no 200, falta el `Origin`, no está
+  roto el formulario.
+
+- **Lo que espera datos se marca, no se decide.** `apps/web/src/lib/pending.ts`
+  declara las tres decisiones de presentación como uniones **sin miembro por
+  defecto**: quien las necesite tiene que recibirlas, y el sitio de llamada
+  queda como el lugar visible donde alguien eligió — o como error de
+  compilación hasta que elija. Es la regla 4 hecha tipo en vez de comentario.
 ### Tests negativos
 
 **Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que
@@ -222,31 +253,24 @@ Y el segundo comando, que desde hoy tiene su propia razón de existir:
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### El plan de la próxima sesión: T021 y T022
+#### Pendiente del humano: desplegar en Vercel
 
-**Ninguna de las dos depende de datos**, así que la ventana de T020 no las
-bloquea — la barrera está acotada a tres decisiones de presentación (regla 4).
+**T021 está listo para desplegar y NO cerrado**, porque el despliegue no es
+mío. Dos cosas y nada más:
 
-- **T021 — Proyecto Astro + adapter de Vercel.** Estructura, tipografía,
-  tokens, móvil primero (RF-12). **Ojo con el criterio de terminado: dice
-  "despliega en Vercel", y eso necesita la cuenta del humano.** El scaffolding
-  y el build se verifican solos; el despliegue no. Dejarlo listo y decir qué
-  falta del otro lado, en vez de dar la tarea por cerrada a medias.
-  Evaluar ahí las dos mitigaciones de N4: que el servidor consulte solo
-  `latest_quotes`, y que la llave viva únicamente en variables de entorno del
-  hosting. Ninguna de las dos resuelve N4 — sigue siendo riesgo aceptado.
-- **T022 — Middleware de contraseña.** Quitar la protección tiene que ser
-  cambiar la variable de entorno, no el código (HU-07). Esta sí se verifica
-  entera sin intervención.
+1. Crear el proyecto en Vercel con **Root Directory = `apps/web`**. El adapter
+   ya emite `.vercel/output`; no hay que configurar build ni output.
+2. Cargar **`SITE_PASSWORD`**. Tiene tres estados y el tercero es deliberado —
+   ver `.env.example`. **Sin la variable el sitio devuelve 503 a propósito**,
+   así que un despliegue sin ella no expone nada, se cae.
 
-Después vienen T023, T024 y T026, que tampoco esperan: la migración que
-necesitaban ya está aplicada. T025 va parcial — el ranking sí, la
-representación de Eldorado no.
+Con eso T021 cierra. T022 ya está verificada contra un servidor real.
 
-**Lo único que espera al 21** son las tres decisiones de presentación listadas
-en `tasks.md` bajo T020: cuántos métodos de Eldorado se muestran, si el
-selector de bracket se destaca, y si el cruce de `binance_p2p` se explica.
+#### Lo que sigue después: T023, T024, T026
 
+Ninguna espera datos. La migración de `latest_quotes` ya está aplicada, así
+que tienen sus columnas. T025 va parcial: el ranking sí, la representación de
+Eldorado no.
 ### ✅ La migración de `latest_quotes` está aplicada (2026-09-14)
 
 Aplicada y verificada en el SQL Editor con

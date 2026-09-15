@@ -1,0 +1,42 @@
+---
+/**
+ * The one layout (T021).
+ *
+ * Deliberately thin. Everything that will carry data — the TRM block (T024),
+ * the rankings (T025), freshness (T026) — arrives as a component inside the
+ * slot, so none of it is wired into the shell before it is measured.
+ */
+import '../styles/tokens.css';
+import '../styles/base.css';
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+}
+
+const { title, description } = Astro.props;
+const fullTitle = title === 'Dolarito' ? title : `${title} · Dolarito`;
+---
+
+<!doctype html>
+<html lang="es-CO">
+  <head>
+    <meta charset="utf-8" />
+    <!-- RF-12: the phone is the main case, not an adaptation of the desktop. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <!--
+      No indexing while the private period lasts (HU-07). The password gate is
+      the real lock; this only asks crawlers not to try, and the two are
+      independent on purpose.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="page">
+      <slot />
+    </div>
+  </body>
+</html>

@@ -1,0 +1,119 @@
+/*
+ * Base typography and reset (T021). Built on tokens.css; no raw values here.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Respects the reader's own font size instead of overriding it. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-size: var(--size-base);
+  line-height: var(--leading-normal);
+  /* Avoids the horizontal scroll a wide table can cause on a phone; tables
+     that must be wider get their own scroll container. */
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-3);
+  line-height: var(--leading-tight);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: var(--size-2xl);
+}
+h2 {
+  font-size: var(--size-xl);
+}
+h3 {
+  font-size: var(--size-lg);
+}
+
+p {
+  margin: 0 0 var(--space-4);
+}
+
+a {
+  color: var(--c-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Every amount on the site goes through this: same width per digit, so two
+   rows of a ranking line up and can be compared without reading them. */
+.amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.page {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-5) var(--gutter) var(--space-8);
+}
+
+.muted {
+  color: var(--c-text-soft);
+  font-size: var(--size-sm);
+}
+
+.faint {
+  color: var(--c-text-faint);
+  font-size: var(--size-xs);
+}
+
+/* Visible only to screen readers. Used for labels that the layout carries
+   visually but that a reader needs spoken. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* A visible focus ring, always. The site is keyboard-navigable and the ring is
+   the only thing that says where you are. */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: the reduced-motion
+       override is the one place !important is correct — it has to beat
+       component and inline styles, which is the whole point of the query. */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: same reason. */
+    transition-duration: 0.01ms !important;
+  }
+}

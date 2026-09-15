@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/.astro", "!**/fixtures"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/.astro",
+      "!**/.vercel",
+      "!**/fixtures",
+      "!**/*.astro"
+    ]
   },
   "formatter": {
     "enabled": true,

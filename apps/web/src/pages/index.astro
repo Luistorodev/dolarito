@@ -1,0 +1,52 @@
+---
+/**
+ * Home (T021).
+ *
+ * Structure only. It shows **no prices**, because there is no data client yet
+ * (T023) and inventing a placeholder rate — even an obviously fake one — is
+ * the exact habit Art. I.1 and working rule 5 exist to prevent. A mock that
+ * looks like a quote gets screenshotted, and then it gets believed.
+ */
+import Base from '../layouts/Base.astro';
+import { DECIDE_ON } from '../lib/pending.ts';
+---
+
+<Base
+  title="Dolarito"
+  description="Comparador de precios de compra y venta de dólares para Colombia."
+>
+  <header>
+    <h1>Dolarito</h1>
+    <p class="muted">
+      Cuántos pesos recibís por tus dólares, y cuántos te cuesta comprarlos.
+      Comparado a monto fijo, entre ocho proveedores.
+    </p>
+  </header>
+
+  <section aria-labelledby="estado">
+    <h2 id="estado">En construcción</h2>
+    <p>
+      La captura de precios ya corre cada 15 minutos. Lo que falta es la
+      interfaz, y se está armando en orden: primero la estructura, después los
+      datos.
+    </p>
+    <p class="muted">
+      Esta página no muestra ninguna cotización todavía. No hay números de
+      ejemplo a propósito: un precio inventado que se vea real se termina
+      creyendo.
+    </p>
+  </section>
+
+  <section aria-labelledby="proximo">
+    <h2 id="proximo">Lo que viene</h2>
+    <ul class="muted">
+      <li>El bloque de TRM, con su fecha de vigencia.</li>
+      <li>Los dos rankings, Local y Remesa, por monto.</li>
+      <li>Cuándo se capturó cada precio.</li>
+    </ul>
+    <p class="faint">
+      Tres decisiones de presentación esperan a que haya una semana de datos
+      medidos: se resuelven el {DECIDE_ON}.
+    </p>
+  </section>
+</Base>

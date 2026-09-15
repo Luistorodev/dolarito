@@ -1,0 +1,21 @@
+{
+  "name": "@dolarito/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dolarito web tier: Astro, server-rendered, behind a password",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "test": "node --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^11.0.10",
+    "astro": "^7.3.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10"
+  }
+}

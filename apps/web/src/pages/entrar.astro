@@ -1,0 +1,131 @@
+---
+/**
+ * The login form (T022).
+ *
+ * Handles its own POST rather than calling an API route: it is one field and
+ * one decision, and a round trip through `/api/` would add a place for the two
+ * to disagree about what counts as authenticated.
+ *
+ * No JavaScript. A plain form post works with the keyboard, with a password
+ * manager, and with the network half-dead — which is the state of most phones
+ * that will ever see this page.
+ */
+import Base from '../layouts/Base.astro';
+import {
+  COOKIE_NAME,
+  cookieOptions,
+  passwordMatches,
+  readGateConfig,
+  safeReturnPath,
+  sessionToken,
+} from '../lib/auth.ts';
+
+const config = readGateConfig(import.meta.env['SITE_PASSWORD']);
+
+// With the gate off there is nothing to ask for. Anyone landing here from an
+// old link goes where they were going.
+if (config.kind === 'open') return Astro.redirect('/', 302);
+
+let failed = false;
+const back = safeReturnPath(Astro.url.searchParams.get('volver'));
+
+if (Astro.request.method === 'POST' && config.kind === 'gated') {
+  const form = await Astro.request.formData();
+  const submitted = String(form.get('clave') ?? '');
+
+  if (passwordMatches(submitted, config.password)) {
+    Astro.cookies.set(
+      COOKIE_NAME,
+      // The cookie carries the derived token, never the password itself.
+      sessionToken(config.password),
+      cookieOptions(import.meta.env.PROD),
+    );
+    // Inlined, not bound to a local: `astro check` does not count a frontmatter
+    // `return` as a use, so a variable consumed only there reads as dead code
+    // (ts6133). Worth knowing before someone "fixes" it by deleting the line.
+    return Astro.redirect(safeReturnPath(String(form.get('volver') ?? '')), 302);
+  }
+
+  failed = true;
+}
+
+// Never cached: the answer depends on a cookie, and a cached copy of this page
+// on a shared proxy would be a copy of somebody's session state.
+Astro.response.headers.set('cache-control', 'no-store');
+---
+
+<Base title="Entrar">
+  <h1>Dolarito</h1>
+  <p class="muted">
+    El sitio está en periodo privado. Hace falta la clave compartida para
+    entrar.
+  </p>
+
+  {
+    failed && (
+      <p class="error" role="alert">
+        Esa clave no es. Probá de nuevo.
+      </p>
+    )
+  }
+
+  <form method="post" class="gate">
+    <label for="clave">Clave</label>
+    <input
+      id="clave"
+      name="clave"
+      type="password"
+      autocomplete="current-password"
+      required
+      autofocus
+    />
+    <input type="hidden" name="volver" value={back} />
+    <button type="submit">Entrar</button>
+  </form>
+
+  <p class="faint">
+    La captura de precios corre igual, esté el sitio abierto o cerrado.
+  </p>
+</Base>
+
+<style>
+  .gate {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 22rem;
+    margin-block: var(--space-5);
+  }
+
+  label {
+    font-size: var(--size-sm);
+    color: var(--c-text-soft);
+  }
+
+  input {
+    padding: var(--space-3);
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius);
+    background: var(--c-surface);
+    /* 16px keeps iOS from zooming the viewport when the field takes focus,
+       which on a phone reads as the page jumping away (RF-12). */
+    font-size: var(--size-base);
+  }
+
+  button {
+    padding: var(--space-3) var(--space-4);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--c-accent);
+    color: var(--c-bg);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .error {
+    padding: var(--space-3);
+    border-radius: var(--radius);
+    background: var(--c-warn-soft);
+    color: var(--c-warn);
+    font-size: var(--size-sm);
+  }
+</style>
