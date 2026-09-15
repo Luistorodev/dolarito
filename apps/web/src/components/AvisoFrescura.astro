@@ -1,0 +1,76 @@
+---
+/**
+ * Freshness notices (T026, HU-06, RF-11).
+ *
+ * The page-level half. The per-row capture time lives in the row itself; this
+ * is what has to be said *once* rather than eight times.
+ *
+ * The whole reason this is a component with a discriminated input: when the
+ * capture stops, every row goes stale together, and marking eight providers as
+ * lagging would blame the sources for something that is ours. One notice, not
+ * eight.
+ */
+import { ageLabel, type Freshness } from '../lib/freshness.ts';
+import { providerName } from '../lib/catalogue.ts';
+
+interface Props {
+  freshness: Freshness;
+  missing: string[];
+}
+
+const { freshness, missing } = Astro.props;
+---
+
+{
+  freshness.kind === 'all_stale' && (
+    <p class="aviso grave" role="alert">
+      <strong>La captura no está corriendo.</strong> Lo más reciente que hay se
+      tomó {ageLabel(freshness.newestMinutes)}, así que todos los precios de
+      abajo son de entonces. No es que los proveedores hayan dejado de cotizar:
+      es que dejamos de preguntar.
+    </p>
+  )
+}
+
+{
+  freshness.kind === 'some_stale' && (
+    <p class="aviso">
+      <strong>
+        {freshness.stale.length === 1
+          ? 'Un proveedor está atrasado'
+          : `${freshness.stale.length} proveedores están atrasados`}
+        :
+      </strong>{' '}
+      {freshness.stale
+        .map((s) => `${providerName(s.providerId)} (${ageLabel(s.minutes)})`)
+        .join(', ')}
+      . El resto está al día.
+    </p>
+  )
+}
+
+{
+  missing.length > 0 && (
+    <p class="aviso">
+      <strong>Sin datos de {missing.length === 1 ? 'un proveedor' : `${missing.length} proveedores`}:</strong>{' '}
+      {missing.map((id) => providerName(id)).join(', ')}. No aparecen en las
+      capturas recientes, así que no están en las comparaciones de abajo.
+    </p>
+  )
+}
+
+<style>
+  .aviso {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    background: var(--c-warn-soft);
+    color: var(--c-warn);
+    font-size: var(--size-sm);
+  }
+
+  /* The capture being down is a different kind of problem from a provider
+     lagging, so it does not share its weight. */
+  .aviso.grave {
+    border-left: 3px solid var(--c-warn);
+  }
+</style>

@@ -534,10 +534,31 @@ Verificado viéndolo fallar: una fuga deliberada en la página la atrapa.
 *Terminado cuando:* una página imprime las cotizaciones actuales y el bundle del
 navegador no contiene ninguna credencial de Supabase.
 
-**T024 — Bloque de TRM**
+**T024 — Bloque de TRM** ✅ *cerrada el 2026-09-15*
 Valor, fecha a la que corresponde, explicación breve. Indicador explícito de
 congelada en fines de semana y festivos (HU-05).
 *Terminado cuando:* el estado de fin de semana se ve distinto del de día hábil.
+
+Hecho el 2026-09-15. `lib/trm.ts` + `components/BloqueTrm.astro`.
+
+**El indicador de congelada sale del dato, no de un calendario.** Una tasa que
+cubre más de un día calendario **es** el caso de fin de semana o festivo, y lo
+dice ella misma: `trm_to > trm_from`. **No hay ni debe haber lista de festivos
+en este repo** — es la propiedad que T010 estableció para la captura, usada acá
+para presentación. Los dos fixtures de los tests son los reales que T010 midió:
+12→14 de septiembre (3 días, fin de semana) contra 11→11 (1 día, hábil).
+
+**Tres estados, no dos:** vigente, desactualizada y **ausente**. "Tenemos una
+tasa vieja" y "no tenemos ninguna" se ven igual en una página que solo pregunta
+si hay un número, y no son lo mismo para quien lee.
+
+**Y el día es colombiano, no UTC.** `bogotaToday()` desplaza 5 h; leerlo como
+UTC daría la tasa por vencida cinco horas cada noche. Es el mismo hecho que usa
+`silence.ts` para el vencimiento, y está anotado en los dos lados.
+
+Verificado en vivo con la base real —TRM 3.109,30, "Rige el 2026-09-15", sin
+marca de congelada porque es martes— y con `pnpm check:freshness`, que renderiza
+una ventana de tres días que contiene hoy y comprueba que la marca aparece.
 
 **T025 — Rankings**
 Selector de modo (Local / Remesa), dirección y bracket. Orden según Artículo
@@ -584,16 +605,43 @@ justamente por qué no debe colarse como default.
 los no disponibles con explicación, y la decisión de arriba está tomada y
 aplicada. **Parcialmente terminable antes de T020**, salvo esa decisión.
 
-**T026 — Frescura del dato**
+**T026 — Frescura del dato** ✅ *cerrada el 2026-09-15*
 Momento de captura visible en cada fila. Marca de desactualizado sobre 60
 minutos. Aviso si una fuente lleva tiempo muda (HU-06, RF-11).
 *Terminado cuando:* forzando un dato viejo, la marca aparece.
 
-**Construible ya, pero el umbral no es calibrable todavía.** Los 60 minutos solo
-se pueden juzgar contra una cadencia real, y hoy los huecos entre corridas son de
-31 y 81 minutos **por el cron ausente**, no por las fuentes. Implementar el
-mecanismo y dejar el umbral como constante nombrada; revisarlo cuando el cron
-corra.
+Hecho el 2026-09-15. `lib/freshness.ts` + `components/AvisoFrescura.astro`.
+
+**La distinción que aprendimos en `check:silence`, aplicada a la interfaz.** "El
+dato más nuevo es viejo" y "no corrió cuando debía" tampoco son la misma
+pregunta en la UI, y acá el error es más visible: si la captura se detiene,
+**todas** las filas envejecen a la vez, y marcar ocho proveedores como
+atrasados culparía a las fuentes de algo que es nuestro.
+
+| Cómo se ven las filas | Qué significa | Qué dice la página |
+|---|---|---|
+| Todo reciente | sano | nada |
+| Algunas viejas, otras no | esos proveedores atrasados | marca esas filas |
+| **Todas viejas** | **la captura se detuvo** | **un aviso, no ocho** |
+| Un proveedor sin ninguna fila | quedó mudo | lo nombra aparte |
+
+La tercera fila es la que justifica el tipo: ocho marcas de desactualizado y un
+"la captura no está corriendo" ocupan los mismos píxeles y llevan a acciones
+opuestas — perseguir ocho proveedores, o mirar el planificador.
+
+**Ausencia y atraso son cosas distintas.** Un proveedor con una fila de dos
+horas está atrasado; uno sin filas está mudo, y solo el segundo deja a la
+interfaz sin nada que mostrar. La lista esperada viene del catálogo, porque la
+ausencia no se encuentra mirando lo que está.
+
+**El umbral quedó en 60 minutos y ahora sí es calibrable:** el cron corre a
+`*/15` desde el 2026-09-14, así que 60 son cuatro ciclos. El límite es estricto
+—"más de 60", no "60 o más"— para que la marca no aparezca en un ciclo normal.
+
+*Terminado cuando:* forzando un dato viejo, la marca aparece. Verificado con
+`pnpm check:freshness`, que levanta un PostgREST de mentira, apunta el servidor
+ahí y renderiza tres escenarios reales: todo fresco, uno atrasado, y todo
+atrasado. **12 chequeos sobre el HTML renderizado**, no sobre la función.
 
 **T027 — Fichas de proveedor** `[P]`
 Una página por proveedor: qué es, `asset` y `channel`, modo, métodos de pago (RF-15).

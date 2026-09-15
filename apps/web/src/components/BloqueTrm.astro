@@ -1,0 +1,128 @@
+---
+/**
+ * The TRM block (T024, HU-05).
+ *
+ * Three things the criterion asks for: the value, the day it belongs to, and a
+ * short explanation of what it is and why no app offers it. Plus the frozen
+ * indicator, which comes from `trm_to` rather than from a calendar.
+ *
+ * The full explanatory page is T028; this is the version that fits beside the
+ * number, and it links there once that page exists.
+ */
+import { describeTrm, frozenNote, type TrmSource } from '../lib/trm.ts';
+
+interface Props {
+  source: TrmSource | undefined;
+  now: Date;
+}
+
+const { source, now } = Astro.props;
+const trm = describeTrm(source, now);
+const note = frozenNote(trm);
+
+const cop = new Intl.NumberFormat('es-CO', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+---
+
+<section class="trm" aria-labelledby="trm-titulo">
+  <h2 id="trm-titulo">TRM</h2>
+
+  {
+    trm.kind === 'missing' ? (
+      <p class="muted">
+        No hay TRM en las capturas recientes. No es una tasa vieja: no hay
+        ninguna.
+      </p>
+    ) : (
+      <>
+        <p class="valor">
+          <span class="amount">{cop.format(trm.value)}</span>
+          <span class="unidad">COP por dólar</span>
+        </p>
+
+        <p class="cuando muted">
+          {trm.kind === 'stale' ? (
+            <>
+              <strong>Desactualizada.</strong> Rigió hasta el {trm.to} y todavía
+              no llegó la siguiente.
+            </>
+          ) : trm.frozen ? (
+            <>Rige del {trm.from} al {trm.to}</>
+          ) : (
+            <>Rige el {trm.to}</>
+          )}
+        </p>
+
+        {note && <p class="congelada">{note}</p>}
+      </>
+    )
+  }
+
+  <div class="que-es">
+    <p class="muted">
+      La TRM es la tasa oficial que publica la Superintendencia Financiera cada
+      día hábil. Sirve de referencia para contratos y contabilidad.
+    </p>
+    <p class="faint">
+      <strong>Ninguna app te la ofrece, y no es trampa:</strong> es una
+      estadística del mercado interbancario, no un precio al que alguien te
+      venda. Todos los proveedores cotizan con un margen sobre su propio costo.
+      Por eso acá se usa como vara de medir, no como una promesa.
+    </p>
+  </div>
+</section>
+
+<style>
+  .trm {
+    padding: var(--space-4);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+  }
+
+  .valor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+
+  .valor .amount {
+    font-size: var(--size-3xl);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  .unidad {
+    color: var(--c-text-soft);
+    font-size: var(--size-sm);
+  }
+
+  .cuando {
+    margin-bottom: var(--space-3);
+  }
+
+  /* The weekend state has to LOOK different from a working day, not just say
+     something different — that is the done criterion of T024. */
+  .congelada {
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    border-left: 3px solid var(--c-warn);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--c-warn-soft);
+    color: var(--c-warn);
+    font-size: var(--size-sm);
+  }
+
+  .que-es {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--c-border);
+  }
+
+  .que-es p:last-child {
+    margin-bottom: 0;
+  }
+</style>

@@ -198,6 +198,16 @@ marcar. Lo descubrí marcando esta misma sección.
   fallo: si un POST de prueba da 403 y no 200, falta el `Origin`, no está
   roto el formulario.
 
+- **Dos verificaciones de UI que corren contra HTML renderizado, no contra
+  funciones.** `check:bundle` construye con marcadores y los busca en los
+  assets **y en el HTML** — con `output: 'server'` un secreto interpolado en la
+  página no aparece en ningún archivo estático. `check:freshness` levanta un
+  PostgREST de mentira y renderiza tres escenarios de edad. Las dos se vieron
+  fallar: la primera con una fuga deliberada, la segunda porque mi propio
+  chequeo buscaba la palabra `desactualizado` que también está en el CSS
+  inline. **Un chequeo de UI que busca texto suelto matchea su propia hoja de
+  estilos**; hay que buscar la clase renderizada.
+
 - **⌗ Anotado, sin arreglar: el layout en escritorio.** El contenido queda
   pegado a la izquierda con media pantalla vacía. Es consecuencia de
   `--measure: 34rem` centrado con `margin: 0 auto` en `.page`, que en un
@@ -305,10 +315,15 @@ Y el segundo comando, que desde hoy tiene su propia razón de existir:
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### Desplegado. Lo que sigue: T024 y T026
+#### Desplegado. Lo que sigue: T025, parcial
 
-**T021, T022 y T023 están cerradas.** El sitio está en Vercel detrás de la
-puerta, y la página imprime las 74 cotizaciones actuales desde el servidor.
+**T021, T022, T023, T024 y T026 están cerradas.** El sitio está en Vercel
+detrás de la puerta, y la página imprime las 74 cotizaciones actuales desde el
+servidor, con el bloque de TRM y las marcas de frescura.
+
+**Lo único que queda de la Fase 5 antes del 21 es T025 parcial** — el ranking sí,
+la representación de Eldorado no. Y ordenar "para mostrar algo" tomaría una de
+las tres decisiones por accidente: la página de hoy **no ordena**, y lo dice.
 
 **Para levantar el sitio en local hace falta una variable que el `.env` no
 tiene:** `SUPABASE_SERVER_READ_KEY`. Está cargada en Vercel pero no acá, así

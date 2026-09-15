@@ -10,6 +10,7 @@
     "preview": "astro preview",
     "typecheck": "astro check",
     "check:bundle": "node scripts/check-bundle.ts",
+    "check:freshness": "node scripts/check-freshness-ui.ts",
     "test": "node --test src/**/*.test.ts"
   },
   "dependencies": {
