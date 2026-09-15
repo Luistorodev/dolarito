@@ -1,7 +1,9 @@
 # T029 — Revisión contra el constitution
 
-**Fecha:** 2026-09-15 · **Constitution:** v1.4.0 · **Revisado contra:** el código,
-no la memoria.
+**Fecha:** 2026-09-15 · **Revisado contra:** el código, no la memoria.
+
+**Constitution al revisar: v1.4.0. Al terminar: v1.6.0** — la revisión produjo
+dos enmiendas, VI.2 y IV.3, que están explicadas donde corresponde.
 
 Cada punto cita **dónde** se cumple. Donde no se cumple, la razón queda escrita;
 donde no hay razón, queda como deuda.
@@ -59,9 +61,9 @@ discusión.
 | III.2 Cada fila declara `asset` y `channel` | ✅ | `Ranking.astro` — `assetLabel()` y `channelLabel()` en cada fila. Renderizado: *"USDT · exchange"*, *"dólares · transferencia bancaria"*. |
 | III.3 Toda comparación a monto fijo | ✅ | `bracket_usd` es `not null` con CHECK de cuatro valores; el selector no permite comparar sin bracket. |
 | III.4 Las referencias nunca entran al ranking | ✅ | `grep trm\|mid_market ranking.ts` → **cero coincidencias**. Las referencias viven en `BloqueTrm.astro`, en otra jerarquía. |
-| III.5 Roles separados de las dos referencias | ⚠️ | Ver abajo. |
+| III.5 Roles separados de las dos referencias | ✅ | Resuelto el mismo día — ver abajo. |
 
-### ⚠️ III.5 — DEUDA: el margen está calculado y no se muestra
+### ✅ III.5 — El margen estaba calculado y no se mostraba. Ya se muestra.
 
 El artículo dice que la tasa media en vivo es *"la base de todo cálculo de
 margen"*. En la base lo es: `latest_quotes` expone `markup_vs_mid` y
@@ -81,8 +83,15 @@ Consecuencias:
 - Y el trabajo de corregir los dos defectos del margen, que costó una migración
   a mano, **no llega al usuario**.
 
-**Deuda, no desviación justificada.** Hay que decidir si el margen vuelve a la
-fila —y contra cuál referencia— o si `trm.md` deja de prometerlo.
+**Resuelto el 2026-09-15.** El margen volvió a la fila, y el Art. III.5 decidió
+cuál: **`markup_vs_mid`**, no `markup_vs_trm`. La tasa media en vivo es la base
+del cálculo porque la TRM se congela fines de semana, y un margen contra ella se
+movería los lunes sin que nadie hubiera cambiado un precio — una señal del
+calendario, no del mercado.
+
+La fila dice *"0,3 % sobre el mercado"*, verificado en vivo. Y `trm.md` explica
+por qué el margen **no** se mide contra la TRM, que es una aclaración rara en una
+página sobre la TRM y justamente por eso necesaria.
 
 ---
 
@@ -92,10 +101,10 @@ fila —y contra cuál referencia— o si `trm.md` deja de prometerlo.
 |---|---|---|
 | IV.1 Momento de captura visible, no en tooltip | ✅ | `Ranking.astro` — `ageLabel()` en cada fila, texto plano. |
 | IV.2 Más de 60 minutos se marca | ✅ | `STALE_MINUTES = 60`, estricto. `check:freshness` lo verifica sobre HTML renderizado en tres escenarios. |
-| IV.3 La TRM siempre con su explicación | ⚠️ | Ver abajo. |
+| IV.3 La TRM siempre con su explicación | ✅ | Verificado contra la fuente — ver abajo. |
 | IV.4 No se recomienda, se informa | ✅ | Ninguna página emite consejo. El ranking ordena por monto y nombra el criterio; `trm.md` explica y no sugiere operar. |
 
-### ⚠️ IV.3 — El constitution afirma una metodología que nadie verificó
+### ✅ IV.3 — Afirmaba una metodología sin verificar. Se verificó.
 
 El artículo dice que la TRM es *"una tasa de referencia **calculada sobre
 operaciones interbancarias del día hábil anterior**"* (línea 89).
@@ -114,13 +123,33 @@ proyecto**, y la implementación se apartó de ella en silencio en vez de
 señalarla. Eso es exactamente el patrón que el proyecto acaba de decidir que no
 tolera, una capa más arriba.
 
-**No lo resuelvo yo: enmendar el constitution es decisión del humano.** Las
-salidas son verificar la metodología contra la Superintendencia Financiera y
-dejar la frase, o acotarla como se acotó I.2 en la v1.3.0.
+**Verificado el 2026-09-15 contra los metadatos del propio conjunto**
+(`https://www.datos.gov.co/api/views/32sa-8pi3.json`), que dicen:
 
-Mientras tanto la interfaz **sí cumple la intención de IV.3** —la TRM nunca
-aparece sin explicación de por qué nadie la ofrece— y eso es lo que el artículo
-protege.
+> «La Tasa de Cambio Representativa del Mercado–TRM corresponde al promedio
+> ponderado de las operaciones de compra y venta **de contado** de dólares de
+> los Estados Unidos de América a cambio de moneda legal colombiana.»
+
+con `attribution: Superintendencia Financiera de Colombia` y frecuencia diaria.
+
+Así que la frase original estaba **mitad bien**:
+
+| Afirmaba | La fuente |
+|---|---|
+| promedio ponderado de operaciones | ✅ lo dice |
+| Superintendencia Financiera | ✅ campo `attribution` |
+| **interbancarias** | ❌ dice "de contado" |
+| **del día hábil anterior** | ❌ no lo menciona |
+
+**Constitution enmendado a v1.6.0:** el artículo cita ahora la definición de la
+fuente en vez de parafrasearla, y las dos precisiones no verificadas se
+retiraron. La interfaz —que por prudencia no afirmaba ninguna metodología—
+también la cita.
+
+**Y la lección es sobre la prudencia, no sobre la cita.** No afirmar nada parecía
+lo seguro; resultó que la fuente sí publica una definición y nadie la había
+buscado. **No verificar no es lo mismo que no afirmar**: mientras la página
+callaba, el documento de gobierno seguía afirmando de memoria.
 
 ---
 
@@ -220,20 +249,56 @@ duración, no por repetición.
 
 ## Resumen
 
-**No hay violación de ningún artículo.** Hay cuatro cosas que anotar, y ninguna
-se maquilla:
+**No hay violación de ningún artículo.** Se encontraron cuatro cosas, y **las
+cuatro quedaron resueltas el mismo día** (2026-09-15).
 
-| # | Qué | Tipo |
+| # | Qué | Cómo quedó |
 |---|---|---|
-| 1 | **Un precio congelado de un proveedor no se detecta** (VI, preámbulo) | **Deuda** |
-| 2 | **El margen está calculado y corregido, y no se muestra** (III.5) | **Deuda** |
-| 3 | El encabezado de la tabla de cadencias y CLAUDE.md dicen "sin verificar" sobre datos verificados (V.3) | Deuda de documentación |
-| 4 | El constitution afirma la metodología de la TRM sin fuente, y la interfaz se apartó en silencio (IV.3) | **Decisión del humano** |
+| 1 | Un precio congelado de un proveedor no se detectaba | ✅ `findFrozenPrices()`, umbral **medido** |
+| 2 | El margen estaba corregido y no se mostraba | ✅ en la fila, contra el mercado (III.5) |
+| 3 | La tabla de cadencias decía "sin verificar" sobre datos verificados | ✅ corregida, y CLAUDE.md también |
+| 4 | El constitution afirmaba la metodología de la TRM sin fuente | ✅ verificada; **v1.6.0** |
 
-La 1 es la más seria: es el modo de falla que el Artículo VI nombra en su primer
-párrafo como *el* riesgo del proyecto, y está cubierto para las dos referencias y
-para ninguno de los ocho proveedores.
+### 1 — Precio inmóvil por proveedor
 
-La 4 no la puede resolver quien escribe esto: enmendar el constitution es del
-humano, y las dos salidas —verificar la frase, o acotarla como se acotó I.2— son
-decisiones suyas.
+`findFrozenPrices()` compara el precio **dentro de una misma vía** —proveedor,
+dirección, monto y método— porque el de `binance_p2p` cambia legítimamente con
+el monto y los cuatro de Eldorado difieren por diseño.
+
+**El umbral se midió antes de elegirse, y eso cambió el número.** Sobre 6.882
+filas capturadas, la racha legítima más larga fue **Buda con 10,8 h inmóvil, 46
+corridas seguidas** — un libro delgado comportándose normal. Copiar las 12 h de
+`STALE_REFERENCE_HOURS`, que era lo obvio, habría sido **1,1× lo medido** y
+habría dado falsa alarma en días. Quedó en **48 h**: 4,4× el máximo medido, y
+cubre un fin de semana entero, que es lo que la medición de dos días no tenía.
+
+Cinco mutaciones. La quinta **sobrevivió a la primera vuelta**: bajar el umbral
+a 12 h no rompía ningún test, porque los tests fijaban el comportamiento con
+10,8 h y 12 tampoco dispara sobre eso. Se agregó un test que fija el
+**razonamiento** —headroom mínimo de 3× sobre lo medido, y ≥48 h para cubrir un
+fin de semana— y con eso cae.
+
+### 2 — El margen, y cuál
+
+Se muestra **`markup_vs_mid`**, no `markup_vs_trm`, y lo decide el Art. III.5: la
+tasa media en vivo es la base del cálculo porque la TRM se congela fines de
+semana, y un margen contra ella se movería los lunes sin que nadie cambiara un
+precio. `trm.md` explica justamente eso ahora, en vez de señalar una columna que
+no existía.
+
+### 4 — IV.3, verificado contra la fuente
+
+Los metadatos del conjunto `32sa-8pi3` dicen:
+
+> «promedio ponderado de las operaciones de compra y venta **de contado** de
+> dólares…», atribuido a la **Superintendencia Financiera de Colombia**.
+
+Así que de la frase original: el promedio ponderado y el organismo emisor
+**estaban bien**; "**interbancarias**" y "**del día hábil anterior**" **no los
+dice la fuente**. Las dos precisiones se escribieron el 2026-09-12, antes del
+primer adapter.
+
+El artículo ahora **cita la definición** en vez de parafrasearla, y la interfaz
+—que por prudencia no afirmaba ninguna— también la cita. **La prudencia estaba
+mal puesta:** la fuente sí publica una definición, y no haberla buscado dejó al
+proyecto afirmando de memoria en su documento de gobierno.

@@ -15,6 +15,9 @@ import {
   buildReport,
   collectSightings,
   EXPECTED_INTERVAL_MINUTES,
+  FROZEN_PRICE_HOURS,
+  longestStillStreaks,
+  type PriceSighting,
   type RunSighting,
   SILENCE_HOURS,
 } from '../silence.ts';
@@ -80,7 +83,36 @@ async function main(): Promise<void> {
 
   const runs = [...(windowRuns ?? []), ...(edgeRun ?? [])];
 
-  const report = buildReport(providerIds, sightings, runs as RunSighting[]);
+  // Prices for the frozen-adapter check, paginated on purpose.
+  //
+  // The window holds roughly 1.900 rows and PostgREST caps a result at 1000.
+  // That cap turned a healthy alarm into a false red on 2026-09-15 by dropping
+  // 924 rows without a word, so here it is reached deliberately and walked
+  // past — with a hard stop rather than a silent truncation.
+  const PAGE = 1000;
+  const MAX_PAGES = 12;
+  const prices: PriceSighting[] = [];
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('provider_id, direction, bracket_usd, payment_method, gross_rate, captured_at')
+      .gte('captured_at', since)
+      .order('captured_at')
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (error) throw new Error(`could not read prices: ${error.message}`);
+    if (data === null || data.length === 0) break;
+    prices.push(...(data as PriceSighting[]));
+    if (data.length < PAGE) break;
+    if (page === MAX_PAGES - 1) {
+      throw new Error(
+        `read ${prices.length} prices and the window still has more: raise MAX_PAGES ` +
+          'rather than quietly analysing a slice',
+      );
+    }
+  }
+
+  const report = buildReport(providerIds, sightings, runs as RunSighting[], new Date(), prices);
 
   console.log(`window: ${SILENCE_HOURS}h, from ${since}`);
   console.log(
@@ -104,6 +136,18 @@ async function main(): Promise<void> {
     `runs in window: ${(windowRuns ?? []).length} (cadence: every ${EXPECTED_INTERVAL_MINUTES} min` +
       `${(edgeRun ?? []).length > 0 ? ', plus one from before the edge' : ''})`,
   );
+
+  // Context rather than an alarm. The longest streak is what makes the
+  // threshold defensible, and watching it drift is how we find out the
+  // threshold is wrong before it fires on healthy data.
+  const longest = longestStillStreaks(prices)[0];
+  if (longest !== undefined) {
+    console.log(
+      `stillest price: ${longest.providerId} at ${longest.value} for ` +
+        `${longest.hours.toFixed(1)}h across ${longest.runs} runs ` +
+        `(alarm at ${FROZEN_PRICE_HOURS}h)`,
+    );
+  }
 
   if (report.problems.length === 0) {
     console.log('');

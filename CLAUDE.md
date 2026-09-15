@@ -376,34 +376,35 @@ vista, porque `rank()` pide la política como parámetro obligatorio y
 **T021 a T028 están cerradas**, con T025 parcial. El 21 se resuelven las tres
 decisiones de presentación con `pnpm analyse:window`, y con eso cierra la fase.
 
-### ⚠️ T029: dos deudas y una decisión tuya
+### ✅ T029: las cuatro cosas, resueltas
 
 El checklist completo está en `specs/001-dolarito/t029-revision-constitution.md`.
-**Ningún artículo está violado.** Lo que queda:
+**Ningún artículo estaba violado**, y las cuatro cosas encontradas se cerraron
+el mismo día. Lo que dejaron como aprendizaje:
 
-1. **Un precio congelado de un proveedor no se detecta.** El preámbulo del
-   Art. VI llama a eso *el* riesgo del proyecto — *"el adapter que
-   silenciosamente devuelve datos viejos durante semanas"*. Hay detección para
-   `mid_market` y para la TRM, y **para ninguno de los ocho proveedores**:
-   `grep gross_rate silence.ts` devuelve cero. Si Bitso devolviera el mismo
-   precio para siempre, las filas seguirían llegando frescas y `check:silence`
-   diría `Nothing is silent`. **Deuda.**
+1. **Un umbral copiado es un umbral sin medir.** Para detectar un precio
+   inmóvil lo obvio era reusar las 12 h de `STALE_REFERENCE_HOURS`. Medido:
+   **Buda estuvo 10,8 h inmóvil, 46 corridas seguidas, comportándose normal.**
+   12 h habría sido 1,1× lo medido y habría gritado en días. Quedó en **48 h**,
+   4,4× el máximo, cubriendo un fin de semana que la medición no tenía.
 
-2. **El margen está corregido y no se muestra.** `latest_quotes` expone
-   `markup_vs_trm` y `markup_vs_mid`, los dos arreglados en la migración del 14
-   — y `grep markup_vs apps/web/src` devuelve **cero**. La reescritura de T025
-   los sacó de la fila. Peor: `trm.md` dice *"la columna de margen en la
-   comparación"*, señalando algo que no existe. **Deuda.**
+2. **Un test puede fijar el comportamiento sin fijar la decisión.** La mutación
+   que bajaba el umbral a 12 h **sobrevivió**: los tests comprobaban que 10,8 h
+   no dispara, y con 12 tampoco dispara. Hizo falta un test del **razonamiento**
+   —headroom mínimo sobre lo medido— para atraparla. Cuando un número es una
+   decisión, el test tiene que fijar por qué es ese número.
 
-3. **El constitution afirma la metodología de la TRM sin fuente** (Art. IV.3:
-   *"calculada sobre operaciones interbancarias del día hábil anterior"*),
-   escrito el 2026-09-12, antes del primer adapter. La interfaz se apartó de eso
-   en silencio. **Enmendar el constitution es decisión tuya**, y las salidas son
-   verificar la frase o acotarla como se acotó I.2 en la v1.3.0.
+3. **La prudencia también puede estar mal puesta.** La página de la TRM no
+   afirmaba ninguna metodología, por cuidado. Pero **la fuente sí publica una**,
+   en los metadatos del propio conjunto — y no haberla buscado dejó al
+   constitution afirmando de memoria algo que la fuente describe distinto:
+   decía "operaciones **interbancarias** del **día hábil anterior**" y la fuente
+   dice "de contado", sin mencionar el día anterior. **No verificar no es lo
+   mismo que no afirmar.**
 
-Y una corrección de premisa: **no existe la v1.5.0.** El constitution está en
-v1.4.0 y el Art. VI.2 **nunca se enmendó** — lo señalé el 14 como decisión
-pendiente y quedó sin tomar. La implementación es más ancha que el artículo.
+El constitution quedó en **v1.6.0**: VI.2 enmendado a v1.5.0 —las tres formas de
+silencio que el sistema vigila— y IV.3 a v1.6.0, citando la definición de la
+fuente en vez de parafrasearla.
 
 ### ⚠️ Para tu revisión: afirmaciones sin fuente que encontré
 

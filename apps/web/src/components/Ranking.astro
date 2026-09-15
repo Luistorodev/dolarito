@@ -30,6 +30,26 @@ const { quotes, direction, bracket, now, eldorado } = Astro.props;
 const { rows, outOfRange, deferred } = rank(quotes, eldorado);
 
 const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+
+/**
+ * The margin shown is `markup_vs_mid`, not `markup_vs_trm`, and Art. III.5
+ * decides that: the live mid-market rate is the base of every margin
+ * calculation, because the TRM is a single daily value that freezes over
+ * weekends and holidays. Measuring against a frozen reference would show a
+ * margin moving when only the calendar did.
+ *
+ * The TRM stays as the user-facing reference in its own block, which is the
+ * other half of III.5 — the two have separate roles and are not interchangeable.
+ *
+ * Positive always means worse than the reference, in both directions, since the
+ * correction applied on 2026-09-14. It is computed from the effective amount,
+ * so a provider with a good advertised rate and a separate fee cannot hide in it.
+ */
+const pct = new Intl.NumberFormat('es-CO', {
+  style: 'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 ---
 
 <article class="ranking">
@@ -82,6 +102,11 @@ const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
                   <span class="faint diferencia">
                     {direction === 'usd_to_cop' ? '−' : '+'}
                     {cop.format(behindBy)}
+                  </span>
+                )}
+                {quote.markup_vs_mid !== null && (
+                  <span class="faint margen">
+                    {pct.format(quote.markup_vs_mid)} sobre el mercado
                   </span>
                 )}
               </span>
@@ -215,8 +240,16 @@ const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
   }
 
   .moneda,
-  .diferencia {
+  .diferencia,
+  .margen {
     font-size: var(--size-xs);
+  }
+
+  /* The margin is deliberately quiet next to the amount. The amount is what
+     the person receives or pays; the margin is context for it, and giving them
+     the same weight would invite ranking by the wrong one. */
+  .margen {
+    white-space: nowrap;
   }
 
   .edad {

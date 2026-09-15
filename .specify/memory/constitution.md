@@ -1,8 +1,8 @@
 # Constitution — Comparador USD/COP
 
-**Versión:** 1.4.0
+**Versión:** 1.6.0
 **Ratificada:** 2026-09-12
-**Última enmienda:** 2026-09-14
+**Última enmienda:** 2026-09-15
 **Ubicación esperada en el repo:** `.specify/memory/constitution.md`
 
 Este documento define los principios no negociables del proyecto. Cualquier
@@ -85,10 +85,23 @@ sistema se diseña asumiendo que en cualquier corrida alguna va a fallar.
    un tooltip.
 2. **Un dato con más de 60 minutos se marca como desactualizado** en la
    interfaz. No se oculta: se marca.
-3. **La TRM se presenta siempre con su explicación.** Es una tasa de referencia
-   calculada sobre operaciones interbancarias del día hábil anterior, no una
-   oferta disponible para nadie. Mostrarla sin ese contexto induce a creer que
-   todos los proveedores estafan.
+3. **La TRM se presenta siempre con su explicación.** Es una tasa de
+   referencia, no una oferta disponible para nadie. Mostrarla sin ese contexto
+   induce a creer que todos los proveedores estafan.
+
+   La fuente la define así, y es la única definición que este proyecto afirma:
+
+   > «La Tasa de Cambio Representativa del Mercado–TRM corresponde al promedio
+   > ponderado de las operaciones de compra y venta de contado de dólares de los
+   > Estados Unidos de América a cambio de moneda legal colombiana.»
+   > — Metadatos del conjunto `32sa-8pi3` en datos.gov.co, atribuido a la
+   > Superintendencia Financiera de Colombia. Leído el 2026-09-15.
+
+   *(Esta cláusula decía "calculada sobre operaciones **interbancarias** del
+   **día hábil anterior**". Verificado contra la fuente en T029: dice "de
+   contado", no interbancarias, y no dice nada del día hábil anterior. Las dos
+   precisiones se escribieron de memoria antes de que existiera un adapter y se
+   retiraron por eso.)*
 4. **No se recomienda, se informa.** El producto muestra costos y deja decidir.
    No emite consejo financiero ni sugiere operar.
 
@@ -117,8 +130,34 @@ silenciosamente devuelve datos viejos durante semanas.
 
 1. **Toda corrida deja registro**: qué fuentes se intentaron, cuáles
    respondieron, cuáles fallaron y por qué.
-2. **Silencio prolongado es un error.** Si una fuente lleva más de N corridas
-   sin datos, el sistema lo reporta de forma activa.
+2. **El silencio tiene tres formas y las tres son error.** El sistema las
+   reporta de forma activa, y son distintas porque llevan a acciones distintas.
+
+   **a. Una fuente deja de responder.** No hay filas suyas. Funciona porque un
+   fallo de consulta no deja rastro en `quotes` (Art. I.2): la ausencia
+   significa ausencia.
+
+   **b. Una fuente responde siempre lo mismo.** Es la que nombra el preámbulo y
+   la que nadie nota, porque las filas siguen llegando frescas. Se mide sobre
+   la misma vía —proveedor, dirección, monto y método de pago— porque un precio
+   que cambia con el monto no es un precio que cambia con el tiempo.
+
+   **c. La ingesta deja de correr.** Un sistema detenido no tiene fuentes mudas
+   —no hay corridas en las que estarlo— así que la redacción anterior de este
+   artículo, medida en corridas, **se cumplía de forma vacía justo cuando todo
+   estaba roto**. Se vigila la cadencia contra el horario, no contra el dato.
+
+   **Cuando la causa no es distinguible desde el dato, se escala por duración y
+   no se afirma la causa.** Un precio quieto puede ser un mercado quieto o un
+   adapter congelado, y desde la base se ven idénticos; una referencia vieja
+   puede ser la fuente o nosotros. Pasado el tiempo suficiente deja de importar
+   cuál: alguien tiene que mirar. Afirmar la causa sería inventar un dato sobre
+   nosotros mismos, que es el Artículo I aplicado hacia adentro.
+
+   **Todo umbral se mide antes de elegirse.** El primero que se puso para un
+   precio inmóvil iba a copiar el de las referencias, 12 h; medido, la racha
+   legítima más larga era de 10,8 h. Habría dado falsa alarma en días, y una
+   alarma que grita sobre datos sanos se apaga.
 3. **La ingesta se construye y se opera antes que cualquier interfaz.** No se
    diseña UI sobre datos hipotéticos.
 
@@ -168,6 +207,33 @@ vivo de la persistencia en T008:
   serializaciones y falló, y el defecto estaba en la aserción, no en la
   persistencia. Se documenta el límite antes de que alguien apoye una afirmación
   de procedencia byte a byte sobre una columna que nunca lo prometió.
+
+**Versión 1.6.0** — una enmienda al Artículo IV.3, del 2026-09-15, derivada de
+T029. La cláusula afirmaba que la TRM se calcula "sobre operaciones
+interbancarias del día hábil anterior". Verificado contra los metadatos de la
+propia fuente: dice **promedio ponderado de operaciones de compra y venta de
+contado**, y **no dice nada** del día hábil anterior. Las dos precisiones eran
+de memoria, escritas el 2026-09-12, antes del primer adapter.
+
+El artículo ahora **cita la definición de la fuente** en vez de parafrasearla, y
+dice menos donde no se pudo verificar. Es la regla de "una cita no es una
+verificación" aplicada al propio documento que la exige.
+
+**Versión 1.5.0** — una enmienda al Artículo VI.2, del 2026-09-15, derivada de
+T029 y de dos fallos reales. El artículo decía "si una fuente lleva más de N
+corridas sin datos", y eso describía un sistema más chico del que existe:
+
+- medido **en corridas**, se satisfacía de forma vacía cuando no había corridas
+  — que es precisamente el estado en que el cron estuvo caído dos días;
+- cubría la **ausencia** de datos y no la **inmovilidad**, que es la falla que
+  el propio preámbulo del artículo nombra como la real, y que hasta T029 no
+  estaba detectada para ninguno de los ocho proveedores;
+- y no decía nada sobre qué hacer cuando la causa no se puede distinguir desde
+  el dato, que resultó ser el caso normal y no la excepción.
+
+La enmienda describe las tres formas de silencio que el sistema ya vigila, y
+agrega dos reglas que salieron de equivocarse: escalar por duración en vez de
+afirmar la causa, y medir un umbral antes de elegirlo.
 
 **Versión 1.4.0** — una enmienda editorial al Artículo III.2, sin efecto
 funcional: "rail" pasa a `asset` + `channel`. El esquema hizo ese cambio en

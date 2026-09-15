@@ -12,10 +12,14 @@ import { describe, it } from 'node:test';
 import {
   buildReport,
   collectSightings,
+  FROZEN_PRICE_HOURS,
+  findFrozenPrices,
   findGaps,
   findSilentProviders,
   inspectReference,
   inspectTrm,
+  longestStillStreaks,
+  type PriceSighting,
   type QuoteSighting,
   type RunSighting,
   STALE_REFERENCE_HOURS,
@@ -621,5 +625,172 @@ describe('the TRM, which is the one source with no fallback', () => {
       assert.equal(inspectTrm(silentAboutTrm, NOW).kind, 'not_reported');
       assert.deepEqual(buildReport(ALL, seen(ALL, 0.25), silentAboutTrm, NOW).problems, []);
     });
+  });
+});
+
+describe('a provider whose price stops moving', () => {
+  // The failure Art. VI names in its own preamble — "the adapter that silently
+  // returns old data for weeks" — and the one thing the alarm did not cover
+  // until T029 found it. Rows keep arriving fresh, so nothing else notices.
+
+  /** A lane's captures, `hours` apart, at the given prices. */
+  function lane(
+    providerId: string,
+    prices: number[],
+    opts: { hours?: number; bracket?: number; method?: string | null } = {},
+  ): PriceSighting[] {
+    const step = opts.hours ?? 1;
+    return prices.map((gross_rate, index) => ({
+      provider_id: providerId,
+      direction: 'usd_to_cop',
+      bracket_usd: opts.bracket ?? 100,
+      payment_method: opts.method ?? null,
+      gross_rate,
+      captured_at: new Date(
+        NOW.getTime() - (prices.length - 1 - index) * step * 3_600_000,
+      ).toISOString(),
+    }));
+  }
+
+  it('measures how long the price sat still', () => {
+    const still = lane('bitso', [3100, 3100, 3100, 3100]);
+    const [streak] = longestStillStreaks(still);
+
+    assert.equal(streak?.providerId, 'bitso');
+    assert.equal(streak?.runs, 4);
+    assert.ok(Math.abs((streak?.hours ?? 0) - 3) < 0.01);
+  });
+
+  it('resets the streak when the price moves', () => {
+    const moving = lane('bitso', [3100, 3101, 3102, 3103]);
+    assert.ok((longestStillStreaks(moving)[0]?.hours ?? 99) < 0.01);
+  });
+
+  it('does NOT fire on the stillness we actually measured', () => {
+    // Buda sat at one price for 10.8 h across 46 runs on 2026-09-15, with a
+    // thin book behaving normally. Reusing STALE_REFERENCE_HOURS (12 h) would
+    // have been 1.1x that and would have cried wolf within days.
+    const budaLike = lane(
+      'buda',
+      Array.from({ length: 46 }, () => 3113),
+      { hours: 0.24 },
+    );
+    const streak = longestStillStreaks(budaLike)[0];
+
+    assert.ok((streak?.hours ?? 0) > 10, `measured ${streak?.hours}`);
+    assert.deepEqual(findFrozenPrices(budaLike), [], 'a quiet book is not an incident');
+  });
+
+  it('keeps real headroom over the longest stillness ever measured', () => {
+    // The threshold's VALUE, not just its behaviour. Without this, lowering it
+    // to 12 h — which is what copying STALE_REFERENCE_HOURS would do — breaks
+    // no test, because 12 h also fails to fire on a 10.8 h streak. A mutation
+    // proved exactly that on 2026-09-15.
+    //
+    // Measured maximum: buda, 10.8 h across 46 runs, a thin book behaving
+    // normally. Anything under 3x that is betting the next quiet night is no
+    // longer than the last one.
+    const MEASURED_MAX_HOURS = 10.8;
+    assert.ok(
+      FROZEN_PRICE_HOURS >= MEASURED_MAX_HOURS * 3,
+      `${FROZEN_PRICE_HOURS}h is only ${(FROZEN_PRICE_HOURS / MEASURED_MAX_HOURS).toFixed(1)}x ` +
+        'the longest stillness measured — re-measure before lowering it',
+    );
+
+    // And it has to span a whole weekend, because the measurement covers two
+    // days without one and a quiet Sunday is the obvious way to exceed 10.8 h.
+    assert.ok(FROZEN_PRICE_HOURS >= 48, 'must cover a full weekend');
+  });
+
+  it('fires once the stillness outlasts any market explanation', () => {
+    const frozen = lane(
+      'bitso',
+      Array.from({ length: 50 }, () => 3100),
+      { hours: 1 },
+    );
+    const found = findFrozenPrices(frozen);
+
+    assert.equal(found.length, 1);
+    assert.ok((found[0]?.hours ?? 0) >= FROZEN_PRICE_HOURS);
+  });
+
+  it('says how long, and does NOT say why', () => {
+    // A still price can be a still market or an adapter that stopped fetching,
+    // and from the database those are identical. Same bind as stale_source.
+    const frozen = lane(
+      'bitso',
+      Array.from({ length: 60 }, () => 3100),
+      { hours: 1 },
+    );
+    const report = buildReport(ALL, seen(ALL, 0.25), [], NOW, frozen);
+
+    assert.equal(report.problems.length, 1);
+    assert.ok(report.problems[0]?.includes('unchanged'));
+    assert.ok(report.problems[0]?.includes('whatever the cause'));
+    assert.ok(!report.problems[0]?.includes('adapter is broken'));
+  });
+});
+
+describe('lanes are never mixed, or the check would lie', () => {
+  function at(
+    providerId: string,
+    bracket: number,
+    method: string | null,
+    rate: number,
+    hoursAgo: number,
+  ): PriceSighting {
+    return {
+      provider_id: providerId,
+      direction: 'usd_to_cop',
+      bracket_usd: bracket,
+      payment_method: method,
+      gross_rate: rate,
+      captured_at: new Date(NOW.getTime() - hoursAgo * 3_600_000).toISOString(),
+    };
+  }
+
+  it('does not treat two brackets as one lane', () => {
+    // binance_p2p's price legitimately moves with the amount. Comparing across
+    // brackets would read a healthy walk of the book as a price that changes
+    // every run, hiding a genuinely frozen bracket behind it.
+    const rows = [
+      at('binance_p2p', 100, null, 3080, 3),
+      at('binance_p2p', 500, null, 3090, 3),
+      at('binance_p2p', 100, null, 3080, 2),
+      at('binance_p2p', 500, null, 3090, 2),
+      at('binance_p2p', 100, null, 3080, 1),
+      at('binance_p2p', 500, null, 3090, 1),
+    ];
+    const streak = longestStillStreaks(rows)[0];
+
+    assert.ok(Math.abs((streak?.hours ?? 0) - 2) < 0.01, 'each bracket stood still for 2h');
+    assert.ok(streak?.lane.includes('/100') || streak?.lane.includes('/500'));
+  });
+
+  it('does not treat two payment methods as one lane', () => {
+    // Eldorado's four differ by design — 14 of 24 cells, measured. Mixing them
+    // would show a price changing every run for a provider that is frozen.
+    const rows = [
+      at('eldorado', 100, 'app_nequi_co', 3120, 3),
+      at('eldorado', 100, 'bank_bancolombia', 3140, 3),
+      at('eldorado', 100, 'app_nequi_co', 3120, 2),
+      at('eldorado', 100, 'bank_bancolombia', 3140, 2),
+    ];
+    assert.ok(Math.abs((longestStillStreaks(rows)[0]?.hours ?? 0) - 1) < 0.01);
+  });
+
+  it('skips rows with no price rather than counting them as equal', () => {
+    // out_of_range rows carry a null gross_rate. Treating null as a value would
+    // make binance_p2p's 1 USD bracket look permanently frozen.
+    const rows = [at('binance_p2p', 1, null, 0, 3), at('binance_p2p', 1, null, 0, 2)].map(
+      (row) => ({ ...row, gross_rate: null }),
+    );
+
+    assert.deepEqual(longestStillStreaks(rows), []);
+  });
+
+  it('has nothing to say about no prices at all', () => {
+    assert.deepEqual(longestStillStreaks([]), []);
+    assert.deepEqual(findFrozenPrices([]), []);
   });
 });

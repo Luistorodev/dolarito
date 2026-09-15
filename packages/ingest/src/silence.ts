@@ -97,7 +97,133 @@ export const TOLERATED_GAP_MINUTES = 60;
  */
 export const STALE_REFERENCE_HOURS = 12;
 
+/**
+ * How long a provider's price may sit still before it is an incident.
+ *
+ * **Measured before it was chosen**, which turned out to matter: over 6.882
+ * captured rows on 2026-09-15, the longest legitimate still streak per lane was
+ *
+ * | Provider | Still for | Runs |
+ * |---|---|---|
+ * | buda | **10.8 h** | 46 |
+ * | wise / dolarapp | 9.5 h | 3 |
+ * | instarem / western_union | 8.8 h | 2 |
+ * | eldorado | 8.0 h | 36 |
+ * | binance_p2p | 4.5 h | 20 |
+ * | bitso | 1.0 h | 5 |
+ *
+ * The obvious choice was to reuse `STALE_REFERENCE_HOURS` (12 h). That is
+ * **1.1× buda's measured maximum**, and would have started crying wolf within
+ * days over a thin order book behaving normally. A check that fires on healthy
+ * data gets switched off.
+ *
+ * 48 h is 4.4× the measured maximum, and still catches what Art. VI's preamble
+ * actually names — an adapter returning old data **for weeks**.
+ *
+ * **What is NOT known yet:** the measurement covers about two days and no full
+ * weekend. Buda over a quiet Sunday may sit still longer than 10.8 h. 48 h
+ * spans a whole weekend, which is why it was picked over 24 or 36 — and it
+ * should be re-measured once the T020 window closes with a weekend inside it.
+ */
+export const FROZEN_PRICE_HOURS = 48;
+
 export type QuoteSighting = { provider_id: string; captured_at: string };
+
+/**
+ * One captured price, with everything needed to know which lane it belongs to.
+ *
+ * A lane is provider + direction + bracket + payment method. Comparing across
+ * brackets would be wrong for `binance_p2p`, whose price legitimately moves
+ * with the amount, and comparing across payment methods would be wrong for
+ * `eldorado`, whose four differ by design. A frozen adapter freezes its lanes
+ * individually, so the comparison has to happen inside one.
+ */
+export type PriceSighting = {
+  provider_id: string;
+  direction: string;
+  bracket_usd: number;
+  payment_method: string | null;
+  gross_rate: number | null;
+  captured_at: string;
+};
+
+export type StillStreak = {
+  providerId: string;
+  lane: string;
+  value: number;
+  runs: number;
+  hours: number;
+};
+
+function laneKey(row: PriceSighting): string {
+  return `${row.direction}/${row.bracket_usd}${row.payment_method === null ? '' : `/${row.payment_method}`}`;
+}
+
+/**
+ * The longest run of identical prices for each provider, in each of its lanes.
+ *
+ * Returned whether or not it crosses any threshold: the number itself is what
+ * makes the threshold defensible, and `analyse:window` wants it as context for
+ * the closing review rather than as an alarm.
+ */
+export function longestStillStreaks(samples: readonly PriceSighting[]): StillStreak[] {
+  const lanes = new Map<string, PriceSighting[]>();
+  for (const row of samples) {
+    if (row.gross_rate === null) continue;
+    const key = `${row.provider_id}|${laneKey(row)}`;
+    const list = lanes.get(key);
+    if (list === undefined) lanes.set(key, [row]);
+    else list.push(row);
+  }
+
+  const worst = new Map<string, StillStreak>();
+
+  for (const [key, rows] of lanes) {
+    const sorted = [...rows].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+    let start = 0;
+
+    for (let i = 1; i <= sorted.length; i += 1) {
+      const head = sorted[start];
+      const same = i < sorted.length && sorted[i]?.gross_rate === head?.gross_rate;
+      if (same) continue;
+
+      const last = sorted[i - 1];
+      if (head !== undefined && last !== undefined) {
+        const hours = (Date.parse(last.captured_at) - Date.parse(head.captured_at)) / 3_600_000;
+        const providerId = head.provider_id;
+        const current = worst.get(providerId);
+        if (current === undefined || hours > current.hours) {
+          worst.set(providerId, {
+            providerId,
+            lane: key.split('|')[1] ?? '',
+            value: Number(head.gross_rate),
+            runs: i - start,
+            hours,
+          });
+        }
+      }
+      start = i;
+    }
+  }
+
+  return [...worst.values()].sort((a, b) => b.hours - a.hours);
+}
+
+/**
+ * Providers whose price has not moved for longer than the threshold.
+ *
+ * **It does not say why**, and that is deliberate. A still price can be a still
+ * market or an adapter that stopped fetching, and from the database those look
+ * identical — the same bind `stale_source` was written for. So this escalates
+ * on duration and says so: past this long it stops mattering which, because
+ * either way somebody has to look.
+ */
+export function findFrozenPrices(
+  samples: readonly PriceSighting[],
+  thresholdHours: number = FROZEN_PRICE_HOURS,
+): StillStreak[] {
+  return longestStillStreaks(samples).filter((streak) => streak.hours >= thresholdHours);
+}
 
 export type RunSighting = {
   started_at: string;
@@ -413,6 +539,8 @@ export type SilenceReport = {
   reference: ReferenceVerdict;
   trm: TrmVerdict;
   gaps: Gap[];
+  /** Over the threshold. The streaks below it are context, not incidents. */
+  frozen: StillStreak[];
   problems: string[];
 };
 
@@ -421,11 +549,13 @@ export function buildReport(
   sightings: readonly QuoteSighting[],
   runs: readonly RunSighting[],
   now: Date = new Date(),
+  prices: readonly PriceSighting[] = [],
 ): SilenceReport {
   const silentProviders = findSilentProviders(expected, sightings, now);
   const reference = inspectReference(runs, now);
   const gaps = findGaps(runs, now);
   const trm = inspectTrm(runs, now);
+  const frozen = findFrozenPrices(prices);
   const problems: string[] = [];
 
   for (const provider of silentProviders) {
@@ -482,5 +612,15 @@ export function buildReport(
     );
   }
 
-  return { silentProviders, reference, trm, gaps, problems };
+  // The failure Art. VI names in its own preamble: an adapter returning old
+  // data for weeks. Rows keep arriving, so nothing else here notices.
+  for (const streak of frozen) {
+    problems.push(
+      `${streak.providerId} has quoted ${streak.value} unchanged for ` +
+        `${streak.hours.toFixed(1)}h across ${streak.runs} runs (${streak.lane}) — ` +
+        'too long to be a quiet market, whatever the cause',
+    );
+  }
+
+  return { silentProviders, reference, trm, gaps, frozen, problems };
 }
