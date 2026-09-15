@@ -605,6 +605,38 @@ justamente por qué no debe colarse como default.
 los no disponibles con explicación, y la decisión de arriba está tomada y
 aplicada. **Parcialmente terminable antes de T020**, salvo esa decisión.
 
+**Parte hecha el 2026-09-15.** `lib/ranking.ts` + `components/Ranking.astro`.
+
+El orden sale del Art. III.1 y **`gross_rate` no se consulta nunca**: `amount_out`
+DESC cuando `fixed_side='in'`, `amount_in` ASC cuando es `'out'`. Hay un test con
+el caso real que lo justifica — Wise anuncia mejor tasa que Binance y paga menos,
+así que ordenar por tasa anunciada pondría primero al que entrega menos.
+
+Verificado sobre el HTML renderizado con datos reales, los tres paneles:
+
+| Vendo 100 USD | Compro 100 USD |
+|---|---|
+| Bitso 309.400 | Binance P2P 308.977 |
+| Buda 308.960 | Bitso 310.410 |
+| Binance P2P 308.327 | DolarApp 310.839 |
+| DolarApp 308.157 | Buda 311.437 |
+
+Descendente en una dirección, ascendente en la otra, que es exactamente lo que
+el artículo pide y lo que una sola fórmula habría roto.
+
+**`out_of_range` visible con su motivo** —`below_minimum` se traduce a "no acepta
+montos tan chicos"— y **cada fila declara su `asset` y su `channel`**: "USDT ·
+exchange" contra "dólares · transferencia bancaria". Quien compara una remesa
+bancaria contra una stablecoin lo ve sin saber qué es USDT.
+
+**Eldorado queda fuera del orden, y es lo que sigue sin decidirse.**
+`rank()` recibe la política como **parámetro obligatorio**, y `undefined`
+significa "sin decidir": sus cuatro filas van a `deferred` y se muestran aparte,
+con el motivo escrito en la página. **Incluirlas sería elegir `all-methods` por
+accidente**, que es el fallo que la regla 4 existe para evitar. Hay un test que
+comprueba que un Eldorado que paga más no se lleva el primer puesto mientras la
+decisión esté abierta.
+
 **T026 — Frescura del dato** ✅ *cerrada el 2026-09-15*
 Momento de captura visible en cada fila. Marca de desactualizado sobre 60
 minutos. Aviso si una fuente lleva tiempo muda (HU-06, RF-11).

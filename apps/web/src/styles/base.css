@@ -63,7 +63,7 @@ a {
 }
 
 .page {
-  max-width: var(--measure);
+  max-width: var(--page-max);
   margin: 0 auto;
   padding: var(--space-5) var(--gutter) var(--space-8);
 }

@@ -1,0 +1,269 @@
+---
+/**
+ * One ranking: a mode, a direction and a bracket (T025, partial).
+ *
+ * Order comes from `rank()`, which follows Art. III.1. Nothing here sorts.
+ */
+import { providerName } from '../lib/catalogue.ts';
+import { ageLabel, minutesSince, STALE_MINUTES } from '../lib/freshness.ts';
+import type { EldoradoPolicy } from '../lib/pending.ts';
+import type { LatestQuote } from '../lib/quotes.ts';
+import {
+  assetLabel,
+  channelLabel,
+  directionLabel,
+  limitReasonLabel,
+  rank,
+  UNDECIDED_PROVIDER,
+} from '../lib/ranking.ts';
+
+interface Props {
+  quotes: LatestQuote[];
+  direction: LatestQuote['direction'];
+  bracket: number;
+  now: Date;
+  /** Required, and `undefined` means the T025 decision is still open. */
+  eldorado: EldoradoPolicy | undefined;
+}
+
+const { quotes, direction, bracket, now, eldorado } = Astro.props;
+const { rows, outOfRange, deferred } = rank(quotes, eldorado);
+
+const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+---
+
+<article class="ranking">
+  <header>
+    <h3>
+      {directionLabel(direction)}
+      <span class="monto">{cop.format(bracket)} USD</span>
+    </h3>
+    <p class="faint criterio">
+      Ordenado por {direction === 'usd_to_cop' ? 'lo que recibís' : 'lo que pagás'}, no
+      por la tasa anunciada.
+    </p>
+  </header>
+
+  {
+    rows.length === 0 && outOfRange.length === 0 && deferred.length === 0 && (
+      <p class="muted">Sin datos para este monto.</p>
+    )
+  }
+
+  {
+    rows.length > 0 && (
+      <ol class="filas">
+        {rows.map(({ quote, position, behindBy }) => {
+          const age = minutesSince(quote.captured_at, now);
+          const stale = age > STALE_MINUTES;
+          const amount = quote.fixed_side === 'in' ? quote.amount_out : quote.amount_in;
+          return (
+            <li class={position === 1 ? 'fila lider' : 'fila'}>
+              <span class="pos">{position}</span>
+              <span class="quien">
+                <strong>{providerName(quote.provider_id)}</strong>
+                {quote.payment_method !== null && (
+                  <span class="faint"> · {quote.payment_method}</span>
+                )}
+                {/* T025: every row declares its asset. Somebody comparing a
+                    bank transfer against USDT should see that it is USDT. */}
+                <span class="faint tipo">
+                  {assetLabel(quote.asset)} · {channelLabel(quote.channel)}
+                </span>
+              </span>
+              <span class="cuanto">
+                <span class="amount">{amount === null ? '—' : cop.format(amount)}</span>
+                <span class="faint moneda">COP</span>
+                {behindBy > 0 && (
+                  <span class="faint diferencia">
+                    {direction === 'usd_to_cop' ? '−' : '+'}
+                    {cop.format(behindBy)}
+                  </span>
+                )}
+              </span>
+              <span class={stale ? 'edad vieja' : 'edad'}>{ageLabel(age)}</span>
+            </li>
+          );
+        })}
+      </ol>
+    )
+  }
+
+  {
+    outOfRange.length > 0 && (
+      <div class="fuera">
+        <h4 class="faint">No disponibles a este monto</h4>
+        <ul>
+          {outOfRange.map((quote) => (
+            <li>
+              <strong>{providerName(quote.provider_id)}</strong>
+              <span class="faint"> · {limitReasonLabel(quote.limit_reason)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  {
+    deferred.length > 0 && (
+      <div class="pendiente">
+        <h4>
+          {providerName(UNDECIDED_PROVIDER)}: {deferred.length} precios, sin comparar
+          todavía
+        </h4>
+        <ul>
+          {deferred.map((quote) => {
+            const amount = quote.fixed_side === 'in' ? quote.amount_out : quote.amount_in;
+            return (
+              <li>
+                <span class="faint">{quote.payment_method}</span>
+                <span class="amount">{amount === null ? '—' : cop.format(amount)}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <p class="faint">
+          Es el único proveedor que cotiza varios métodos de pago. Compararlo por
+          su mejor método contra proveedores que tienen uno solo lo favorecería,
+          así que cómo se muestra está sin decidir y sus precios quedan fuera del
+          orden de arriba.
+        </p>
+      </div>
+    )
+  }
+</article>
+
+<style>
+  .ranking {
+    min-width: 0;
+  }
+
+  .ranking h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+
+  .monto {
+    color: var(--c-text-soft);
+    font-size: var(--size-sm);
+    font-weight: 500;
+  }
+
+  .criterio {
+    margin-bottom: var(--space-3);
+  }
+
+  .filas {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+
+  .fila {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr auto;
+    gap: var(--space-1) var(--space-3);
+    align-items: baseline;
+    padding-block: var(--space-3);
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  /* The leader is marked by weight and a rule, not by colour alone: colour is
+     invisible to a good share of readers and does not survive a screenshot. */
+  .lider {
+    border-left: 3px solid var(--c-accent);
+    margin-left: calc(var(--space-2) * -1);
+    padding-left: var(--space-2);
+  }
+
+  .pos {
+    color: var(--c-text-faint);
+    font-size: var(--size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quien {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .tipo {
+    font-size: var(--size-xs);
+  }
+
+  .cuanto {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .cuanto .amount {
+    font-size: var(--size-lg);
+    font-weight: 600;
+  }
+
+  .moneda,
+  .diferencia {
+    font-size: var(--size-xs);
+  }
+
+  .edad {
+    grid-column: 2 / -1;
+    color: var(--c-text-faint);
+    font-size: var(--size-xs);
+  }
+
+  .edad.vieja {
+    color: var(--c-warn);
+    font-weight: 600;
+  }
+
+  .edad.vieja::before {
+    content: 'desactualizado · ';
+  }
+
+  .fuera,
+  .pendiente {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--c-border);
+  }
+
+  .fuera ul,
+  .pendiente ul {
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    list-style: none;
+    font-size: var(--size-sm);
+  }
+
+  .pendiente {
+    padding: var(--space-3);
+    border: 1px dashed var(--c-border-strong);
+    border-radius: var(--radius);
+  }
+
+  .pendiente h4 {
+    margin-bottom: var(--space-2);
+    font-size: var(--size-sm);
+  }
+
+  .pendiente li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: 2px;
+  }
+
+  .pendiente p {
+    margin: var(--space-2) 0 0;
+  }
+</style>

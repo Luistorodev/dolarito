@@ -208,14 +208,20 @@ marcar. Lo descubrí marcando esta misma sección.
   inline. **Un chequeo de UI que busca texto suelto matchea su propia hoja de
   estilos**; hay que buscar la clase renderizada.
 
-- **⌗ Anotado, sin arreglar: el layout en escritorio.** El contenido queda
-  pegado a la izquierda con media pantalla vacía. Es consecuencia de
-  `--measure: 34rem` centrado con `margin: 0 auto` en `.page`, que en un
-  teléfono es correcto y en un monitor ancho se ve desbalanceado. **T021 pedía
-  "móvil primero", no un layout de escritorio**, así que se deja como está y se
-  resuelve cuando haya contenido que lo justifique — probablemente en T025, que
-  es cuando aparecen dos rankings que podrían ir lado a lado. Anotado el
-  2026-09-15 a pedido del humano.
+- **✅ El layout de escritorio, resuelto en T025.** Era `--measure: 34rem` para
+  todo, correcto en teléfono y media pantalla vacía en un monitor. Ahora hay
+  `--page-max`, que sobre 62rem pasa a 72rem y **pone las dos direcciones lado
+  a lado**: comprar a la izquierda, vender a la derecha. El ancho extra sirve
+  justamente a la pregunta del producto, en vez de estirar una columna.
+
+  **Y el selector de dirección desaparece en escritorio**, porque con las dos
+  visibles no le queda nada que elegir. La decisión de "uno o dos rankings"
+  vive en una media query, no en un `matchMedia` del script — si viviera en los
+  dos, podrían discrepar. El script solo marca `data-dir-oculta`; el CSS decide
+  si eso esconde algo.
+
+  Sin JavaScript la página sigue mostrando un ranking: el servidor renderiza el
+  panel por defecto visible y el script solo cambia cuál.
 
 - **Lo que espera datos se marca, no se decide.** `apps/web/src/lib/pending.ts`
   declara las tres decisiones de presentación como uniones **sin miembro por
@@ -315,15 +321,20 @@ Y el segundo comando, que desde hoy tiene su propia razón de existir:
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### Desplegado. Lo que sigue: T025, parcial
+#### Desplegado. Lo que sigue: T027, T028 y la decisión del 21
 
 **T021, T022, T023, T024 y T026 están cerradas.** El sitio está en Vercel
 detrás de la puerta, y la página imprime las 74 cotizaciones actuales desde el
 servidor, con el bloque de TRM y las marcas de frescura.
 
-**Lo único que queda de la Fase 5 antes del 21 es T025 parcial** — el ranking sí,
-la representación de Eldorado no. Y ordenar "para mostrar algo" tomaría una de
-las tres decisiones por accidente: la página de hoy **no ordena**, y lo dice.
+**T025 está hecha en su parte rankeable.** El orden sigue el Art. III.1 y
+`gross_rate` no se consulta; Eldorado queda fuera del orden con su motivo a la
+vista, porque `rank()` pide la política como parámetro obligatorio y
+`undefined` es el estado abierto.
+
+**Lo que queda antes del 21:** T027 (fichas de proveedor) y T028 (contenido
+explicativo), que son `[P]`. El 21 se resuelven las tres decisiones de
+presentación con `pnpm analyse:window`.
 
 **Para levantar el sitio en local hace falta una variable que el `.env` no
 tiene:** `SUPABASE_SERVER_READ_KEY`. Está cargada en Vercel pero no acá, así

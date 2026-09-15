@@ -38,8 +38,13 @@ const PASSWORD = 'clave-de-verificacion';
  * content of a ::before rule, so searching for the word matches a healthy page
  * too. The class on the element is what actually distinguishes them — and this
  * check failed the first time for exactly that reason.
+ *
+ * It is coupled to a class name, which is the price of checking rendered
+ * output: T025 renamed the row markup and this went red before the page did
+ * anything wrong. That is the check doing its job loudly rather than quietly
+ * matching nothing.
  */
-const STALE_MARK = 'cuando marca';
+const STALE_MARK = 'edad vieja';
 
 /** Minutes of age per provider, swapped between scenarios. */
 let ages: Record<string, number> = {};

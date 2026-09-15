@@ -1,51 +1,68 @@
 ---
 /**
- * Home (T021 shell, T023 data, T024 TRM, T026 freshness).
+ * Home: TRM, freshness and the rankings.
  *
- * It prints what the server fetched and **does not rank it**. Ordering is T025,
- * whose three presentation decisions are still open and declared in
- * `lib/pending.ts` as types with no default. Sorting here "just to show
- * something" would take one of those decisions by accident.
+ * T021 shell, T023 data, T024 TRM, T026 freshness, T025 partial.
  *
- * All four brackets arrive in one response. There is no public read (N4), so
- * the browser cannot go back for more.
+ * ## The selector filters what is already here
+ *
+ * All four brackets arrive in one response (T023). There is no public read
+ * (N4), so the browser cannot go back for more — every combination is rendered
+ * server-side and the selector only changes which one is shown.
+ *
+ * ## Why both directions render, always
+ *
+ * On a phone the direction selector picks one. On a wide screen both sit side
+ * by side and the selector disappears, because the extra width is exactly what
+ * "¿me conviene comprar o vender?" needs — the two answers next to each other.
+ * That is also the fix for the desktop layout note: the page was a narrow
+ * column with half the screen empty.
+ *
+ * The narrow case is the default in the markup, so with no JavaScript the page
+ * still shows a working ranking.
  */
 import AvisoFrescura from '../components/AvisoFrescura.astro';
 import BloqueTrm from '../components/BloqueTrm.astro';
+import Ranking from '../components/Ranking.astro';
 import Base from '../layouts/Base.astro';
-import { PROVIDER_IDS, providerName } from '../lib/catalogue.ts';
-import { ageLabel, describeFreshness, findMissing, minutesSince, STALE_MINUTES } from '../lib/freshness.ts';
+import { PROVIDER_IDS } from '../lib/catalogue.ts';
+import { describeFreshness, findMissing } from '../lib/freshness.ts';
 import { DECIDE_ON } from '../lib/pending.ts';
 import { fetchLatestQuotes, type LatestQuote } from '../lib/quotes.ts';
+import { availableSelections, directionLabel, select } from '../lib/ranking.ts';
 
 const now = new Date();
 const result = await fetchLatestQuotes();
 const quotes = result.kind === 'ok' ? result.quotes : [];
 
-const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
-const pct = new Intl.NumberFormat('es-CO', {
-  style: 'percent',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 const freshness = describeFreshness(quotes, now);
 const missing = quotes.length === 0 ? [] : findMissing(PROVIDER_IDS, quotes);
-// The newest run's references. Any row carries them; the freshest is the one
-// whose window is current.
 const trmSource = quotes.find((q) => q.trm !== null);
 
-const groups = new Map<string, LatestQuote[]>();
-for (const q of quotes) {
-  const key = `${q.mode}|${q.direction}|${q.bracket_usd}`;
-  const list = groups.get(key);
-  if (list === undefined) groups.set(key, [q]);
-  else list.push(q);
-}
+/**
+ * The Eldorado policy, deliberately not chosen.
+ *
+ * `undefined` is the open state: its rows are set aside instead of being
+ * ranked. Writing a policy here would take one of the three T025 decisions by
+ * accident, which is what working rule 4 exists to stop. It gets decided on
+ * 2026-09-21 with the measured week.
+ */
+const ELDORADO_POLICY = undefined;
 
-const DIRECTION_LABEL: Record<LatestQuote['direction'], string> = {
-  usd_to_cop: 'Vendo dólares',
-  cop_to_usd: 'Compro dólares',
+const selections = availableSelections(quotes);
+const modes = [...new Set(selections.map((s) => s.mode))];
+const directions = [...new Set(selections.map((s) => s.direction))];
+const brackets = [...new Set(selections.map((s) => s.bracket))].sort((a, b) => a - b);
+
+const defaults = {
+  mode: (modes.includes('local') ? 'local' : modes[0]) as LatestQuote['mode'],
+  direction: 'usd_to_cop' as LatestQuote['direction'],
+  bracket: brackets.includes(100) ? 100 : (brackets[0] ?? 100),
+};
+
+const MODE_LABEL: Record<LatestQuote['mode'], string> = {
+  local: 'Local',
+  remesa: 'Remesa',
 };
 ---
 
@@ -53,7 +70,7 @@ const DIRECTION_LABEL: Record<LatestQuote['direction'], string> = {
   title="Dolarito"
   description="Comparador de precios de compra y venta de dólares para Colombia."
 >
-  <header>
+  <header class="cabecera">
     <h1>Dolarito</h1>
     <p class="muted">
       Cuántos pesos recibís por tus dólares, y cuántos te cuesta comprarlos.
@@ -90,67 +107,124 @@ const DIRECTION_LABEL: Record<LatestQuote['direction'], string> = {
     result.kind === 'ok' && (
       <>
         <BloqueTrm source={trmSource} now={now} />
-
         <AvisoFrescura freshness={freshness} missing={missing} />
 
-        {[...groups.entries()].map(([key, rows]) => {
-          const first = rows[0];
-          if (first === undefined) return null;
-          return (
-            <section class="grupo" aria-label={key}>
-              <h3>
-                {DIRECTION_LABEL[first.direction]} · {first.bracket_usd} USD
-                <span class="faint"> · {first.mode}</span>
-              </h3>
-              <ul class="filas">
-                {rows.map((q) => {
-                  const age = minutesSince(q.captured_at, now);
-                  const stale = age > STALE_MINUTES;
-                  return (
-                    <li class={stale ? 'vieja' : ''}>
-                      <span class="quien">
-                        {providerName(q.provider_id)}
-                        {q.payment_method !== null && (
-                          <span class="faint"> · {q.payment_method}</span>
-                        )}
-                      </span>
-                      <span class="cuanto amount">
-                        {q.status === 'out_of_range' ? (
-                          <span class="faint">{q.limit_reason ?? 'sin dato'}</span>
-                        ) : q.currency_out === 'COP' && q.amount_out !== null ? (
-                          <>{cop.format(q.amount_out)} COP</>
-                        ) : q.amount_in !== null ? (
-                          <>{cop.format(q.amount_in)} COP</>
-                        ) : (
-                          <span class="faint">sin dato</span>
-                        )}
-                      </span>
-                      <span class="margen faint">
-                        {q.markup_vs_trm !== null ? pct.format(q.markup_vs_trm) : '—'}
-                      </span>
-                      {/* RF-11: when each row was captured, on every row. */}
-                      <span class={stale ? 'cuando marca' : 'cuando'}>
-                        {ageLabel(age)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          );
-        })}
+        <form class="selector" id="selector" aria-label="Qué comparar">
+          <fieldset>
+            <legend class="sr-only">Modo</legend>
+            {modes.map((mode) => (
+              <label>
+                <input
+                  type="radio"
+                  name="modo"
+                  value={mode}
+                  checked={mode === defaults.mode}
+                />
+                <span>{MODE_LABEL[mode]}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset class="solo-angosto">
+            <legend class="sr-only">Dirección</legend>
+            {directions.map((direction) => (
+              <label>
+                <input
+                  type="radio"
+                  name="direccion"
+                  value={direction}
+                  checked={direction === defaults.direction}
+                />
+                <span>{directionLabel(direction)}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset>
+            <legend class="sr-only">Monto</legend>
+            {brackets.map((bracket) => (
+              <label>
+                <input
+                  type="radio"
+                  name="monto"
+                  value={bracket}
+                  checked={bracket === defaults.bracket}
+                />
+                <span>{bracket} USD</span>
+              </label>
+            ))}
+          </fieldset>
+        </form>
+
+        <div class="tablero" id="tablero">
+          {selections.map((selection) => (
+            <div
+              class="panel"
+              data-modo={selection.mode}
+              data-dir={selection.direction}
+              data-monto={String(selection.bracket)}
+              hidden={
+                selection.mode !== defaults.mode || selection.bracket !== defaults.bracket
+              }
+              data-dir-oculta={selection.direction !== defaults.direction ? '' : undefined}
+            >
+              <Ranking
+                quotes={select(quotes, selection)}
+                direction={selection.direction}
+                bracket={selection.bracket}
+                now={now}
+                eldorado={ELDORADO_POLICY}
+              />
+            </div>
+          ))}
+        </div>
 
         <p class="faint nota">
-          Sin ordenar todavía: el ranking es T025, y sus tres decisiones de
-          presentación se resuelven el {DECIDE_ON} con una semana de datos
-          medidos. El orden de arriba es el del servidor y no significa nada.
+          Cómo se muestra El Dorado —el único con varios métodos de pago— se
+          decide el {DECIDE_ON}, con una semana de datos medidos. Hasta entonces
+          sus precios se ven aparte y no entran en el orden.
         </p>
       </>
     )
   }
 </Base>
 
+<script>
+  // Progressive enhancement: the server already rendered the default panel
+  // visible, so with no JavaScript the page still shows a working ranking.
+  const form = document.querySelector<HTMLFormElement>('#selector');
+  const tablero = document.querySelector<HTMLElement>('#tablero');
+
+  if (form && tablero) {
+    const apply = (): void => {
+      const data = new FormData(form);
+      const modo = String(data.get('modo'));
+      const direccion = String(data.get('direccion'));
+      const monto = String(data.get('monto'));
+
+      for (const panel of tablero.querySelectorAll<HTMLElement>('.panel')) {
+        // Mode and amount hide the panel outright, at any width.
+        panel.hidden = panel.dataset['modo'] !== modo || panel.dataset['monto'] !== monto;
+
+        // Direction only hides it on a narrow screen. A media query lets the
+        // other one back in when there is room for both, so the decision of
+        // "one or two rankings" stays in CSS rather than in a viewport check
+        // here that would disagree with the stylesheet.
+        if (panel.dataset['dir'] === direccion) panel.removeAttribute('data-dir-oculta');
+        else panel.setAttribute('data-dir-oculta', '');
+      }
+    };
+
+    form.addEventListener('change', apply);
+    apply();
+  }
+</script>
+
 <style>
+  .cabecera {
+    margin-bottom: var(--space-5);
+  }
+
   .aviso {
     padding: var(--space-4);
     border: 1px solid var(--c-border-strong);
@@ -158,61 +232,82 @@ const DIRECTION_LABEL: Record<LatestQuote['direction'], string> = {
     background: var(--c-warn-soft);
   }
 
-  .grupo {
+  .selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
     margin-block: var(--space-5);
   }
 
-  .grupo h3 {
-    padding-bottom: var(--space-2);
-    border-bottom: 1px solid var(--c-border);
-    font-size: var(--size-base);
-  }
-
-  .filas {
+  .selector fieldset {
+    display: flex;
+    gap: 2px;
     margin: 0;
-    padding: 0;
-    list-style: none;
+    padding: 2px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    background: var(--c-surface);
   }
 
-  .filas li {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: var(--space-1) var(--space-3);
-    align-items: baseline;
-    padding-block: var(--space-2);
-    border-bottom: 1px solid var(--c-border);
+  .selector label {
+    position: relative;
   }
 
-  .quien {
+  .selector input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .selector span {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--c-text-soft);
     font-size: var(--size-sm);
+    white-space: nowrap;
   }
 
-  .margen {
-    min-width: 4.5rem;
-    text-align: right;
-  }
-
-  /* The capture time sits under the provider, on its own row of the grid, so
-     it does not compete with the amount for the reader's eye. */
-  .cuando {
-    grid-column: 1 / -1;
-    color: var(--c-text-faint);
-    font-size: var(--size-xs);
-  }
-
-  /* Over the threshold the row says so in words, not only in colour: colour
-     alone is invisible to a good share of readers and to a screenshot. */
-  .marca {
-    color: var(--c-warn);
+  .selector input:checked + span {
+    background: var(--c-accent-soft);
+    color: var(--c-accent);
     font-weight: 600;
   }
 
-  .marca::before {
-    content: 'desactualizado · ';
+  .selector input:focus-visible + span {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 1px;
   }
 
-  .vieja .cuanto {
-    opacity: 0.65;
+  .tablero {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  /* Narrow: one direction at a time, chosen by the selector. */
+  .panel[data-dir-oculta] {
+    display: none;
+  }
+
+  @media (min-width: 62rem) {
+    /* Wide: both directions side by side, and the direction selector goes
+       away because there is nothing left for it to choose. This is the fix for
+       the desktop layout — the page used to be a narrow column against the
+       left edge with half the screen empty. */
+    .panel[data-dir-oculta] {
+      display: block;
+    }
+
+    .solo-angosto {
+      display: none;
+    }
+
+    .tablero {
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
   }
 
   .nota {

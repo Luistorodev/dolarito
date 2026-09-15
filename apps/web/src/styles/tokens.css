@@ -70,6 +70,11 @@
   /* A ranking row is provider + amount + difference. Wider than this and the
      eye stops being able to compare two rows without moving. */
   --measure: 34rem;
+  /* The page container. On a phone it is the measure; on a wide screen it has
+     to hold two rankings side by side, which is what T025 needs the width for
+     and what stopped the content sitting against the left edge with half the
+     screen empty. */
+  --page-max: var(--measure);
   --gutter: var(--space-4);
 }
 
@@ -77,6 +82,15 @@
   :root {
     --gutter: var(--space-6);
     --size-3xl: 2.75rem;
+  }
+}
+
+@media (min-width: 62rem) {
+  :root {
+    /* Two rankings plus the gap between them. Not the full viewport: a line of
+       prose that runs the width of a monitor is unreadable, and the
+       explanatory text shares this container. */
+    --page-max: 72rem;
   }
 }
 
