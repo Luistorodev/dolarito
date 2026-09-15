@@ -376,6 +376,35 @@ vista, porque `rank()` pide la política como parámetro obligatorio y
 **T021 a T028 están cerradas**, con T025 parcial. El 21 se resuelven las tres
 decisiones de presentación con `pnpm analyse:window`, y con eso cierra la fase.
 
+### ⚠️ T029: dos deudas y una decisión tuya
+
+El checklist completo está en `specs/001-dolarito/t029-revision-constitution.md`.
+**Ningún artículo está violado.** Lo que queda:
+
+1. **Un precio congelado de un proveedor no se detecta.** El preámbulo del
+   Art. VI llama a eso *el* riesgo del proyecto — *"el adapter que
+   silenciosamente devuelve datos viejos durante semanas"*. Hay detección para
+   `mid_market` y para la TRM, y **para ninguno de los ocho proveedores**:
+   `grep gross_rate silence.ts` devuelve cero. Si Bitso devolviera el mismo
+   precio para siempre, las filas seguirían llegando frescas y `check:silence`
+   diría `Nothing is silent`. **Deuda.**
+
+2. **El margen está corregido y no se muestra.** `latest_quotes` expone
+   `markup_vs_trm` y `markup_vs_mid`, los dos arreglados en la migración del 14
+   — y `grep markup_vs apps/web/src` devuelve **cero**. La reescritura de T025
+   los sacó de la fila. Peor: `trm.md` dice *"la columna de margen en la
+   comparación"*, señalando algo que no existe. **Deuda.**
+
+3. **El constitution afirma la metodología de la TRM sin fuente** (Art. IV.3:
+   *"calculada sobre operaciones interbancarias del día hábil anterior"*),
+   escrito el 2026-09-12, antes del primer adapter. La interfaz se apartó de eso
+   en silencio. **Enmendar el constitution es decisión tuya**, y las salidas son
+   verificar la frase o acotarla como se acotó I.2 en la v1.3.0.
+
+Y una corrección de premisa: **no existe la v1.5.0.** El constitution está en
+v1.4.0 y el Art. VI.2 **nunca se enmendó** — lo señalé el 14 como decisión
+pendiente y quedó sin tomar. La implementación es más ancha que el artículo.
+
 ### ⚠️ Para tu revisión: afirmaciones sin fuente que encontré
 
 Los `site_url` y `notes` del catálogo los escribí yo de conocimiento general.
@@ -1321,15 +1350,18 @@ de T029, y revisar `site_url`/`notes` del catálogo.
   nuestra cadencia, no desde una cifra publicada.
 
 
-- **La tabla de cadencias de `http.ts` está a medio verificar, y lo dice.**
-  Verificadas contra `plan.md`: TRM diaria con su ventana de vigencia en el dato,
-  Yahoo hasta 1 minuto, `open.er-api.com` diaria. **Sin leer: los límites de tasa
-  de bitso, buda, binance_p2p, eldorado y wise.** No inventé ninguno — donde no
-  sé, la tabla dice que no sé, porque un intervalo inventado se usaría para
-  justificar nuestra propia cadencia, que es el Art. I aplicado a nosotros
-  mismos. Cada tarea de adapter (T012, T014, T015, T016, T017) tiene que anotar
-  la cifra real ahí. Hasta entonces, los 15 minutos son demostrablemente
-  conservadores contra la primera mitad de la tabla y **no** contra la segunda.
+- **✅ La tabla de cadencias de `http.ts` está completa.** Esta nota decía lo
+  contrario —"sin leer: bitso, buda, binance_p2p, eldorado y wise"— y era falsa:
+  **las ocho fuentes fueron leídas del cable el 2026-09-13**, cada una con fecha
+  y con qué se buscó. Buda declara `max-age=2` y poleamos 450× más lento; Yahoo
+  `max-age=10`, 90× más lento; dolarapp y wise mandan `no-cache`, o sea que no
+  hay ciclo de refresco que respetar; TRM, bitso, eldorado y binance_p2p no
+  publican límite, y eso queda anotado como ausencia verificada, no como hueco.
+
+  **El encabezado de la propia tabla repetía el error** y decía que todo lo de
+  abajo estaba sin verificar. Corregido en T029. Es el defecto espejo del de El
+  Dorado: allá una afirmación decía más de lo que sabía, acá menos — y el daño
+  de decir menos es hacer repetir trabajo ya hecho.
 
 
 - **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**

@@ -709,10 +709,27 @@ memoria sería exactamente lo que este proyecto no hace.
 
 ## Fase 6 — Cierre
 
-**T029 — Revisión contra el constitution**
+**T029 — Revisión contra el constitution** ✅ *cerrada el 2026-09-15*
 Recorrer los siete artículos y verificar cumplimiento uno por uno.
 *Terminado cuando:* existe un checklist firmado, con las desviaciones
 justificadas por escrito.
+
+El checklist está en **`specs/001-dolarito/t029-revision-constitution.md`**, con
+la ubicación en el código de cada punto. Ninguna afirmación se hizo de memoria.
+
+**No hay violación de ningún artículo.** Cuatro cosas anotadas:
+
+| # | Qué | Tipo |
+|---|---|---|
+| 1 | **Un precio congelado de un proveedor no se detecta** | **Deuda** |
+| 2 | **El margen está corregido y no se muestra** (III.5) | **Deuda** |
+| 3 | La tabla de cadencias dice "sin verificar" sobre datos verificados | Doc — **corregida** |
+| 4 | El constitution afirma la metodología de la TRM sin fuente | **Decisión del humano** |
+
+La 1 es la más seria: el preámbulo del Art. VI nombra *"el adapter que
+silenciosamente devuelve datos viejos durante semanas"* como **el** riesgo del
+proyecto, y está cubierto para las dos referencias y para ninguno de los ocho
+proveedores. `grep gross_rate silence.ts` devuelve cero.
 
 **T030 — Dominio y decisión de apertura**
 Apuntar dominio. Decidir si se quita la contraseña.

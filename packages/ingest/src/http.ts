@@ -19,11 +19,15 @@
  * | `mid_market` (Yahoo `USDCOP=X`) | **`Cache-Control: public, max-age=10`** — Yahoo considers its own answer fresh for 10 seconds. Observed on a live 200, 2026-09-13. | The response header: the source stating its own refresh interval. |
  * | `mid_market` fallback (`open.er-api.com`) | **`Cache-Control: public, max-age=3600`**, and the body carries `time_next_update_unix` — observed 2026-09-13 pointing ~24h ahead. Daily, declared twice over. | Both the header and a field in the payload. |
  *
- * **Everything below this line is NOT yet verified against the source, and must
- * be before its adapter ships.** No number is guessed here: where the cadence is
- * unknown it says unknown, because a made-up interval is exactly the kind of
- * invented datum Art. I forbids, and it would be used to justify our polling
- * rate.
+ * **Below: what each source publishes about its own rate limit, read from the
+ * wire on 2026-09-13.** All eight were checked. Where a source publishes no
+ * limit, that is recorded as an absence with the date and what was looked for —
+ * never replaced by a guess, because a made-up interval is the kind of invented
+ * datum Art. I forbids and it would be used to justify our own polling rate.
+ *
+ * (This heading used to say everything below was unverified. It stopped being
+ * true as the adapters shipped and nobody updated it — found in T029. A warning
+ * that outlives its cause makes somebody redo work that is already done.)
  *
  * | Source | Status |
  * |---|---|
