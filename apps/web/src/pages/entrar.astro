@@ -20,7 +20,7 @@ import {
   sessionToken,
 } from '../lib/auth.ts';
 
-const config = readGateConfig(import.meta.env['SITE_PASSWORD']);
+const config = readGateConfig(process.env['SITE_PASSWORD']);
 
 // With the gate off there is nothing to ask for. Anyone landing here from an
 // old link goes where they were going.
@@ -38,7 +38,7 @@ if (Astro.request.method === 'POST' && config.kind === 'gated') {
       COOKIE_NAME,
       // The cookie carries the derived token, never the password itself.
       sessionToken(config.password),
-      cookieOptions(import.meta.env.PROD),
+      cookieOptions(process.env['NODE_ENV'] === 'production'),
     );
     // Inlined, not bound to a local: `astro check` does not count a frontmatter
     // `return` as a use, so a variable consumed only there reads as dead code

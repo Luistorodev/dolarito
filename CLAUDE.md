@@ -150,6 +150,27 @@ marcar. Lo descubrí marcando esta misma sección.
   el valor en línea; anotado en el archivo para que nadie lo "arregle"
   borrando la línea que sí hacía falta.
 
+- **⚠️ Los secretos se leen con `process.env`, NUNCA con `import.meta.env`.**
+  `import.meta.env['X']` parece leer el entorno. En el servidor de desarrollo
+  lo hace —por eso tres pruebas de punta a punta pasaron— pero **en un build de
+  producción Vite sustituye el valor literal**, y el secreto queda horneado en
+  la función desplegada.
+
+  Medido el 2026-09-15 construyendo con un valor marcador y buscándolo en la
+  salida: aparecía en `virtual_astro_middleware.mjs` y en `entrar_*.mjs`. Con
+  `process.env` no aparece en ningún lado.
+
+  Dos consecuencias, y la segunda es la grave: cambiar la clave en Vercel no
+  haría nada sin rebuild —lo que rompe el *"cambio de configuración, no de
+  código"* de HU-07— y **T023 va a agregar `SUPABASE_SERVER_READ_KEY`**, que
+  con el mismo error metería una credencial de base de datos dentro de un
+  artefacto de build. Con N4, esa llave puede vaciar `quotes`.
+
+  `import.meta.env.PROD` y compañía sí están bien: son constantes de build por
+  diseño, no secretos. **Lo vigila `env-discipline.test.ts`**, que lee los
+  fuentes y falla si alguna de las cinco variables sensibles vuelve a
+  `import.meta.env`.
+
 - **Astro trae protección CSRF de fábrica** y rechaza un POST de formulario
   sin cabecera `Origin` con 403. Apareció probando con `curl`, no en un
   fallo: si un POST de prueba da 403 y no 200, falta el `Origin`, no está
@@ -260,9 +281,28 @@ mío. Dos cosas y nada más:
 
 1. Crear el proyecto en Vercel con **Root Directory = `apps/web`**. El adapter
    ya emite `.vercel/output`; no hay que configurar build ni output.
-2. Cargar **`SITE_PASSWORD`**. Tiene tres estados y el tercero es deliberado —
-   ver `.env.example`. **Sin la variable el sitio devuelve 503 a propósito**,
-   así que un despliegue sin ella no expone nada, se cae.
+2. Cargar las variables de entorno. **Hoy solo hace falta la primera**; las
+   otras dos son de T023 y se pueden dejar cargadas desde ya:
+
+   | Variable | Para qué | ¿Hace falta ya? |
+   |---|---|---|
+   | `SITE_PASSWORD` | La puerta (T022) | **Sí** |
+   | `SUPABASE_URL` | Alcanzar PostgREST | No, T023 |
+   | `SUPABASE_SERVER_READ_KEY` | Leer `latest_quotes` del lado servidor | No, T023 |
+
+   **Sin `SITE_PASSWORD` el sitio devuelve 503 a propósito**, así que un
+   despliegue sin ella no expone nada: se cae.
+
+   **`SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` NO van a Vercel.** La
+   primera solo la usa el test negativo de RLS; la segunda es la llave de
+   escritura de la ingesta, que vive en los secretos de GitHub Actions. El tier
+   web usa un nombre propio, `SUPABASE_SERVER_READ_KEY`, aunque por N4 su
+   **valor** sea hoy una llave con acceso elevado: **el nombre registra la
+   intención** —superficie de solo lectura— y es lo que hará barato el cambio
+   si Supabase alguna vez permite atar llaves a roles.
+
+   Ninguna lleva prefijo `PUBLIC_`: en Astro ese prefijo es precisamente lo que
+   las metería en el bundle del navegador.
 
 Con eso T021 cierra. T022 ya está verificada contra un servidor real.
 

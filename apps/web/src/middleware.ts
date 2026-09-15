@@ -12,7 +12,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const decision = gateDecision({
     pathname: context.url.pathname,
     cookie: context.cookies.get(COOKIE_NAME)?.value,
-    config: readGateConfig(import.meta.env['SITE_PASSWORD']),
+    config: readGateConfig(process.env['SITE_PASSWORD']),
   });
 
   if (decision.kind === 'allow') return next();
