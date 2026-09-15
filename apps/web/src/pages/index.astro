@@ -1,14 +1,50 @@
 ---
 /**
- * Home (T021).
+ * Home (T021 shell, T023 data).
  *
- * Structure only. It shows **no prices**, because there is no data client yet
- * (T023) and inventing a placeholder rate — even an obviously fake one — is
- * the exact habit Art. I.1 and working rule 5 exist to prevent. A mock that
- * looks like a quote gets screenshotted, and then it gets believed.
+ * This prints what the server fetched and **does not rank it**. Ordering is the
+ * subject of T025, whose three presentation decisions are still open and
+ * declared in `lib/pending.ts` as types with no default. Sorting the list here
+ * "just to show something" would be taking one of those decisions by accident,
+ * which is exactly what working rule 4 exists to stop.
+ *
+ * All four brackets arrive in this one response. There is no public read (N4),
+ * so the browser cannot go back for more — the selector T025 adds will filter
+ * what is already here.
  */
 import Base from '../layouts/Base.astro';
 import { DECIDE_ON } from '../lib/pending.ts';
+import { fetchLatestQuotes, type LatestQuote } from '../lib/quotes.ts';
+
+const result = await fetchLatestQuotes();
+const quotes = result.kind === 'ok' ? result.quotes : [];
+
+const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+const pct = new Intl.NumberFormat('es-CO', {
+  style: 'percent',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Groups kept in the server's order; no comparison is implied by position. */
+const groups = new Map<string, LatestQuote[]>();
+for (const q of quotes) {
+  const key = `${q.mode}|${q.direction}|${q.bracket_usd}`;
+  const list = groups.get(key);
+  if (list === undefined) groups.set(key, [q]);
+  else list.push(q);
+}
+
+const DIRECTION_LABEL: Record<LatestQuote['direction'], string> = {
+  usd_to_cop: 'Vendo dólares',
+  cop_to_usd: 'Compro dólares',
+};
+
+const newest = quotes.reduce<string | undefined>(
+  (latest, q) => (latest === undefined || q.captured_at > latest ? q.captured_at : latest),
+  undefined,
+);
+const trm = quotes.find((q) => q.trm !== null);
 ---
 
 <Base
@@ -23,30 +59,148 @@ import { DECIDE_ON } from '../lib/pending.ts';
     </p>
   </header>
 
-  <section aria-labelledby="estado">
-    <h2 id="estado">En construcción</h2>
-    <p>
-      La captura de precios ya corre cada 15 minutos. Lo que falta es la
-      interfaz, y se está armando en orden: primero la estructura, después los
-      datos.
-    </p>
-    <p class="muted">
-      Esta página no muestra ninguna cotización todavía. No hay números de
-      ejemplo a propósito: un precio inventado que se vea real se termina
-      creyendo.
-    </p>
-  </section>
+  {
+    result.kind === 'failed' && (
+      <section class="aviso" role="alert">
+        <h2>No se pudieron leer los precios</h2>
+        <p class="muted">{result.reason}</p>
+        <p class="faint">
+          La captura sigue corriendo cada 15 minutos: esto es un problema de
+          lectura, no de datos.
+        </p>
+      </section>
+    )
+  }
 
-  <section aria-labelledby="proximo">
-    <h2 id="proximo">Lo que viene</h2>
-    <ul class="muted">
-      <li>El bloque de TRM, con su fecha de vigencia.</li>
-      <li>Los dos rankings, Local y Remesa, por monto.</li>
-      <li>Cuándo se capturó cada precio.</li>
-    </ul>
-    <p class="faint">
-      Tres decisiones de presentación esperan a que haya una semana de datos
-      medidos: se resuelven el {DECIDE_ON}.
-    </p>
-  </section>
+  {
+    result.kind === 'empty' && (
+      <section class="aviso">
+        <h2>No hay precios de las últimas 24 horas</h2>
+        <p class="faint">
+          La vista solo muestra capturas recientes. Si esto persiste, algo dejó
+          de capturar.
+        </p>
+      </section>
+    )
+  }
+
+  {
+    result.kind === 'ok' && (
+      <>
+        <section aria-labelledby="ref">
+          <h2 id="ref">Referencias</h2>
+          <p class="muted">
+            {trm?.trm !== undefined && trm?.trm !== null ? (
+              <>
+                TRM <span class="amount">{cop.format(trm.trm)}</span> COP
+                {trm.trm_to !== null && <> · vigente hasta {trm.trm_to}</>}
+              </>
+            ) : (
+              <>Sin TRM en las capturas recientes.</>
+            )}
+          </p>
+          <p class="faint">
+            {quotes.length} cotizaciones · captura más reciente{' '}
+            {newest?.slice(0, 16).replace('T', ' ')} UTC
+          </p>
+        </section>
+
+        {[...groups.entries()].map(([key, rows]) => {
+          const first = rows[0];
+          if (first === undefined) return null;
+          return (
+            <section class="grupo" aria-label={key}>
+              <h3>
+                {DIRECTION_LABEL[first.direction]} · {first.bracket_usd} USD
+                <span class="faint"> · {first.mode}</span>
+              </h3>
+              <ul class="filas">
+                {rows.map((q) => (
+                  <li>
+                    <span class="quien">
+                      {q.provider_id}
+                      {q.payment_method !== null && (
+                        <span class="faint"> · {q.payment_method}</span>
+                      )}
+                    </span>
+                    <span class="cuanto amount">
+                      {q.status === 'out_of_range' ? (
+                        <span class="faint">{q.limit_reason ?? 'sin dato'}</span>
+                      ) : q.currency_out === 'COP' && q.amount_out !== null ? (
+                        <>{cop.format(q.amount_out)} COP</>
+                      ) : q.amount_in !== null ? (
+                        <>{cop.format(q.amount_in)} COP</>
+                      ) : (
+                        <span class="faint">sin dato</span>
+                      )}
+                    </span>
+                    <span class="margen faint">
+                      {q.markup_vs_trm !== null ? pct.format(q.markup_vs_trm) : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+
+        <p class="faint nota">
+          Sin ordenar todavía: el ranking es T025, y sus tres decisiones de
+          presentación se resuelven el {DECIDE_ON} con una semana de datos
+          medidos. El orden de arriba es el del servidor y no significa nada.
+        </p>
+      </>
+    )
+  }
 </Base>
+
+<style>
+  .aviso {
+    padding: var(--space-4);
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius);
+    background: var(--c-warn-soft);
+  }
+
+  .grupo {
+    margin-block: var(--space-5);
+  }
+
+  .grupo h3 {
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--c-border);
+    font-size: var(--size-base);
+  }
+
+  .filas {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .filas li {
+    display: grid;
+    /* One column per phone-width row; the amount and the margin sit together
+       so the eye compares down a column instead of across a line. */
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-3);
+    align-items: baseline;
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .quien {
+    font-size: var(--size-sm);
+  }
+
+  .margen {
+    min-width: 4.5rem;
+    text-align: right;
+  }
+
+  .nota {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--c-border);
+  }
+</style>

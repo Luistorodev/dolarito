@@ -9,6 +9,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro check",
+    "check:bundle": "node scripts/check-bundle.ts",
     "test": "node --test src/**/*.test.ts"
   },
   "dependencies": {

@@ -150,6 +150,28 @@ marcar. Lo descubrí marcando esta misma sección.
   el valor en línea; anotado en el archivo para que nadie lo "arregle"
   borrando la línea que sí hacía falta.
 
+- **El cliente de datos está escrito a mano, y es por N4.** `lib/quotes.ts`
+  expone **una función y solo lee**. Un cliente de `@supabase/supabase-js` te
+  da `.insert()` y `.delete()` sobre el mismo objeto con el que leés, y esa
+  llave puede vaciar `quotes` — lo único irrecuperable del proyecto. Acá no hay
+  superficie de escritura que usar mal.
+
+  **Excluye `raw` del `select` a propósito:** medido, **440 KB con él contra 55
+  KB sin él, el 87,6 % del payload**. La vista es `q.*`, así que `select=*` lo
+  arrastra.
+
+  **Y afirma el tope de filas aunque esté acotado por construcción.** Si la
+  respuesta llega al tope, falla en vez de rankear una lista truncada. Un
+  ranking truncado no es corto: es equivocado.
+
+- **`pnpm --filter @dolarito/web run check:bundle`** construye con valores
+  marcadores y los busca en **las dos superficies que llegan al navegador**:
+  los assets estáticos y **el HTML renderizado**. La segunda es la que se
+  olvida — con `output: 'server'` la página la genera una función, así que un
+  secreto interpolado en el HTML no aparece en ningún archivo estático y un
+  chequeo solo-de-assets pasaría mientras el navegador recibe la llave en cada
+  request. Visto fallar con una fuga deliberada.
+
 - **⚠️ Los secretos se leen con `process.env`, NUNCA con `import.meta.env`.**
   `import.meta.env['X']` parece leer el entorno. En el servidor de desarrollo
   lo hace —por eso tres pruebas de punta a punta pasaron— pero **en un build de
@@ -175,6 +197,15 @@ marcar. Lo descubrí marcando esta misma sección.
   sin cabecera `Origin` con 403. Apareció probando con `curl`, no en un
   fallo: si un POST de prueba da 403 y no 200, falta el `Origin`, no está
   roto el formulario.
+
+- **⌗ Anotado, sin arreglar: el layout en escritorio.** El contenido queda
+  pegado a la izquierda con media pantalla vacía. Es consecuencia de
+  `--measure: 34rem` centrado con `margin: 0 auto` en `.page`, que en un
+  teléfono es correcto y en un monitor ancho se ve desbalanceado. **T021 pedía
+  "móvil primero", no un layout de escritorio**, así que se deja como está y se
+  resuelve cuando haya contenido que lo justifique — probablemente en T025, que
+  es cuando aparecen dos rankings que podrían ir lado a lado. Anotado el
+  2026-09-15 a pedido del humano.
 
 - **Lo que espera datos se marca, no se decide.** `apps/web/src/lib/pending.ts`
   declara las tres decisiones de presentación como uniones **sin miembro por
@@ -274,38 +305,16 @@ Y el segundo comando, que desde hoy tiene su propia razón de existir:
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### Pendiente del humano: desplegar en Vercel
+#### Desplegado. Lo que sigue: T024 y T026
 
-**T021 está listo para desplegar y NO cerrado**, porque el despliegue no es
-mío. Dos cosas y nada más:
+**T021, T022 y T023 están cerradas.** El sitio está en Vercel detrás de la
+puerta, y la página imprime las 74 cotizaciones actuales desde el servidor.
 
-1. Crear el proyecto en Vercel con **Root Directory = `apps/web`**. El adapter
-   ya emite `.vercel/output`; no hay que configurar build ni output.
-2. Cargar las variables de entorno. **Hoy solo hace falta la primera**; las
-   otras dos son de T023 y se pueden dejar cargadas desde ya:
-
-   | Variable | Para qué | ¿Hace falta ya? |
-   |---|---|---|
-   | `SITE_PASSWORD` | La puerta (T022) | **Sí** |
-   | `SUPABASE_URL` | Alcanzar PostgREST | No, T023 |
-   | `SUPABASE_SERVER_READ_KEY` | Leer `latest_quotes` del lado servidor | No, T023 |
-
-   **Sin `SITE_PASSWORD` el sitio devuelve 503 a propósito**, así que un
-   despliegue sin ella no expone nada: se cae.
-
-   **`SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` NO van a Vercel.** La
-   primera solo la usa el test negativo de RLS; la segunda es la llave de
-   escritura de la ingesta, que vive en los secretos de GitHub Actions. El tier
-   web usa un nombre propio, `SUPABASE_SERVER_READ_KEY`, aunque por N4 su
-   **valor** sea hoy una llave con acceso elevado: **el nombre registra la
-   intención** —superficie de solo lectura— y es lo que hará barato el cambio
-   si Supabase alguna vez permite atar llaves a roles.
-
-   Ninguna lleva prefijo `PUBLIC_`: en Astro ese prefijo es precisamente lo que
-   las metería en el bundle del navegador.
-
-Con eso T021 cierra. T022 ya está verificada contra un servidor real.
-
+**Para levantar el sitio en local hace falta una variable que el `.env` no
+tiene:** `SUPABASE_SERVER_READ_KEY`. Está cargada en Vercel pero no acá, así
+que `pnpm --filter @dolarito/web run dev` muestra el aviso de "no se pudieron
+leer los precios" hasta que se agregue. Por N4 su valor es hoy el mismo que
+`SUPABASE_SERVICE_ROLE_KEY`.
 #### Lo que sigue después: T023, T024, T026
 
 Ninguna espera datos. La migración de `latest_quotes` ya está aplicada, así

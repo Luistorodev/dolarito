@@ -429,7 +429,7 @@ permanente por inercia.
 > que reescribe esa vista de todos modos: junto cuesta una aplicación a mano en
 > el SQL Editor, separado cuesta dos.
 
-**T021 — Proyecto Astro + adapter de Vercel** ⏳ *listo para desplegar*
+**T021 — Proyecto Astro + adapter de Vercel** ✅ *cerrada el 2026-09-15*
 Estructura base, tipografía, tokens. Móvil primero (RF-12).
 *Terminado cuando:* despliega en Vercel.
 
@@ -444,10 +444,21 @@ puerta de T022 no guardaría nada sobre un build estático; N4 dejó la base sin
 lectura pública, así que cada cotización se lee en el servidor con llave de
 servidor; y con captura cada 15 minutos una foto de build nace vieja.
 
-**NO cerrada.** El despliegue es del humano y no se da por hecho. Falta:
-crear el proyecto en Vercel con **Root Directory = `apps/web`**, y cargar
-`SITE_PASSWORD` (ver `.env.example`, tres estados). Nada más: el adapter ya
-emite `.vercel/output`.
+**Cerrada el 2026-09-15:** desplegado en Vercel con Root Directory
+`apps/web`, las tres variables cargadas, y la página carga detrás de la puerta.
+
+**Un defecto encontrado al preparar el despliegue, y vale más que la tarea.**
+`import.meta.env['SITE_PASSWORD']` parece leer el entorno; en un servidor de
+desarrollo lo hace, y por eso tres verificaciones de punta a punta pasaron.
+**En un build de producción Vite sustituye el literal**, así que la clave
+quedaba horneada en la función desplegada. Comprobado construyendo con un valor
+marcador y buscándolo en la salida.
+
+Dos consecuencias: cambiar la clave en Vercel no habría hecho nada sin rebuild
+—lo que rompe el "cambio de configuración, no de código" de HU-07— y **T023
+estaba por agregar la llave de la base con el mismo patrón**, que con N4 puede
+vaciar `quotes`. Los secretos se leen con `process.env`, y
+`env-discipline.test.ts` lo vigila.
 
 **T022 — Middleware de contraseña** ✅
 Contraseña compartida desde variable de entorno. Quitarla debe ser cambiar la
@@ -483,7 +494,7 @@ Contraseña compartida desde variable de entorno. Quitarla debe ser cambiar la
 env var, no el código (HU-07).
 *Terminado cuando:* sin cookie válida todo redirige al formulario.
 
-**T023 — Cliente de datos (servidor)**
+**T023 — Cliente de datos (servidor)** ✅ *cerrada el 2026-09-15*
 Leer `latest_quotes` **desde el servidor** con clave de servidor. Ninguna clave
 llega al navegador (`plan.md` §2.3). El servidor entrega en la carga inicial las
 cotizaciones de los cuatro brackets —**74 filas medidas** en la primera corrida
@@ -495,6 +506,31 @@ dice de sí misma que "afecta qué consulta el servidor". Mientras siga abierta,
 T023 trae **todas** las filas y el recorte ocurre más arriba — decisión
 deliberada, no un descuido, para que elegir la política no obligue a reescribir
 el cliente de datos.
+
+**Hecho el 2026-09-15.** `apps/web/src/lib/quotes.ts`, una sola función y solo
+lee. **Escrito a mano en vez de con `@supabase/supabase-js` por N4:** esa llave
+también escribe y borra, y un cliente de supabase-js te da `.insert()` y
+`.delete()` sobre el mismo objeto con el que leés. Acá no hay superficie de
+escritura que usar mal — hacer el error imposible en vez de detectable.
+
+**`raw` se excluye del `select`, explícitamente.** La vista es `q.*` más las
+referencias, así que `select=*` lo incluye. Medido: **440 KB con él contra 55
+KB sin él, el 87,6 % del payload**, en una página cuyo caso principal es un
+teléfono (RF-12).
+
+**El tope de filas se afirma aunque esté acotado por construcción.** La vista no
+puede producir más de 88; si la respuesta llega al tope, el cliente **falla en
+vez de rankear una lista truncada**. Es la lección del 2026-09-15: PostgREST
+corta en silencio, y un ranking truncado no es un ranking corto, es uno
+equivocado.
+
+*Verificado contra la base real:* 74 cotizaciones, los cuatro brackets en las
+dos direcciones, TRM 3.109 con su vigencia. Y con `pnpm check:bundle`, que
+construye con valores marcadores y los busca en **las dos superficies que llegan
+al navegador**: los assets estáticos y **el HTML renderizado**. La segunda es
+fácil de olvidar — con `output: 'server'` la página la genera una función, así
+que un secreto interpolado en el HTML no aparecería en ningún archivo estático.
+Verificado viéndolo fallar: una fuga deliberada en la página la atrapa.
 *Terminado cuando:* una página imprime las cotizaciones actuales y el bundle del
 navegador no contiene ninguna credencial de Supabase.
 
