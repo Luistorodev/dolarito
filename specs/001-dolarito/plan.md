@@ -829,6 +829,7 @@ real, que es la cobertura de un modo, no la cantidad.
 | El bracket de 1 USD se ve vacío | Es intencional y está documentado en la UI |
 | **Eldorado cierra el acceso por los `quoteId` que nunca se operan** | Ver §7.1. Si ocurre, **Art. V.6: se baja la cadencia o se retira la fuente**. Nunca rotar IPs ni suplantar clientes. |
 | **El tier web tiene una llave que puede vaciar `quotes`** | Riesgo aceptado, §2.3. Mitigaciones parciales a evaluar en T021. **Sin resolver mientras Supabase no permita atar llaves a roles.** |
+| **La TRM no tiene respaldo: si datos.gov.co no responde, no hay a quién más preguntar** | Ver §7.2. Hoy se detecta por vencimiento, no se sustituye. |
 
 ### 7.1 El riesgo de Eldorado, que es distinto de los demás
 
@@ -853,6 +854,46 @@ rodeos técnicos** (Art. V.6). Una fuente que no nos quiere no entra al producto
 Vale también la vía honesta antes de que pase: escribirles y preguntar. El
 contacto del User-Agent existe justamente para que ellos puedan hacerlo primero,
 pero nada impide que empecemos nosotros.
+
+### 7.2 La TRM es la única fuente sin red
+
+Descubierto el 2026-09-15, a raíz de un 503 de datos.gov.co que costó la TRM
+de una corrida.
+
+**La asimetría, sin suavizarla:**
+
+| Referencia | Primaria | Respaldo |
+|---|---|---|
+| mid-market | Yahoo `USDCOP=X` | `open.er-api.com`, **ejercido contra la red real** (T011) |
+| **TRM** | `datos.gov.co` | **ninguno** |
+
+No es un descuido. La TRM es una cifra **oficial**, y a diferencia de una tasa
+de mercado no tiene sustituto legítimo: una media de otra fuente **no es la
+TRM**, y servirla como si lo fuera sería exactamente lo que prohíbe el
+Artículo I.1. El respaldo que existe para mid-market no tiene equivalente
+honesto acá.
+
+**Qué se hizo el 2026-09-15, que no es resolverlo:** el chequeo de silencio
+vigila la TRM **por su propio vencimiento**. Cada registro trae
+`vigenciahasta`, así que no hace falta inventar un umbral de frescura — la
+misma propiedad que le permitió a T010 no llevar calendario de festivos.
+
+- Un fetch fallido **no** es incidente: la tasa vigente sigue en vigor.
+  Medido, **1 fallo en 83 corridas** — el único de cualquier fuente en la
+  historia del proyecto.
+- **No renovar antes de que venza la que tenemos** sí lo es.
+- **No tener ninguna TRM** es un incidente distinto y peor, reportado aparte:
+  no es una tasa vieja, es que no hay tasa.
+
+El límite del día es **medianoche en Bogotá**, no en UTC. Leer `vigenciahasta`
+como UTC daría la tasa por vencida cinco horas antes, todos los días.
+
+**Lo que sigue sin resolverse:** si datos.gov.co queda caído más de un día, no
+hay TRM que mostrar, y el Artículo III la necesita como referencia de
+comparación. Las salidas posibles —ninguna elegida— son publicar la última
+vigente marcándola como vencida, o retirar la columna de margen contra TRM
+mientras dure. **Decidirlo con datos, no ahora:** con 1 fallo en 83 corridas
+no hay evidencia de que el caso llegue a ocurrir.
 
 ## 8. Pendientes
 

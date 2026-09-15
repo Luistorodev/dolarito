@@ -15,9 +15,11 @@ import {
   findGaps,
   findSilentProviders,
   inspectReference,
+  inspectTrm,
   type QuoteSighting,
   type RunSighting,
   STALE_REFERENCE_HOURS,
+  trmExpiresAt,
 } from './silence.ts';
 
 const NOW = new Date('2026-09-14T12:00:00.000Z');
@@ -494,5 +496,130 @@ describe('a stale upstream against something of ours', () => {
 
   it('errs loud when a source stopped answering behind the frozen datum', () => {
     assert.equal(inspectReference(frozen([]), NOW).kind, 'stuck');
+  });
+});
+
+describe('the TRM, which is the one source with no fallback', () => {
+  // Added 2026-09-15 after a 503 from datos.gov.co cost one run its TRM and
+  // the silence alarm said nothing — it had no path to: `trm` is not in the
+  // provider catalogue (T004 put the references in `runs` instead) and
+  // inspectReference only ever looks at mid_market.
+  //
+  // The source declares its own expiry, so none of this needs a threshold —
+  // the same property that let T010 refuse to carry a holiday calendar.
+
+  /** Valid through the day NOW falls on: expires 05:00Z the next day. */
+  const TRM_IN_FORCE = '2026-09-14';
+  /** Two days before NOW: expired at 2026-09-13T05:00Z. */
+  const TRM_EXPIRED = '2026-09-12';
+
+  /** A run holding a rate valid through `until`. */
+  function holding(until: string | null, startedHoursAgo = 0): RunSighting {
+    return {
+      started_at: hoursAgo(startedHoursAgo),
+      mid_market: 3105.99,
+      mid_market_at: hoursAgo(startedHoursAgo),
+      sources_ok: ['trm', 'mid_market', 'bitso'],
+      trm: until === null ? null : 3109.3,
+      trm_to: until,
+    };
+  }
+
+  describe('the day boundary is Bogotá, not UTC', () => {
+    it('expires at midnight Colombian time, five hours after UTC midnight', () => {
+      // Reading the date as UTC would call the rate dead five hours early,
+      // every single day. Same class of error as T011b, where reading Yahoo's
+      // daily bars as UTC produced 31 Sundays in one year.
+      assert.equal(new Date(trmExpiresAt('2026-09-15')).toISOString(), '2026-09-16T05:00:00.000Z');
+    });
+
+    it('is still valid at 23:00 UTC on its own day', () => {
+      const atElevenPmUtc = new Date('2026-09-15T23:00:00Z');
+      assert.equal(inspectTrm([holding('2026-09-15')], atElevenPmUtc).kind, 'valid');
+    });
+
+    it('has expired by 06:00 UTC the next day', () => {
+      const nextMorning = new Date('2026-09-16T06:00:00Z');
+      assert.equal(inspectTrm([holding('2026-09-15')], nextMorning).kind, 'expired');
+    });
+  });
+
+  describe('what fires and what does not', () => {
+    it('a rate still in force fires nothing', () => {
+      const now = new Date('2026-09-15T14:00:00Z');
+      const verdict = inspectTrm([holding('2026-09-15')], now);
+
+      assert.equal(verdict.kind, 'valid');
+      assert.ok(verdict.kind === 'valid');
+      assert.ok(verdict.hoursLeft > 14 && verdict.hoursLeft < 16, `got ${verdict.hoursLeft}`);
+    });
+
+    it('an expired rate fires — we did not renew before it ran out', () => {
+      const now = new Date('2026-09-17T14:00:00Z');
+      const verdict = inspectTrm([holding('2026-09-15')], now);
+
+      assert.equal(verdict.kind, 'expired');
+      assert.ok(verdict.kind === 'expired');
+      assert.ok(verdict.hoursStale > 30);
+    });
+
+    it('ONE failed fetch is not an incident — the rate stays in force', () => {
+      // Measured: one 503 in 83 runs, the only failure of any source in the
+      // project's history. Alarming on that trains everyone to ignore this.
+      //
+      // One clock throughout: NOW is the module's, and the dates below are
+      // chosen against it. Passing a different `now` while the sightings hang
+      // off NOW makes every provider read as silent — which is how this test
+      // failed the first time I wrote it.
+      const runs = [holding(null), holding(TRM_IN_FORCE, 0.25)];
+
+      assert.equal(inspectTrm(runs, NOW).kind, 'valid');
+      assert.deepEqual(buildReport(ALL, seen(ALL, 0.25), runs, NOW).problems, []);
+    });
+  });
+
+  describe('holding nothing is not the same as holding something old', () => {
+    // The distinction that did not exist before: both used to read the same,
+    // and the second is much worse — there is nothing to serve at all.
+
+    it('calls it absent when no run carries a rate', () => {
+      const now = new Date('2026-09-15T14:00:00Z');
+      assert.equal(inspectTrm([holding(null), holding(null, 0.25)], now).kind, 'absent');
+    });
+
+    it('says so in words a reader can act on, and names why it matters', () => {
+      const report = buildReport(ALL, seen(ALL, 0.25), [holding(null)], NOW);
+
+      assert.equal(report.problems.length, 1);
+      assert.ok(report.problems[0]?.includes('not a stale rate, no rate'));
+      assert.ok(report.problems[0]?.includes('no fallback'));
+    });
+
+    it('the two produce different problems, not one generic one', () => {
+      const expired = buildReport(ALL, seen(ALL, 0.25), [holding(TRM_EXPIRED)], NOW).problems;
+      const absent = buildReport(ALL, seen(ALL, 0.25), [holding(null)], NOW).problems;
+
+      assert.equal(expired.length, 1);
+      assert.equal(absent.length, 1);
+      assert.notEqual(expired[0], absent[0]);
+      assert.ok(expired[0]?.includes('expired'));
+      assert.ok(absent[0]?.includes('no TRM at all'));
+    });
+
+    it('says nothing at all with no runs to look at', () => {
+      assert.equal(inspectTrm([], NOW).kind, 'no_runs');
+    });
+
+    it('a caller that never asked about the TRM is told nothing, not "absent"', () => {
+      // An absent field is not evidence. `trm: null` means the fetch failed;
+      // no key at all means nobody asked, and answering "there is no TRM" to
+      // that would be inventing a finding — the same reason Art. I.1 keeps an
+      // unknown as undefined instead of zero.
+      const silentAboutTrm: RunSighting[] = [
+        { started_at: hoursAgo(0), mid_market: 3105.99, mid_market_at: hoursAgo(0) },
+      ];
+      assert.equal(inspectTrm(silentAboutTrm, NOW).kind, 'not_reported');
+      assert.deepEqual(buildReport(ALL, seen(ALL, 0.25), silentAboutTrm, NOW).problems, []);
+    });
   });
 });

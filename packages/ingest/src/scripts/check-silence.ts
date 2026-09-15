@@ -51,7 +51,9 @@ async function main(): Promise<void> {
     .from('runs')
     // sources_ok comes along because the reference verdict needs it to tell a
     // stale upstream from something of ours — without it, it errs loud.
-    .select('started_at, mid_market, mid_market_at, sources_ok')
+    // trm/trm_to because the TRM declares its own expiry, and it is the one
+    // source with no fallback (plan.md §7).
+    .select('started_at, mid_market, mid_market_at, sources_ok, trm, trm_to')
     .gte('started_at', since)
     .order('started_at', { ascending: false });
   if (runsError) throw new Error(`could not read runs: ${runsError.message}`);
@@ -70,7 +72,7 @@ async function main(): Promise<void> {
   // is the longest outage of all and was otherwise the quietest.
   const { data: edgeRun, error: edgeError } = await supabase
     .from('runs')
-    .select('started_at, mid_market, mid_market_at, sources_ok')
+    .select('started_at, mid_market, mid_market_at, sources_ok, trm, trm_to')
     .lt('started_at', since)
     .order('started_at', { ascending: false })
     .limit(1);
@@ -83,6 +85,14 @@ async function main(): Promise<void> {
   console.log(`window: ${SILENCE_HOURS}h, from ${since}`);
   console.log(
     `providers reporting: ${PROVIDERS.length - report.silentProviders.length} of ${PROVIDERS.length}`,
+  );
+  console.log(
+    `trm: ${report.trm.kind}` +
+      (report.trm.kind === 'valid'
+        ? ` (${report.trm.value}, ${report.trm.hoursLeft.toFixed(1)}h left)`
+        : report.trm.kind === 'expired'
+          ? ` (${report.trm.value}, expired ${report.trm.hoursStale.toFixed(1)}h ago)`
+          : ''),
   );
   console.log(
     `mid_market: ${report.reference.kind}` +

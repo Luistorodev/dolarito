@@ -316,6 +316,24 @@ quieto, no interpolarlo.
 distingue una ingesta colgada —marca y valor repetidos en corridas sucesivas— de
 un fin de semana con el mercado cerrado, **sin marcar el segundo**.
 
+**Cuarto criterio, agregado el 2026-09-15: el vencimiento de la TRM.** Un 503
+de datos.gov.co costó la TRM de una corrida y **la alarma no tuvo por dónde
+verlo**: `trm` no está en el catálogo de proveedores —T004 dejó las referencias
+en `runs`— y `inspectReference` solo mira `mid_market`. De las dos referencias,
+una tenía chequeo propio y la otra no.
+
+Ahora la TRM se vigila **por su propio vencimiento**, sin umbral inventado: cada
+registro trae `vigenciahasta`, la misma propiedad que le permitió a T010 no
+llevar calendario de festivos. Un fetch fallido no es incidente —la tasa vigente
+sigue en vigor, y van 1 de 83 corridas—; no renovar antes de que venza sí lo es;
+y **no tener ninguna TRM se reporta aparte**, porque es peor y antes se veía
+igual. El límite del día es medianoche en **Bogotá**: leerlo como UTC la daría
+por vencida cinco horas antes, todos los días.
+
+Por qué solo la TRM y no las ocho fuentes: **es la única sin respaldo**
+(`plan.md` §7.2). mid-market cae a er-api; si datos.gov.co no responde no hay a
+quién más preguntar.
+
 **Tercer criterio, agregado el 2026-09-14 después de un falso verde real.** Los
 dos criterios de arriba preguntan "¿el dato más nuevo es suficientemente
 reciente?", y **ninguno ve un hueco que ya se cerró**: `findSilentProviders`

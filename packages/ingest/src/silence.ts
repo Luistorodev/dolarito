@@ -109,6 +109,9 @@ export type RunSighting = {
    * without it we cannot show our own ingest was healthy.
    */
   sources_ok?: string[] | null | undefined;
+  /** The TRM held by this run, and the last day it is valid for. */
+  trm?: number | null | undefined;
+  trm_to?: string | null | undefined;
 };
 
 export type SilentProvider = { providerId: string; lastSeen: string | undefined; hoursAgo: number };
@@ -268,6 +271,91 @@ export function inspectReference(
 }
 
 /**
+ * Colombia is UTC-5 all year: no daylight saving, so one fixed offset is a fact
+ * and not a simplification.
+ */
+const BOGOTA_OFFSET = '-05:00';
+
+/**
+ * The instant a TRM stops being valid: midnight in Bogotá at the END of
+ * `trm_to`, which is a `date` with no time of day.
+ *
+ * Reading that date as UTC would declare the rate expired **five hours early**,
+ * every single day — the same class of mistake as T011b, where reading Yahoo's
+ * daily bars as UTC produced 31 Sundays in a year.
+ */
+export function trmExpiresAt(trmTo: string): number {
+  return Date.parse(`${trmTo}T00:00:00${BOGOTA_OFFSET}`) + 24 * 3_600_000;
+}
+
+export type TrmVerdict =
+  /** We hold a TRM and it is still valid. */
+  | { kind: 'valid'; value: number; until: string; hoursLeft: number }
+  /** We hold one, but it expired: we failed to renew before the old one ran out. */
+  | { kind: 'expired'; value: number; until: string; hoursStale: number }
+  /** We hold none at all. Worse than expired, and it used to look the same. */
+  | { kind: 'absent' }
+  /** Nobody told us about the TRM. Not a claim that there isn't one. */
+  | { kind: 'not_reported' }
+  | { kind: 'no_runs' };
+
+/**
+ * Is the TRM we are serving still the one in force?
+ *
+ * **The source declares its own expiry**, so nothing here needs a threshold.
+ * Each record carries `vigenciadesde`/`vigenciahasta` and a rate rules until
+ * the next one relieves it — the same property that let T010 refuse to carry a
+ * calendar of Colombian holidays. A made-up staleness window would be us
+ * guessing at something the source already answers.
+ *
+ * Why the TRM gets its own check at all, when `mid_market` has one: **it is the
+ * only source with no fallback.** mid-market falls back from Yahoo to er-api;
+ * if datos.gov.co is unreachable there is nowhere else to ask (plan.md §7).
+ *
+ * A single failed fetch is deliberately NOT an incident — measured 2026-09-15,
+ * one 503 in 83 runs, the only failure of any source in the project's history.
+ * What matters is not missing one capture: it is **failing to renew before the
+ * rate we hold runs out**.
+ *
+ * `runs` must arrive newest first.
+ */
+export function inspectTrm(runs: readonly RunSighting[], now: Date = new Date()): TrmVerdict {
+  if (runs.length === 0) return { kind: 'no_runs' };
+
+  // A field that was never passed is not evidence of anything. `trm: null`
+  // says the fetch failed; an absent key says the caller did not ask about the
+  // TRM, and answering "there is none" to that would be inventing a finding.
+  // `check-silence.ts` always selects both columns, so production always gets
+  // a real verdict — this only keeps callers that do not care from being
+  // told about a problem that was never measured.
+  const informed = runs.filter((run) => Object.hasOwn(run, 'trm_to'));
+  if (informed.length === 0) return { kind: 'not_reported' };
+
+  // The newest run that actually carried a rate. A run that failed to fetch
+  // leaves the previous one still in force, so one gap proves nothing.
+  const held = informed.find(
+    (run) =>
+      run.trm !== null && run.trm !== undefined && run.trm_to !== null && run.trm_to !== undefined,
+  );
+
+  // Not "the last fetch failed" but "we have no rate at all" — the distinction
+  // the caller asked for, because these two used to look identical and the
+  // second is much worse: there is nothing to serve, not merely something old.
+  if (held === undefined) return { kind: 'absent' };
+
+  const until = String(held.trm_to);
+  const expires = trmExpiresAt(until);
+  if (Number.isNaN(expires)) return { kind: 'absent' };
+
+  const value = Number(held.trm);
+  const millis = expires - now.getTime();
+
+  return millis > 0
+    ? { kind: 'valid', value, until, hoursLeft: millis / 3_600_000 }
+    : { kind: 'expired', value, until, hoursStale: -millis / 3_600_000 };
+}
+
+/**
  * A hole in the run history. A database with no runs at all produces none:
  * that case is already covered, loudly, by every provider reading as "no rows
  * at all, ever".
@@ -323,6 +411,7 @@ export function findGaps(
 export type SilenceReport = {
   silentProviders: SilentProvider[];
   reference: ReferenceVerdict;
+  trm: TrmVerdict;
   gaps: Gap[];
   problems: string[];
 };
@@ -336,6 +425,7 @@ export function buildReport(
   const silentProviders = findSilentProviders(expected, sightings, now);
   const reference = inspectReference(runs, now);
   const gaps = findGaps(runs, now);
+  const trm = inspectTrm(runs, now);
   const problems: string[] = [];
 
   for (const provider of silentProviders) {
@@ -376,5 +466,21 @@ export function buildReport(
     );
   }
 
-  return { silentProviders, reference, gaps, problems };
+  // Two different problems, and they used to be indistinguishable. Neither is
+  // "a fetch failed": one capture missing leaves the rate in force.
+  if (trm.kind === 'expired') {
+    problems.push(
+      `the TRM we hold (${trm.value}, valid through ${trm.until}) expired ` +
+        `${trm.hoursStale.toFixed(1)}h ago — we did not renew before it ran out`,
+    );
+  }
+
+  if (trm.kind === 'absent') {
+    problems.push(
+      'no TRM at all in the runs we can see — not a stale rate, no rate. ' +
+        'datos.gov.co is the one source with no fallback (plan.md §7)',
+    );
+  }
+
+  return { silentProviders, reference, trm, gaps, problems };
 }
