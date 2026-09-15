@@ -228,6 +228,33 @@ marcar. Lo descubrí marcando esta misma sección.
   defecto**: quien las necesite tiene que recibirlas, y el sitio de llamada
   queda como el lugar visible donde alguien eligió — o como error de
   compilación hasta que elija. Es la regla 4 hecha tipo en vez de comentario.
+### Una afirmación con fuente falsa es peor que una sin fuente
+
+Porque **nadie la revisa**. Una frase sin respaldo levanta sospecha sola; una
+que cita una tarea, una medición o un artículo ya pasó el filtro, y nadie la
+vuelve a mirar.
+
+Pasó el 2026-09-15. `providers.ts` decía de El Dorado:
+
+```
+notes: 'Quotes vary by payment method; 5 USD minimum (T015).'
+```
+
+**T015 midió exactamente lo contrario**: 0,5, 1 y 5 cotizan con `200`, y lo que
+existe es un piso de comisión de 0,49 USDT que encarece el bracket de 1 en vez
+de dejarlo fuera. La nota citaba como fuente a la tarea que la desmintió, y
+sobrevivió porque la cita la hacía parecer verificada.
+
+**De ahí sale la forma de T027:** ninguna prosa del catálogo se publica. Las
+fichas **computan** lo que dicen desde las filas capturadas —asset, channel,
+métodos que cotizaron, montos en que opera, si el precio cambia con el monto—.
+Si una de esas frases está mal, el dato está mal, y eso es un fallo mucho más
+ruidoso que una prosa equivocada.
+
+La regla generalizable: **una cita no es una verificación.** Cuando algo dice
+"(T015)" o "(medido)", o se comprueba contra lo que esa fuente dice, o se
+borra la cita.
+
 ### Tests negativos
 
 **Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que
@@ -299,8 +326,22 @@ probado. Lo destapó una mutación, no el verde.
 
 ## Estado actual
 
-**Fase 0 completa, Fase 1 en curso.** Última actualización: 2026-09-14.
-260 tests en verde, lint y typecheck limpios, todo pusheado a las dos ramas.
+**Fase 5 completa salvo la decisión del 21.** Última actualización: 2026-09-15.
+**397 tests en verde** —104 en `apps/web`, 293 en `packages/ingest`—, lint y
+typecheck limpios, todo pusheado a las dos ramas.
+
+| Fase | Estado |
+|---|---|
+| 0 — Cimientos | ✅ |
+| 1 — Contrato y orquestación | ✅ |
+| 2 — Referencias | ✅ |
+| 3 — Adapters | ✅ los 8 proveedores |
+| 4 — Operación | ✅ T018 y T019 cerradas; `pg_cron` dispara |
+| **5 — Frontend** | ✅ T021–T028, con **T025 parcial** |
+| 6 — Cierre | pendiente: T029, T030 |
+
+**Lo único que bloquea el cierre de la Fase 5 son las tres decisiones de
+presentación**, que se resuelven el **2026-09-21** con `pnpm analyse:window`.
 
 ### 🔜 Lo primero al retomar
 
