@@ -416,6 +416,38 @@ ventana de T020. Un fallo en `verify.yml` cuesta un tilde rojo; uno en
 `ingest.yml` cuesta la ventana. **Un parecido no es una verificación**, igual
 que una cita no lo es.
 
+### El tope de 1.000 de PostgREST
+
+**Cayó dos veces en dos días, en dos scripts distintos**, y las dos veces el
+código estaba bien escrito para la escala que tenía cuando se escribió. No es un
+error raro: es el error por defecto de un `select` sin paginar.
+
+| Cuándo | Dónde | Qué hizo |
+|---|---|---|
+| 2026-09-15 | `check-silence.ts` | **falso ROJO**: acusó a 3 proveedores de no tener ninguna fila nunca; la ventana tenía 1.924 filas y las 924 perdidas eran justo las de ellos |
+| 2026-09-15 | `analyse-window.ts` | **silencio**: calculó los seis puntos sobre 1.000 de 9.324 filas — el 11 %, y las más viejas |
+
+**El segundo es el peligroso.** El primero grita y se investiga. El segundo
+habría entregado seis números reales, con sus porcentajes y sus veredictos,
+medidos sobre las primeras 13 de 126 corridas, **y nada en la salida lo habría
+dicho**. El 21 se toman tres decisiones de producto con ese reporte.
+
+**Los dos arreglos son distintos a propósito, y la diferencia es el punto:**
+
+- En `check-silence` el arreglo **no fue paginar: fue no traer filas.** Solo
+  hace falta el último `captured_at` por proveedor, o sea ocho consultas de una
+  fila, que no tienen tope que alcanzar. **El costo lo fija el catálogo, no la
+  ventana**, así que el defecto no puede volver con la escala.
+- En `analyse-window` sí hay que paginar, porque el reporte necesita las filas.
+  Va con `PAGE = 1000` y `MAX_PAGES = 40`, y **lanza en vez de truncar** si se
+  queda corto: preferible un error que un informe sobre una porción.
+
+**La regla que queda:** ante un `select` sin `.range()`, la pregunta no es si
+hoy entra en 1.000 filas, sino **qué pasa el día que no entre**. Si la respuesta
+es "devuelve menos y no avisa", eso ya es el bug aunque todavía no se vea. Los
+dos defectos eran invisibles cuando se escribieron y **aparecieron el día que la
+ingesta empezó a funcionar bien**.
+
 ### Tests negativos
 
 **Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que
@@ -504,9 +536,9 @@ probado. Lo destapó una mutación, no el verde.
 
 ## Estado actual
 
-**Fase 5 completa salvo la decisión del 21.** Última actualización: 2026-09-15.
-**412 tests en verde** —104 en `apps/web`, 308 en `packages/ingest`—, lint y
-typecheck limpios, todo pusheado a las dos ramas.
+**Fases 0 a 5 cerradas, con T025 parcial. T029 hecha.** Última actualización:
+**2026-09-16**. **412 tests en verde** —308 en `packages/ingest`, 104 en
+`apps/web`—, lint y los dos typecheck limpios, todo pusheado a las dos ramas.
 
 | Fase | Estado |
 |---|---|
@@ -514,12 +546,36 @@ typecheck limpios, todo pusheado a las dos ramas.
 | 1 — Contrato y orquestación | ✅ |
 | 2 — Referencias | ✅ |
 | 3 — Adapters | ✅ los 8 proveedores |
-| 4 — Operación | ✅ T018 y T019 cerradas; `pg_cron` dispara |
-| **5 — Frontend** | ✅ T021–T028, con **T025 parcial** |
-| 6 — Cierre | pendiente: T029, T030 |
+| 4 — Operación | ✅ T018 y T019 cerradas; `pg_cron` es el único disparador |
+| **5 — Frontend** | ✅ T021-T028, con **T025 parcial** |
+| 6 — Cierre | ✅ T029 - pendiente **T030** (dominio) |
 
-**Lo único que bloquea el cierre de la Fase 5 son las tres decisiones de
-presentación**, que se resuelven el **2026-09-21** con `pnpm analyse:window`.
+**Lo único abierto de la Fase 5 son las tres decisiones de presentación**, que
+se resuelven el **2026-09-21** con `pnpm analyse:window`.
+
+### Infraestructura, al 2026-09-16
+
+**CI en verde. Tres workflows, los tres en Node 24.**
+
+| Workflow | Cuándo | Qué mira |
+|---|---|---|
+| `verify.yml` | push a las dos ramas, y todo PR | **el código** |
+| `ingest.yml` | **solo `workflow_dispatch`** | captura |
+| `silence.yml` | diario 13:38Z | **el estado del mundo** |
+
+- `pnpm/action-setup@v6` en los tres, `actions/setup-node@v5` con
+  `node-version: '24'`, y `engines` en `>=24.12.0`. El porqué y el criterio de
+  reversión están en "Node: CI y esta máquina corren 24".
+- **`ingest.yml` ya no tiene `schedule:`** (2026-09-16). El disparo es **único**:
+  `pg_cron`, dentro de Supabase, despacha el workflow. **La cadencia no está
+  declarada en ningún archivo de este repositorio** — vive en el job de
+  `pg_cron`, y buscarla acá es buscar en el lugar equivocado.
+- **Qué revertiría el disparo único:** que `pg_cron` empiece a saltarse ciclos.
+  Umbral escrito: **más de un ciclo perdido por día, sostenido dos días**,
+  medido con `pnpm analyse:window` punto 2, que marca huecos de más de 22,5 min.
+  **El chequeo diario NO sirve para eso**: tolera 60 min porque se calibró para
+  el planificador de GitHub, que ya no está en el camino. Detalle en
+  "SEGUIMIENTO".
 
 ### 🔜 Lo primero al retomar
 
@@ -528,31 +584,88 @@ corepack pnpm --filter @dolarito/ingest run check:silence
 ```
 
 Debe decir **`Nothing is silent.`**. Cualquier otra cosa significa que la ventana
-de T020 dejo de acumular, y eso se atiende antes que nada: **el reloj de la
-ventana no corre mientras el disparador no corra** -- ya costo una semana.
+de T020 dejó de acumular, y eso se atiende antes que nada: **el reloj de la
+ventana no corre mientras el disparador no corra** — ya costó una semana.
 
-Desde el 2026-09-14 el disparador es **`pg_cron`**, no el planificador de
-GitHub. El porqué está en "T018 — CERRADA", más abajo.
+Al 2026-09-16T02:50Z decía, con `exit 0`:
 
-Y el segundo comando, que desde hoy tiene su propia razón de existir:
+```
+window: 6h, from 2026-09-15T20:48:20.392Z
+providers reporting: 8 of 8
+trm: valid (3100.45, 26.2h left)
+mid_market: stale_source (frozen 1.0h — our ingest is fine)
+runs in window: 26 (cadence: every 15 min, plus one from before the edge)
+stillest price: eldorado at 4929.66 for 5.7h across 26 runs (alarm at 48h)
+
+Nothing is silent.
+```
+
+Las tres categorías de `mid_market` y el umbral de precio inmóvil se leen ahí
+funcionando, que es lo que esa salida vale: no dice "todo bien", dice qué midió.
+
+Y el segundo comando, que tiene su propia razón de existir — tres
+truncamientos de este archivo en dos días:
 
 ```
 corepack pnpm --filter @dolarito/ingest run check:docs
 ```
 
-#### Fase 5 hecha salvo la decisión del 21
+### ⛔ Las tres decisiones que esperan al 2026-09-21
 
-**T021, T022, T023, T024 y T026 están cerradas.** El sitio está en Vercel
-detrás de la puerta, y la página imprime las 74 cotizaciones actuales desde el
-servidor, con el bloque de TRM y las marcas de frescura.
+Declaradas como tipos **sin miembro por defecto** en
+`apps/web/src/lib/pending.ts`, con `DECIDE_ON = '2026-09-21'`. Quien las
+necesite tiene que recibirlas, o el build falla — la regla 4 hecha tipo:
 
-**T025 está hecha en su parte rankeable.** El orden sigue el Art. III.1 y
-`gross_rate` no se consulta; Eldorado queda fuera del orden con su motivo a la
-vista, porque `rank()` pide la política como parámetro obligatorio y
-`undefined` es el estado abierto.
+| Decisión | Tipo | Opciones |
+|---|---|---|
+| Cómo se representa El Dorado, con 4 métodos por bracket | `EldoradoPolicy` | `best-method` - `all-methods` - `fixed-method` |
+| Si el selector de bracket se destaca (HU-04) | `BracketEmphasis` | `featured` - `secondary` |
+| Si se explica el cruce de `binance_p2p` (RF-11c) | `CrossExplanation` | `explain` - `silent` |
 
-**T021 a T028 están cerradas**, con T025 parcial. El 21 se resuelven las tres
-decisiones de presentación con `pnpm analyse:window`, y con eso cierra la fase.
+Cada una lleva su medición del 2026-09-14 anotada en el propio archivo, que es
+la línea base contra la cual se compara el 21.
+
+### Qué sigue
+
+1. **2026-09-21 — cerrar la ventana de T020.** Correr `pnpm analyse:window` y
+   resolver las tres decisiones de arriba con los seis puntos medidos sobre una
+   semana en vez de sobre tres corridas. Con eso **cierra la Fase 5**: T025 pasa
+   de parcial a completa y las tres uniones dejan de estar pendientes.
+2. **Después: T030**, la última abierta. Arrastra la única decisión numerada que
+   queda — **el dominio**.
+3. Anotado y **fuera de la ruta crítica**: los tests de render de las páginas
+   Astro (~1 h, en `tasks.md`), y remedir `FROZEN_PRICE_HOURS` y
+   `TOLERATED_GAP_MINUTES` cuando la ventana tenga un fin de semana adentro.
+
+### Lecciones del 2026-09-16
+
+Un día de infraestructura, cuatro lecciones, y ninguna salió de razonar: las
+cuatro salieron de medir. Cada una tiene su casa más abajo; acá está el resumen.
+
+1. **El tope de 1.000 de PostgREST, por segunda vez — y esta vez en
+   silencio.** `analyse-window` leía `quotes` sin paginar, así que calculaba los
+   seis puntos sobre **1.000 de 9.324 filas, el 11 % y las más viejas**. Habría
+   dado seis números reales sobre una porción sesgada, sin que nada lo dijera.
+   Casa propia: "El tope de 1.000 de PostgREST".
+2. **Un test negativo sin matcher pasa en verde con el error equivocado.** El
+   único del paquete sin segundo argumento era `trm.test.ts`, y su nombre
+   prometía *"propagates a transport failure"* mientras solo comprobaba que algo
+   lanzara. Casa: "Tests negativos", cuarta vez.
+3. **Los que gritaron estaban sanos; el mudo era el defectuoso.** Tres tests
+   reportaron "no coincide el mensaje" y **tenían razón**: comprobaban el
+   mensaje, recibieron otro error y lo dijeron. Casi los "arreglo". El que había
+   que arreglar era el que se quedó callado, y se quedó callado justamente
+   porque no comprobaba nada. **Un test que se queja es un test que funciona; el
+   sospechoso es el silencioso.** Casa: "La primera corrida fue roja".
+4. **Tres cosas se llaman "node 24" y solo una es la de CI.** El runtime de una
+   *action* no es el node que corre nuestro código, y confundirlos llevó a creer
+   que CI corría 24 cuando corría 22.23.2. **La salida no fue razonar mejor: fue
+   imprimir la versión.** Casa: "Node: CI y esta máquina corren 24".
+
+Si hay un hilo común es el de siempre en este archivo: **preguntarle a un
+chequeo qué pregunta contesta, no si da verde.** El 1 contestaba sobre el 11 %
+de los datos, el 2 sobre "lanzó algo", y el 4 sobre lo que el YAML pedía en vez
+de sobre lo que se instaló.
 
 ### ✅ T029: las cuatro cosas, resueltas
 
@@ -622,11 +735,7 @@ tiene:** `SUPABASE_SERVER_READ_KEY`. Está cargada en Vercel pero no acá, así
 que `pnpm --filter @dolarito/web run dev` muestra el aviso de "no se pudieron
 leer los precios" hasta que se agregue. Por N4 su valor es hoy el mismo que
 `SUPABASE_SERVICE_ROLE_KEY`.
-#### Lo que sigue después: T023, T024, T026
 
-Ninguna espera datos. La migración de `latest_quotes` ya está aplicada, así
-que tienen sus columnas. T025 va parcial: el ranking sí, la representación de
-Eldorado no.
 ### ✅ La migración de `latest_quotes` está aplicada (2026-09-14)
 
 Aplicada y verificada en el SQL Editor con
