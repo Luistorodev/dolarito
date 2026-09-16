@@ -75,6 +75,38 @@ const pct = new Intl.NumberFormat('es-CO', {
 });
 
 const receives = direction === 'usd_to_cop';
+
+/**
+ * The rate per dollar, added 2026-09-16, and **which rate** is the whole point.
+ *
+ * Art. III.1 governs the *order*: the ranking is sorted by the variable side,
+ * never by the advertised rate. It does not forbid showing a rate — but showing
+ * the wrong one would hand the reader the mistake the article exists to
+ * prevent, because they would re-sort the list in their head.
+ *
+ * So the number on the row is `effective_rate`: pesos actually received per
+ * dollar actually given, fees included. It agrees with the order by
+ * construction, so the list can never contradict the number printed on it.
+ *
+ * Measured on the 2026-09-16 capture, and this is why the distinction is not
+ * academic — Wise at 100 USD:
+ *
+ *   gross_rate      3.101,00   ← above mid-market, looks like the best offer
+ *   mid-market      3.099,99
+ *   effective_rate  2.816,95   ← what you get: 9,1 % worse
+ *
+ * The source reports a 9,16 USD fixed fee on 100 USD and its own
+ * `receivedAmount` matches ours exactly, so the gap is real and is Wise's, not
+ * an artefact of ours. Printing 3.101 next to 281.695 COP would have been a
+ * true number doing a lie's work.
+ *
+ * The advertised rate is shown too, but only when it rounds to a different
+ * figure than the effective one — which is a visibility rule, not a tuned
+ * threshold. On single-book providers the two agree to within 0,02 % and the
+ * contrast would be noise; on the ones charging a separate fee it is the most
+ * useful thing on the row.
+ */
+const rate = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 ---
 
 <article class="min-w-0">
@@ -105,6 +137,17 @@ const receives = direction === 'usd_to_cop';
           const stale = age > STALE_MINUTES;
           const amount = quote.fixed_side === 'in' ? quote.amount_out : quote.amount_in;
           const leader = position === 1;
+          const effective = quote.effective_rate;
+          const gross = quote.gross_rate;
+          // Shown only when it reads as a different number. See the note above.
+          //
+          // The row that shows it carries `data-advertised="true"`, which is
+          // what check:freshness looks for. It has to be an attribute: this
+          // component's own subtitle says "no por la tasa anunciada", so
+          // grepping for the word would match a page showing no advertised rate
+          // at all — the same mistake the stale mark made once already.
+          const advertisedDiffers =
+            effective !== null && gross !== null && rate.format(gross) !== rate.format(effective);
           return (
             <li
               class:list={[
@@ -158,6 +201,25 @@ const receives = direction === 'usd_to_cop';
                   </span>
                   <span class="text-faint text-xs">COP</span>
                 </span>
+                {effective !== null && (
+                  <span class="flex items-baseline gap-1 whitespace-nowrap">
+                    <span class="amount text-muted-foreground text-xs font-medium">
+                      {rate.format(effective)}
+                    </span>
+                    <span class="text-faint text-xs">COP por dólar</span>
+                  </span>
+                )}
+
+                {advertisedDiffers && gross !== null && (
+                  <span
+                    class="text-warn text-xs whitespace-nowrap"
+                    data-advertised="true"
+                    title="La tasa que el proveedor anuncia, antes de su comisión."
+                  >
+                    anuncia <span class="amount font-medium">{rate.format(gross)}</span>
+                  </span>
+                )}
+
                 {behindBy > 0 && (
                   <span class="text-faint amount text-xs">
                     {receives ? '−' : '+'}
