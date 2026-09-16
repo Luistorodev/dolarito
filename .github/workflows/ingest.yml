@@ -70,7 +70,15 @@ jobs:
       # This also replaces `corepack enable`: with action-setup providing
       # pnpm, corepack shims on top would only add a way for the two to
       # disagree about which pnpm runs.
-      - uses: pnpm/action-setup@v4
+      #
+      # @v6 since 2026-09-15, and only after it had actually run. v4 emits a
+      # Node 20 deprecation warning; v6 runs on node24 with inputs identical
+      # to v4. That similarity is what the @v5 setup-node bump also had, and
+      # it cost a day — so the bump went to verify.yml alone first and sat
+      # there until it was seen green on both branches (verify #3 on
+      # 001-dolarito, #4 on main, over 10623fb). A failure here costs the
+      # T020 window; a failure there cost a red tick.
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: '22'

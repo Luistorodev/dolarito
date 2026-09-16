@@ -102,6 +102,28 @@ shell que no dice cuál fue el carácter culpable.
 el shell.** `chr(92)` para la barra, `chr(96)` para el backtick. Un nivel de
 escape que se pierde en el camino no da error: da otro carácter.
 
+**7. Y en Windows, abrir en modo texto reescribe TODO el archivo.**
+`io.open(p, 'w', encoding='utf-8')` traduce cada salto a CRLF, así que un
+reemplazo de cinco caracteres devuelve un archivo con los finales de línea
+cambiados de punta a punta. Pasó el 2026-09-15 sobre `package.json`, CLAUDE.md
+y los tres workflows.
+
+`core.autocrlf=true` lo tapa **en git** — el diff quedó en 1 línea, no en 21 —
+pero **no lo tapa en disco**, y biome lee el disco: el único síntoma fue
+`pnpm lint` en rojo sobre un `package.json` que nadie había reformateado. De los
+cinco archivos, biome solo mira uno; en CLAUDE.md y en los `.yml` nada lo
+habría dicho.
+
+Pasar `newline=''` para leer **y** para escribir:
+
+```python
+s = io.open(p, encoding='utf-8', newline='').read()
+io.open(p, 'w', encoding='utf-8', newline='').write(s)
+```
+
+Misma familia que la regla 4: una transformación invisible que no da error, da
+otro archivo.
+
 **5. Copia antes de reescribir un documento de gobierno, y verificar el tamaño
 después.** `shutil.copy` antes, `wc -c` después.
 
@@ -305,22 +327,63 @@ trabajo.** El que estaba mal era otro — ver "Tests negativos", más abajo.
 
 **3. El test del aborto se canceló, y no se pudo reproducir.** Ver abajo.
 
-#### CI corre node 22; acá corre node 24
+#### CI corre node 22; acá corre node 24. Y hay tres "node 24" distintos
 
-`package.json` declara `>=22`, el workflow fija `'22'` y esta máquina tiene
-**24.13.1**. Así que **ningún verde local es evidencia sobre la versión que corre
-en CI**, que es la misma forma de la lección del bump a `@v5`: un verde es
-evidencia sobre lo que corrió y sobre nada más.
+Los tres workflows fijan `node-version: '22'`, así que **el node que corre
+nuestro código en CI es 22.x**, no 24. Esta máquina tiene 24.13.1. Conviene
+separar tres cosas que se llaman igual y no lo son:
 
-No se cambió ninguna de las dos. Vale saberlo antes de diagnosticar el próximo
-fallo que solo pasa en CI.
+| Cuál | Qué es | Hoy |
+|---|---|---|
+| `setup-node` | el node que ejecuta **nuestros scripts y tests** | **22.x** |
+| El runtime de `pnpm/action-setup@v6` | el node en que corre **la action**, no nuestro código | node24 |
+| Esta máquina | el node del desarrollo local | 24.13.1 |
 
-**`verify.yml` estrena `pnpm/action-setup@v6` a propósito.** `ingest.yml` y
-`silence.yml` siguen en `@v4`, que avisa por Node 20. v6 corre en node24 y tiene
-**inputs idénticos a v4** —comprobado contra su `action.yml`— así que el bump se
-ve seguro; el de `setup-node@v5` también se veía seguro y costó un día. Acá un
-fallo cuesta un tilde rojo; en `ingest.yml` costaría la ventana de T020. **Se
-mueve a los otros dos cuando este haya corrido verde.**
+**El segundo no dice nada sobre el primero**, y es el que confunde: que la
+action corra en node24 no cambia con qué node se ejecuta `pnpm test`.
+
+**Ningún verde local es evidencia sobre la versión que corre en CI**, ni al
+revés — la misma forma de la lección del `@v5`. Para que deje de inferirse,
+`verify.yml` **imprime `node --version` y `pnpm --version`** antes de instalar.
+
+##### El `>=22` de `package.json` era falso, y ahora es `>=22.18.0`
+
+No es cosmético. `packages/ingest` corre TypeScript directo con el *type
+stripping* nativo, sin paso de compilación (decisión de T002), así que **todo
+script y `node --test` dependen de que `node archivo.ts` funcione sin bandera**.
+Verificado contra la documentación de Node, no de memoria:
+
+> **v23.6.0, v22.18.0** — Type stripping is enabled by default.
+> **v25.2.0, v24.12.0** — Type stripping is now stable.
+>
+> — `nodejs.org/api/typescript.html`, tabla de historia
+
+Con `>=22`, un node 22.0 a 22.17 satisface el campo y **no puede correr ni un
+solo script del repo**. El piso declarado decía menos de lo que el repo exige.
+`'22'` en el workflow resuelve al 22.x vigente, que está por encima del piso, así
+que CI nunca lo pisó — pero el campo existe justamente para quien no es CI.
+
+**Anotado y NO cambiado:** `@types/node` está en **24.13.4** mientras CI corre
+22.x. Un API que exista solo en 24 pasaría `tsc` y reventaría en CI. No se tocó
+porque bajarlo a `^22` puede mover el typecheck y eso merece su propia
+verificación, no ir de colado en el commit del bump.
+
+**Lo que queda abierto:** hoy **nada verifica node 22 y node 24 a la vez**. La
+salida sería una matriz en `verify.yml` — barata, el job tarda 42 s — y es lo
+único que volvería *probada* la afirmación `>=22.18.0` en vez de declarada.
+Decisión del humano, y deliberadamente fuera del commit del bump.
+
+**`pnpm/action-setup@v6` ya está en los tres workflows** (2026-09-15). Estrenó
+en `verify.yml` solo, y se movió a `ingest.yml` y `silence.yml` **después** de
+verlo verde en las dos ramas — verify #3 en `001-dolarito` (42 s) y #4 en `main`
+(38 s), sobre `10623fb`. v4 avisaba por Node 20; v6 tiene inputs idénticos a v4,
+comprobado contra su `action.yml`.
+
+**El orden importó y es el método, no el trámite:** el bump de `setup-node@v5`
+también tenía inputs idénticos, también se veía seguro, y costó un día y la
+ventana de T020. Un fallo en `verify.yml` cuesta un tilde rojo; uno en
+`ingest.yml` cuesta la ventana. **Un parecido no es una verificación**, igual
+que una cita no lo es.
 
 ### Tests negativos
 
