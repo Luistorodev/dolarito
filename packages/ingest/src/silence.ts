@@ -66,7 +66,15 @@ export const SILENCE_HOURS = 6;
 /** How many consecutive identical runs count as stuck rather than quiet. */
 export const STUCK_RUNS = 3;
 
-/** How often the ingest is meant to run. Mirrors the cron in ingest.yml. */
+/**
+ * How often the ingest is meant to run.
+ *
+ * It used to say "mirrors the cron in ingest.yml". That cron was retired on
+ * 2026-09-16 and the sentence outlived it by minutes. **The cadence now lives
+ * in the pg_cron job inside Supabase**, which dispatches the workflow; nothing
+ * in this repository states it any more, which is worth knowing before looking
+ * for it here.
+ */
 export const EXPECTED_INTERVAL_MINUTES = 15;
 
 /**

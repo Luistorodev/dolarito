@@ -44,6 +44,19 @@ Dos limitaciones reales que hay que aceptar conscientemente:
 `pg_cron` + Edge Function dentro de Supabase. Es más confiable y elimina ambas
 limitaciones, a costa de peor depuración. No hacerlo al principio.
 
+#### RETIRADO el 2026-09-16 — lo de abajo es historia, no configuración
+
+**`ingest.yml` ya no tiene `schedule:`.** Lo que sigue describe un experimento
+que se hizo y terminó; se conserva porque explica cómo se llegó a `pg_cron`,
+no porque describa el repositorio de hoy.
+
+Se retiró con el conteo a la vista: en 117 ciclos consecutivos `pg_cron` no se
+saltó ninguno, y las 9 corridas del planificador de GitHub cayeron **todas** en
+un ciclo ya cubierto, entre 0,7 y 13,5 minutos detrás. Nunca cubrió un hueco.
+El costo era real: 32 POST a El Dorado por corrida duplicada, 288 en total sin
+una sola fila nueva (Art. V.3, y §7.1). El criterio de reversión y cómo se mide
+están en CLAUDE.md, "SEGUIMIENTO".
+
 #### El cron salió de los minutos redondos (2026-09-14)
 
 `*/15` dispara en **:00, :15, :30 y :45** — los cuatro minutos más contendidos

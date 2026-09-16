@@ -1453,11 +1453,15 @@ de T029, y revisar `site_url`/`notes` del catálogo.
   invisible. Verificado en vivo — el hueco de 375 min apareció donde antes no
   había nada.
 
-- **📊 SEGUIMIENTO ABIERTO: ¿se retira el cron de `ingest.yml`?**
+- **✅ CERRADO el 2026-09-16: el `schedule:` de `ingest.yml` se retiró.**
 
-  Hoy **conviven las dos rutas**, deliberadamente: `ingest.yml` conserva su
-  `7,22,37,52` y `pg_cron` despacha en `*/15`. Mientras convivan, `trigger_src`
-  cuenta cuánto aporta cada una.
+  Convivieron dos rutas desde el 14 con un propósito declarado: que
+  `trigger_src` contara cuánto aportaba cada una. Contó, y la respuesta fue
+  cero.
+
+  **`ingest.yml` ya no tiene `schedule:`.** Queda `workflow_dispatch` solo,
+  que es por donde entra `pg_cron` **y** el disparo manual. La cadencia ya no
+  vive en el repositorio: vive en el job de `pg_cron`.
 
   **Medido el 2026-09-16, y el número contesta la pregunta:**
 
@@ -1489,10 +1493,42 @@ de T029, y revisar `site_url`/`notes` del catálogo.
   — nunca cubrió un ciclo que `pg_cron` fallara, entre otras cosas porque
   `pg_cron` no falló ninguno.
 
-  **Pendiente: la decisión es del humano.** Lo que la cambiaría es que
-  `pg_cron` empezara a saltarse ciclos; hasta entonces el conteo apunta a
-  retirar el `schedule:` de `ingest.yml` y dejar `workflow_dispatch` solo, que
-  es lo que `pg_cron` usa. Retirarlo **no** toca la ruta de `pg_cron`.
+  #### Qué revertiría esta decisión, y cómo se mide
+
+  **La condición:** que `pg_cron` empiece a saltarse ciclos. Hoy el registro es
+  **0 de 117**; la decisión se apoya entera en ese número y cae con él.
+
+  **Umbral, para que no se decida por impresión como la vez pasada:** más de
+  **un ciclo perdido por día** sostenido dos días seguidos. Uno suelto es la
+  clase de cosa que pasa; el patrón es lo que importa. Está elegido sobre lo
+  medido — 0 en 29 h — así que cualquier reaparición ya es señal, y **si se
+  revisa con más ventana hay que remedirlo**, no heredarlo (la lección del
+  umbral copiado, T029).
+
+  **Cómo se mide — ya existe, en dos sensibilidades distintas, y conviene no
+  confundirlas:**
+
+  | Qué | Detecta | Cuándo corre |
+  |---|---|---|
+  | `pnpm analyse:window`, punto 2 | huecos **> 22,5 min**, o sea **un solo ciclo perdido**, con el conteo | a mano |
+  | `check:silence` | solo huecos **> 60 min** (`TOLERATED_GAP_MINUTES`), o sea 3 ciclos o más | diario, automático |
+
+  **El diario NO sirve para esta decisión**, y por eso está la tabla: sus 60
+  minutos se calibraron cuando el disparador era el planificador de GitHub, que
+  encola y descarta corridas — la tolerancia describe un componente que ya no
+  está en el camino. Con `pg_cron` en 0 de 117, un ciclo perdido ya es anómalo y
+  la alarma diaria no lo va a decir. **Para el criterio de arriba se mira
+  `analyse:window`.**
+
+  Queda anotado como candidato a remedir: si `pg_cron` sostiene su récord una
+  semana, `TOLERATED_GAP_MINUTES` está describiendo un sistema que ya no
+  existe. No se tocó ahora porque un umbral se mide antes de cambiarlo.
+
+  **Volver atrás son dos ediciones, no una**, y están escritas en la cabecera
+  de `ingest.yml`: reponer el bloque `schedule:` **y** reponer la expresión de
+  `INGEST_TRIGGER`. Sin la segunda, todas las corridas quedarían etiquetadas
+  con el default de `inputs.trigger` y la columna que hizo medible esta
+  decisión dejaría de distinguir las dos rutas.
 
   ```sql
   select trigger_src, count(*), min(started_at), max(started_at)

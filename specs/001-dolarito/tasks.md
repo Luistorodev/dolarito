@@ -783,10 +783,14 @@ T001 → T002 → T003 → T004 → T005
   **GitHub respondió 204**, y una fila quedó etiquetada `pg_cron`. Las dos rutas
   vistas en verde, que era el criterio.
 
-  **Sigue abierto un seguimiento, no un bloqueo:** las dos rutas conviven a
-  propósito y `runs.trigger_src` cuenta cuánto aporta cada una. En unos días se
-  decide si se retira el `cron:` de `ingest.yml`. **Con el conteo, no con
-  impresiones** — detalle y consulta en CLAUDE.md, "SEGUIMIENTO ABIERTO".
+  **El seguimiento se cerró el 2026-09-16, con el conteo y no con
+  impresiones:** las dos rutas convivieron a propósito para que
+  `runs.trigger_src` midiera cuánto aportaba cada una, y midió cero. En 117
+  ciclos `pg_cron` no se saltó ninguno; las 9 corridas de `github_schedule`
+  cayeron **todas** en un ciclo ya cubierto y ninguna cubrió un hueco. **El
+  `schedule:` de `ingest.yml` se retiró**; queda `workflow_dispatch`, que es
+  por donde entran `pg_cron` y el disparo manual. Criterio de reversión y cómo
+  se mide, en CLAUDE.md, "SEGUIMIENTO".
 - **T019 — CERRADA el 2026-09-14**, con un tercer criterio que no estaba en el
   enunciado: la cadencia. Los dos originales preguntaban "¿el dato más nuevo es
   reciente?" y dejaban pasar una caída del disparador entera.

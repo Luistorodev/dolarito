@@ -1,6 +1,11 @@
-# Ingest — one capture cycle every 15 minutes (T018).
+# Ingest — one capture cycle, run on demand (T018).
 #
-# The cadence is the project's, not any source's: every provider we poll
+# **The cadence is NOT in this file.** Since 2026-09-16 the only route in
+# is `workflow_dispatch`, and what keeps the 15-minute rhythm is `pg_cron`
+# inside Supabase, which dispatches this workflow. Looking here for the
+# schedule is looking in the wrong place; see SEGUIMIENTO in CLAUDE.md.
+#
+# That cadence is the project's, not any source's: every provider we poll
 # refreshes faster than this (see the table in packages/ingest/src/http.ts).
 # Fifteen minutes is the conservative side of Article V.3 by a wide margin.
 #
@@ -8,19 +13,24 @@
 # Node's native type stripping, which is why nothing is compiled here.
 name: ingest
 
+# GitHub's own `schedule:` was retired on 2026-09-16, on measurement rather
+# than on impression. Over 117 consecutive 15-minute cycles `pg_cron` missed
+# **zero**, while the GitHub scheduler fired 9 times and **all 9 landed in a
+# cycle pg_cron had already covered** — 0.7 to 13.5 minutes behind it. It
+# never once covered a cycle that was missing.
+#
+# So it was not a free backup on either half: not free, because every extra
+# run costs El Dorado 32 POSTs (one per cell) and it charged 288 of them for
+# no new row — 7.1% of the window, and exactly the traffic Art. V.3 asks us
+# not to send; and not a backup, because it never covered anything.
+#
+# **To put it back takes two edits, not one:** restore a `schedule:` block
+# here AND restore the INGEST_TRIGGER expression below to
+# `github.event_name == 'schedule' && 'github_schedule' || inputs.trigger`.
+# Without the second, every run would be labelled with whatever
+# `inputs.trigger` defaults to, and the column that made this decision
+# measurable would stop telling the two routes apart.
 on:
-  schedule:
-    # Every 15 minutes, deliberately NOT on :00/:15/:30/:45.
-    #
-    # The interval is unchanged; only the phase is. Round minutes are the most
-    # contended slots on the platform, and GitHub queues rather than guarantees
-    # a schedule — it skips runs under load. Moving off them is the cheap half
-    # of the hypothesis in plan.md §1.2, which also carries the decision rule
-    # for when to stop waiting and migrate to pg_cron.
-    #
-    # It is a hypothesis, not a confirmed cause. The silence alarm (T019) is
-    # what actually notices when this fails, rather than trusting the cron.
-    - cron: '7,22,37,52 * * * *'
   # Manual trigger, for the first run and for debugging without waiting.
   # Also the entry point pg_cron uses: it dispatches this workflow rather than
   # running the ingest itself, so the work stays on the runtime the tests
@@ -98,11 +108,16 @@ jobs:
           INGEST_USER_AGENT: ${{ secrets.INGEST_USER_AGENT }}
           # Which route opened this run, landing in runs.trigger_src.
           #
-          # `github_schedule` appears ONLY when GitHub's own scheduler fires,
-          # so while both routes are live this is what tells us whether that
-          # scheduler came back on its own — measured, not guessed.
+          # It no longer tests for `schedule`: with that trigger retired the
+          # branch could never be taken, and a condition that cannot fire reads
+          # like a live one to whoever comes next. The `github_schedule` value
+          # stays known to db.ts, so restoring the branch needs no migration.
+          #
+          # The column keeps earning its place: it is what separates a pg_cron
+          # dispatch from a human one, which the Actions UI cannot — both show
+          # as "Manually run by" the PAT owner.
           #
           # A value db.ts does not recognise is dropped rather than sent, so a
           # typo here cannot fail every insert (Art. II).
-          INGEST_TRIGGER: ${{ github.event_name == 'schedule' && 'github_schedule' || inputs.trigger }}
+          INGEST_TRIGGER: ${{ inputs.trigger }}
         run: pnpm --filter @dolarito/ingest run ingest
