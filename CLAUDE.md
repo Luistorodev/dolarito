@@ -416,6 +416,53 @@ ventana de T020. Un fallo en `verify.yml` cuesta un tilde rojo; uno en
 `ingest.yml` cuesta la ventana. **Un parecido no es una verificación**, igual
 que una cita no lo es.
 
+### El corredor de Wise, y por qué el dato era consistente y falso
+
+**Encontrado el 2026-09-16 porque el humano fue a mirar Wise.** Ninguna
+verificación nuestra lo habría encontrado, y vale entender por qué.
+
+La llamada era
+`api.wise.com/v4/comparisons/?sourceCurrency=USD&targetCurrency=COP&sendAmount=N`,
+**sin `sourceCountry` ni `targetCountry`**. Medido contra el endpoint en vivo:
+
+| Monto | Sin corredor | Con `US` → `CO` | Diferencia |
+|---|---|---|---|
+| 100 | fee 9,16 → 281.694,84 | fee 3,29 → **299.897,71** | +18.203 COP |
+| 500 | fee 14,60 → 1.505.225 | fee 9,40 → **1.521.351** | +16.125 COP |
+| 1000 | fee 21,40 → 3.034.639 | fee 17,03 → **3.048.190** | +13.551 COP |
+
+**Instarem y Western Union no cambian ni un peso** en ningún bracket: sus
+entradas ya traían `sourceCountry: "US"`. La de Wise venía con los dos campos en
+**`null`**. La tasa es 3.101 en los dos casos, con `isConsideredMidMarketRate:
+true` y `markup: 0` — la tasa nunca estuvo mal; la comisión sí.
+
+**Por qué no lo vio nadie, que es la lección:**
+
+- **El dato era internamente consistente.** `fee`, `rate` y `receivedAmount`
+  concordaban entre sí, y `(100 − 9,16) × 3101` reproducía el monto exacto.
+  Verifiqué esa aritmética y la di por buena. **Comparar una respuesta contra sí
+  misma no puede encontrar un parámetro que nunca se mandó.**
+- **Afirmé lo contrario con seguridad.** Escribí *"la diferencia es de Wise, no
+  nuestra"*, con el `raw` a la vista. El `raw` era correcto; la pregunta que le
+  hice a la fuente, no.
+- **Ningún test miraba la URL.** Había uno que verificaba `sendAmount` y las
+  monedas, y por eso el corredor podía faltar sin que nada cayera. Ahora hay dos
+  en `wise.test.ts` y dos en `ranking.test.ts`, y las cuatro se vieron fallar.
+- **Rompía el Art. III.3 sin romper ninguna aserción.** Dos proveedores cotizaban
+  `US → CO` y el tercero cotizaba otra cosa, dentro de una lista ordenada por
+  monto recibido. La comparación a monto fijo supone que se compara lo mismo.
+
+**`US → CO` es una suposición declarada, no un default.** Dice que quien manda
+está en Estados Unidos. Se eligió porque es el corredor que los otros dos ya
+cotizan — sin eso no hay comparación posible — y **la interfaz lo dice en la
+fila**: *"desde EE. UU."*. La etiqueta y la constante del adapter están
+**atadas por un test que lee el otro archivo**, así que cambiar una sin la otra
+rompe el build.
+
+**Lo que no se arregla hacia atrás:** `quotes` es inmutable, así que las ~53 h
+de filas de Wise ya capturadas llevan la comisión inflada. El 21 hay que
+excluirlas o remedir el punto 6.
+
 ### El tope de 1.000 de PostgREST
 
 **Cayó dos veces en dos días, en dos scripts distintos**, y las dos veces el
@@ -1493,6 +1540,9 @@ Escribirlo antes del cierre fue justamente para eso:
    Medido con 3 corridas el 14: **101 de 216 filas** cambian de signo, y la
    separación es despreciable en los de libro único (≤0,02 %) y grande donde
    hay comisión fija — wise 9,16 %, western_union 1,99 %.
+   **El 9,16 % de wise quedó invalidado el 2026-09-16** y hay que remedirlo el
+   21: era nuestra llamada sin corredor, no el precio de Wise. Ver "El corredor
+   de Wise". El de western_union se sostiene.
 
 #### Primera lectura — 2026-09-14, 3 corridas
 
@@ -1525,7 +1575,8 @@ la *forma*, y dos puntos apuntan fuerte en una dirección.
   semana, ahí está su consecuencia medida.
 - **6 — Márgenes.** **101 de 216 filas cambian de signo** al corregir. La
   separación entre tasa anunciada y efectiva es despreciable en los tres de
-  libro único (≤0,02 %) y grande donde hay comisión fija: **wise 9,16 %**,
+  libro único (≤0,02 %) y grande donde hay comisión fija: **wise 9,16 % — cifra
+  invalidada, ver "El corredor de Wise"**,
   `western_union` 1,99 %. Confirma que el defecto no es uniforme: castiga
   exactamente a los proveedores que cobran aparte.
 

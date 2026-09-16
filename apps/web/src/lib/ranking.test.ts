@@ -8,7 +8,10 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import type { LatestQuote } from './quotes.ts';
 import {
   assetLabel,
@@ -18,6 +21,8 @@ import {
   limitReasonLabel,
   modeHint,
   modeLabel,
+  REMITTANCE_ORIGIN_COUNTRY,
+  REMITTANCE_ORIGIN_LABEL,
   rank,
   select,
 } from './ranking.ts';
@@ -282,5 +287,46 @@ describe('every row declares what it is denominated in', () => {
   it('names the asset in words, because USDT means nothing to most readers', () => {
     assert.equal(assetLabel('usdt'), 'USDT');
     assert.equal(assetLabel('usd'), 'dólares');
+  });
+});
+
+describe('the remittance corridor is one decision, not two', () => {
+  /**
+   * The page says "desde EE. UU." and the ingest adapter asks Wise for US -> CO.
+   * Those are two files that have to agree, and until 2026-09-16 the second one
+   * said nothing at all: the corridor was missing from the URL and Wise quoted a
+   * fee almost three times higher — 18.203 COP less arriving on 100 USD.
+   *
+   * The response was internally consistent the whole time, so no check of the
+   * data could have found it. What finds it is reading the other file.
+   */
+  it('shows the same country the adapter asks for', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const adapter = resolve(here, '../../../../packages/ingest/src/adapters/wise.ts');
+    const source = readFileSync(adapter, 'utf8');
+
+    const declared = /WISE_SOURCE_COUNTRY\s*=\s*'([A-Z]{2})'/.exec(source)?.[1];
+    assert.ok(declared, 'the adapter must export a source country to be pinned to');
+    assert.equal(
+      declared,
+      REMITTANCE_ORIGIN_COUNTRY,
+      'the row claims one corridor and the adapter quotes another',
+    );
+  });
+
+  it('the adapter actually puts it in the URL', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const adapter = resolve(here, '../../../../packages/ingest/src/adapters/wise.ts');
+    const source = readFileSync(adapter, 'utf8');
+
+    // The defect was not a wrong country: it was no country. A constant that
+    // exists but is never sent would satisfy the test above and change nothing.
+    assert.match(source, /sourceCountry=\$\{WISE_SOURCE_COUNTRY\}/);
+    assert.match(source, /targetCountry=\$\{WISE_TARGET_COUNTRY\}/);
+  });
+
+  it('says where the money comes from, in words', () => {
+    assert.match(REMITTANCE_ORIGIN_LABEL, /EE\. UU\./);
+    assert.match(modeHint('remesa'), /EE\. UU\./);
   });
 });

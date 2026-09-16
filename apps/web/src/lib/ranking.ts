@@ -176,10 +176,27 @@ export function modeLabel(mode: LatestQuote['mode']): string {
   return mode === 'remesa' ? 'Remesa' : 'Local';
 }
 
+/**
+ * Where a remittance is sent from, shown on the row.
+ *
+ * It is an assumption, and it is declared rather than hidden in a URL. The
+ * ingest adapter asks Wise for the US -> CO corridor, and the fee depends on
+ * it: leaving the corridor out understated Wise by 18.203 COP on a 100 USD
+ * transfer until 2026-09-16. Instarem and Western Union quote that corridor
+ * already, which is what makes the three comparable at all (Art. III.3).
+ *
+ * The country below is pinned to `WISE_SOURCE_COUNTRY` in
+ * `packages/ingest/src/adapters/wise.ts` by a test that reads that file. Change
+ * one without the other and the build fails, which is the point: a label saying
+ * "from the US" over data quoted for somewhere else is worse than no label.
+ */
+export const REMITTANCE_ORIGIN_COUNTRY = 'US';
+export const REMITTANCE_ORIGIN_LABEL = 'desde EE. UU.';
+
 /** The longer form, for the tag's tooltip: the tag alone is not an explanation. */
 export function modeHint(mode: LatestQuote['mode']): string {
   return mode === 'remesa'
-    ? 'Giro internacional: los pesos llegan a una cuenta bancaria en Colombia.'
+    ? `Giro internacional ${REMITTANCE_ORIGIN_LABEL}: los pesos llegan a una cuenta bancaria en Colombia. La comisión depende del país de origen.`
     : 'Comprás o vendés dentro de Colombia y quedás con el saldo en la plataforma.';
 }
 

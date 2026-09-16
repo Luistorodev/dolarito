@@ -18,6 +18,8 @@ import {
   createWiseAdapter,
   durationToMinutes,
   WISE_PROVIDERS,
+  WISE_SOURCE_COUNTRY,
+  WISE_TARGET_COUNTRY,
   type WiseResponse,
 } from './wise.ts';
 
@@ -242,5 +244,53 @@ describe('the adapter', () => {
     }).fetchQuotes([500]);
     assert.match(calls[0] ?? '', /sendAmount=500/);
     assert.match(calls[0] ?? '', /sourceCurrency=USD&targetCurrency=COP/);
+  });
+
+  /**
+   * The corridor, which is the defect this test exists because of.
+   *
+   * Until 2026-09-16 the call sent no country, and Wise quoted a different fee:
+   * 9,16 USD instead of 3,29 on a 100 USD transfer, which is 18.203 COP less
+   * arriving. Nothing failed, because the response was internally consistent —
+   * fee, rate and receivedAmount all agreed with each other while describing a
+   * corridor nobody had asked for. Checking a response against itself cannot
+   * find a parameter that was never sent.
+   *
+   * No test asserted the parameters, so nothing could have caught it. These are
+   * those tests. Pinned through the exported constants rather than as literals,
+   * so changing the corridor is one edit and these follow it; what must never
+   * happen again is the URL carrying no corridor at all.
+   */
+  it('asks for a declared corridor instead of the endpoint default', async () => {
+    const { impl, calls } = stub();
+    await createWiseAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes([100]);
+
+    assert.ok(
+      (calls[0] ?? '').includes(`sourceCountry=${WISE_SOURCE_COUNTRY}`),
+      'the sender country is declared',
+    );
+    assert.ok(
+      (calls[0] ?? '').includes(`targetCountry=${WISE_TARGET_COUNTRY}`),
+      'the receiver country is declared',
+    );
+  });
+
+  it('declares a corridor on every bracket, not just the first', async () => {
+    const { impl, calls } = stub();
+    await createWiseAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes([1, 100, 500, 1000]);
+
+    assert.equal(calls.length, 4);
+    for (const call of calls) {
+      assert.match(call, /sourceCountry=/, 'no bracket may fall back to the default');
+      assert.match(call, /targetCountry=/);
+    }
   });
 });

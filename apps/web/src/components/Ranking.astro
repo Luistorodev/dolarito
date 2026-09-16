@@ -43,6 +43,7 @@ import {
   modeHint,
   modeLabel,
   rank,
+  REMITTANCE_ORIGIN_LABEL,
   UNDECIDED_PROVIDER,
 } from '../lib/ranking.ts';
 
@@ -205,6 +206,7 @@ const rate = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
                   </Badge>
                   <span class="text-faint text-xs">
                     {assetLabel(quote.asset)} · {channelLabel(quote.channel)}
+                    {quote.mode === 'remesa' && ` · ${REMITTANCE_ORIGIN_LABEL}`}
                   </span>
                 </span>
               </span>

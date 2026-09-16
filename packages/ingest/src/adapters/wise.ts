@@ -38,6 +38,46 @@ import { type HttpOptions, httpJson } from '../http.ts';
 
 export const WISE_URL = 'https://api.wise.com/v4/comparisons/';
 
+/**
+ * The corridor, and leaving it out was a real defect (2026-09-16).
+ *
+ * Until today the call sent only currencies and an amount. Measured against the
+ * live endpoint, that understated Wise on every bracket:
+ *
+ *   |  amount | no corridor            | US -> CO               | difference |
+ *   |--------:|------------------------|------------------------|-----------:|
+ *   |     100 | fee 9,16 -> 281.694,84 | fee 3,29 -> 299.897,71 | +18.203 COP|
+ *   |     500 | fee 14,60 -> 1.505.225 | fee 9,40 -> 1.521.351  | +16.125 COP|
+ *   |    1000 | fee 21,40 -> 3.034.639 | fee 17,03 -> 3.048.190 | +13.551 COP|
+ *
+ * The `rate` is 3101 either way, with `isConsideredMidMarketRate: true` and
+ * `markup: 0` — Wise's rate was never the problem. Only the fee moved, and with
+ * it the amount that actually arrives.
+ *
+ * **Why it was invisible:** in the same response Instarem and Western Union
+ * carry `sourceCountry: "US"` and `targetCountry: "CO"`, while Wise's own entry
+ * came back with both `null`. So the numbers were internally consistent — fee,
+ * rate and receivedAmount all agreed, and reproducing the arithmetic confirmed
+ * them — while describing a corridor nobody had asked for. Checking a response
+ * against itself cannot find a parameter that was never sent.
+ *
+ * It also made the comparison unequal, which Art. III.3 does not allow: two
+ * providers were quoting US -> CO and the third was quoting something else,
+ * inside one list sorted by amount received.
+ *
+ * **US -> CO is an assumption and it is declared, not hidden.** It says the
+ * sender is in the United States — the dominant remittance corridor into
+ * Colombia, and the one the other two providers already quote, so it is what
+ * makes the three comparable. The interface says so on the row; the constant
+ * below and that label are pinned to each other by a test, so changing this
+ * without changing what the page claims fails the build.
+ *
+ * Instarem and Western Union return byte-identical numbers with and without it,
+ * measured across all four brackets. Only Wise moves.
+ */
+export const WISE_SOURCE_COUNTRY = 'US';
+export const WISE_TARGET_COUNTRY = 'CO';
+
 const BRACKETS = [1, 100, 500, 1000] as const;
 
 /** Their alias to our catalogue id. Anything else in the response is ignored. */
@@ -145,7 +185,9 @@ export function createWiseAdapter(options: WiseOptions = {}): QuoteAdapter {
       const rows: Quote[] = [];
 
       for (const bracket of wanted) {
-        const url = `${WISE_URL}?sourceCurrency=USD&targetCurrency=COP&sendAmount=${bracket}`;
+        const url =
+          `${WISE_URL}?sourceCurrency=USD&targetCurrency=COP&sendAmount=${bracket}` +
+          `&sourceCountry=${WISE_SOURCE_COUNTRY}&targetCountry=${WISE_TARGET_COUNTRY}`;
         rows.push(...buildQuotes(await httpJson<WiseResponse>(url, http), bracket, clock()));
       }
 

@@ -308,6 +308,16 @@ a los tres que la cobran. Medido, vendiendo 100 USD:
 Wise muestra el mejor margen de los once y entrega el peor monto, en la misma
 fila.
 
+> **Nota del 2026-09-16 sobre la cifra de Wise, no sobre el defecto.** Los 9,16
+> USD de esa fila estaban inflados por un defecto **nuestro**: la llamada a
+> `api.wise.com/v4/comparisons/` no declaraba `sourceCountry` ni
+> `targetCountry`, y sin corredor Wise cotiza casi el triple de comisión. Con
+> `US -> CO` la comisión a 100 USD es **3,29**, no 9,16, y la tasa efectiva es
+> **2.998,98** en vez de 2.804,44. **El defecto 1 se sostiene igual** — Wise
+> sigue cobrando una comisión aparte que la tasa anunciada esconde, y sigue sin
+> liderar — pero la magnitud de este ejemplo no es la real. Instarem y Western
+> Union no se movieron ni un peso: solo Wise depende del corredor.
+
 **Defecto 2 — el signo está invertido en `cop_to_usd`, y este afecta a los ocho.**
 La fórmula actual es la misma para las dos direcciones, pero en una se **reciben**
 pesos (más es mejor) y en la otra se **pagan** (menos es mejor). Comprando 100 USD
