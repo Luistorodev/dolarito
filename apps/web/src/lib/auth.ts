@@ -47,11 +47,22 @@ export const OPEN_SENTINEL = 'off';
  * Paths that answer before the gate does.
  *
  * `/entrar` is the form itself: gating it is an infinite redirect. The rest is
- * what the form needs to render — styles and the icon. They carry no data:
+ * what the form needs to render — styles and the logo. They carry no data:
  * every quote is fetched server-side (N4, plan.md §2.3), so there is nothing
  * behind these paths worth locking.
+ *
+ * **The logo files are listed one by one, not as a `/logo-` prefix.** A prefix
+ * would open every future file whose name happens to start that way, and the
+ * point of this list is that adding to it is a decision somebody made on
+ * purpose. Three lines is a cheap price for that.
  */
-export const PUBLIC_PREFIXES = ['/entrar', '/_astro/', '/favicon.svg'] as const;
+export const PUBLIC_PREFIXES = [
+  '/entrar',
+  '/_astro/',
+  '/logo-32.png',
+  '/logo-64.png',
+  '/logo-180.png',
+] as const;
 
 export type GateConfig =
   | { kind: 'gated'; password: string }

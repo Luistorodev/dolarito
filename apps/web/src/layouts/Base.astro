@@ -33,7 +33,19 @@ const fullTitle = title === 'Dolarito' ? title : `${title} · Dolarito`;
       independent on purpose.
     -->
     <meta name="robots" content="noindex, nofollow" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!--
+      Raster, not SVG: the logo is a rendered illustration, so there is no vector
+      of it to ship. Two sizes rather than one scaled: a 64 px image squeezed
+      into a 16 px tab is mush, and a 32 px one blown up to 180 is worse.
+
+      These are in `PUBLIC_PREFIXES` (auth.ts) so they answer before the password
+      gate — otherwise the login page would render its own logo as a broken
+      image, which is a poor first impression of a site whose whole job is to
+      look trustworthy about numbers.
+    -->
+    <link rel="icon" href="/logo-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/logo-64.png" type="image/png" sizes="64x64" />
+    <link rel="apple-touch-icon" href="/logo-180.png" />
   </head>
   <body>
     <div class="page">

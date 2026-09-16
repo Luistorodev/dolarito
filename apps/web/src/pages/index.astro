@@ -96,12 +96,25 @@ const OPTION =
   description="Comparador de precios de compra y venta de dólares para Colombia."
 >
   <header class="mb-6">
-    <div class="flex items-baseline gap-2">
-      <h1 class="m-0 text-2xl font-bold tracking-tight sm:text-3xl">Dolarito</h1>
-      <span aria-hidden="true" class="bg-primary/70 h-1.5 w-1.5 shrink-0 rounded-full"></span>
-      <span class="text-faint text-xs font-medium tracking-wide uppercase">
-        USD · COP
-      </span>
+    <div class="flex items-center gap-3">
+      {/* Decorative: `alt=""` because the wordmark next to it already says the
+          name, and a screen reader announcing "Dolarito" twice is noise. The
+          width and height are set so the line does not jump while it loads. */}
+      <img
+        src="/logo-64.png"
+        width="40"
+        height="40"
+        alt=""
+        class="size-10 shrink-0"
+        fetchpriority="high"
+      />
+      <div class="flex items-baseline gap-2">
+        <h1 class="m-0 text-2xl font-bold tracking-tight sm:text-3xl">Dolarito</h1>
+        <span aria-hidden="true" class="bg-primary/70 h-1.5 w-1.5 shrink-0 rounded-full"></span>
+        <span class="text-faint text-xs font-medium tracking-wide uppercase">
+          USD · COP
+        </span>
+      </div>
     </div>
     <p class="text-muted-foreground m-0 mt-2 max-w-measure text-sm">
       Cuántos pesos recibís por tus dólares, y cuántos te cuesta comprarlos.

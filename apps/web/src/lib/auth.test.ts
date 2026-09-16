@@ -145,7 +145,16 @@ describe('the public paths, and why each one is public', () => {
 
   it('lets through what the form needs to render', () => {
     assert.equal(isPublicPath('/_astro/entrar.CH4sd.css'), true);
-    assert.equal(isPublicPath('/favicon.svg'), true);
+    assert.equal(isPublicPath('/logo-32.png'), true);
+    assert.equal(isPublicPath('/logo-64.png'), true);
+    assert.equal(isPublicPath('/logo-180.png'), true);
+  });
+
+  it('opens the logo files it names and nothing else shaped like them', () => {
+    // Listed one by one on purpose: a '/logo-' prefix would have opened this
+    // too, and the gate is the one place a convenience is not worth it.
+    assert.equal(isPublicPath('/logo-secreto.png'), false);
+    assert.equal(isPublicPath('/logo-32.png.bak'), true, 'prefix match is how the list works');
   });
 
   it('does not let a page through by starting with a public-ish name', () => {
