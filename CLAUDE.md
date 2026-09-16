@@ -335,16 +335,26 @@ separar tres cosas que se llaman igual y no lo son:
 
 | Cuál | Qué es | Hoy |
 |---|---|---|
-| `setup-node` | el node que ejecuta **nuestros scripts y tests** | **22.x** |
+| `setup-node` | el node que ejecuta **nuestros scripts y tests** | **v22.23.2** |
 | El runtime de `pnpm/action-setup@v6` | el node en que corre **la action**, no nuestro código | node24 |
-| Esta máquina | el node del desarrollo local | 24.13.1 |
+| Esta máquina | el node del desarrollo local | v24.13.1 |
 
 **El segundo no dice nada sobre el primero**, y es el que confunde: que la
-action corra en node24 no cambia con qué node se ejecuta `pnpm test`.
+action corra en node24 no cambia con qué node se ejecuta `pnpm test`. Fue de
+donde salió la idea de que CI corría 24.
+
+**Las dos primeras ya no se infieren: `verify.yml` las imprime.** El paso
+*"Versions that actually ran"* devolvió **v22.23.2** y **pnpm 10.18.0** el
+2026-09-16. Antes de eso la única fuente era el `'22'` del YAML, que dice qué se
+pidió y no qué se instaló.
+
+De paso confirmó algo que el comentario de los workflows **afirmaba sin
+comprobar**: que `action-setup` toma la versión de pnpm del campo
+`packageManager`. Declarado `pnpm@10.18.0`, corrió 10.18.0. Ahora es una
+afirmación verificada y no una razonable.
 
 **Ningún verde local es evidencia sobre la versión que corre en CI**, ni al
-revés — la misma forma de la lección del `@v5`. Para que deje de inferirse,
-`verify.yml` **imprime `node --version` y `pnpm --version`** antes de instalar.
+revés — la misma forma de la lección del `@v5`.
 
 ##### El `>=22` de `package.json` era falso, y ahora es `>=22.18.0`
 
@@ -368,10 +378,33 @@ que CI nunca lo pisó — pero el campo existe justamente para quien no es CI.
 porque bajarlo a `^22` puede mover el typecheck y eso merece su propia
 verificación, no ir de colado en el commit del bump.
 
-**Lo que queda abierto:** hoy **nada verifica node 22 y node 24 a la vez**. La
-salida sería una matriz en `verify.yml` — barata, el job tarda 42 s — y es lo
-único que volvería *probada* la afirmación `>=22.18.0` en vez de declarada.
-Decisión del humano, y deliberadamente fuera del commit del bump.
+**El piso quedó confirmado contra lo que corre, no contra lo declarado:**
+22.23.2 ≥ 22.18.0, así que CI ejecuta el *type stripping* sin bandera y el
+campo `engines` describe la realidad. Eso era lo que faltaba comprobar.
+
+**Y apareció un matiz que no estaba buscado.** El *type stripping* pasa a
+**estable** en v24.12.0 / v25.2.0. CI corre **22.23.2**, donde está *activo por
+defecto pero todavía no estable*; esta máquina corre 24.13.1, donde sí lo está.
+Así que **las dos puntas ejercitan en distinto grado de madurez la función
+sobre la que se apoya la decisión de no tener paso de compilación** (T002).
+Ninguna rama 22.x va a marcarlo estable nunca: ese salto es de la 24.
+
+No cambia nada hoy — 412 tests en verde en las dos versiones lo dicen — pero
+es el dato con el que se decide lo de abajo.
+
+**Lo que queda abierto, ahora con los números:** nada verifica 22.23.2 y 24.13.1
+a la vez. Dos salidas, y conviene no confundirlas:
+
+- **Una matriz en `verify.yml`** con las dos. Barata — el job tarda 42 s — y es
+  lo único que vuelve *probada* la afirmación `>=22.18.0` en vez de declarada.
+- **Subir `setup-node` a `'24'`**, que alinea CI con el desarrollo local y pone
+  el *type stripping* en su forma estable en los dos lados. Más simple, pero
+  entonces **nada** prueba el 22 que `engines` sigue prometiendo, y habría que
+  subir el piso a `>=24.12.0` para no volver a prometer lo que no se verifica.
+
+Decisión del humano. Lo que no es opción es dejar `>=22.18.0` escrito y dejar de
+correr 22: eso es exactamente la afirmación sin verificar que este archivo
+persigue en todas las demás secciones.
 
 **`pnpm/action-setup@v6` ya está en los tres workflows** (2026-09-15). Estrenó
 en `verify.yml` solo, y se movió a `ingest.yml` y `silence.yml` **después** de
