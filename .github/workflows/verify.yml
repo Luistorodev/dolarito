@@ -1,0 +1,82 @@
+# Verification — everything that can fail without touching the network.
+#
+# Until this existed, nothing ran the 397 tests on a push. They were run by hand
+# each session, which means the only safety net was somebody remembering. A
+# change landing without that would have been unverified and looked fine.
+#
+# Nothing here reaches the database or a provider: no secrets, so it runs the
+# same on a pull request from anywhere. The checks that DO need live data
+# (`check:silence`) stay in the daily guard, because they measure the state of
+# the world rather than the state of the code.
+#
+# `check:docs` runs here as well as in the daily workflow. The daily one catches
+# a truncated document within 24 h; this one catches it before it merges.
+name: verify
+
+on:
+  push:
+    branches: [001-dolarito, main]
+  pull_request:
+  # So a suspected-flaky failure can be re-run without pushing an empty commit.
+  workflow_dispatch:
+
+# Nothing in this file may swallow a failure. No continue-on-error, no `|| true`,
+# no `if: always()` on a step whose result is the point. A verification workflow
+# that goes green while something is broken is worse than not having one: it
+# converts "nobody checked" into "somebody checked and it was fine".
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm BEFORE setup-node — the ordering that cost a day on 2026-09-14,
+      # when setup-node@v5 probed for a package manager that did not exist yet
+      # and killed the job in 8 seconds.
+      #
+      # **v6 is deliberately being tried here first.** ingest.yml and silence.yml
+      # still pin v4, which emits a Node 20 deprecation warning. v6 runs on
+      # node24 and has byte-identical inputs to v4 (checked against its
+      # action.yml), so the bump looks safe — and the @v5 setup-node bump also
+      # looked safe. This workflow is the place to find out, because a failure
+      # here costs a red tick and a failure in ingest.yml costs the T020 window.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and format
+        run: pnpm lint
+
+      - name: Typecheck the ingest package
+        run: pnpm --filter @dolarito/ingest run typecheck
+
+      - name: Typecheck the web app
+        run: pnpm --filter @dolarito/web run typecheck
+
+      - name: Test the ingest package
+        run: pnpm --filter @dolarito/ingest run test
+
+      - name: Test the web app
+        run: pnpm --filter @dolarito/web run test
+
+      - name: Governance documents are intact
+        run: pnpm --filter @dolarito/ingest run check:docs
+
+      # Builds the site, then greps both surfaces a browser receives — static
+      # assets and rendered HTML — for marker credentials. Needs no secrets: it
+      # supplies its own fake ones.
+      - name: No credential reaches the browser
+        run: pnpm --filter @dolarito/web run check:bundle
+
+      # Stands up a stub PostgREST and renders three ages, checking the stale
+      # mark appears and that a total outage produces one notice rather than
+      # eight. Also needs no secrets.
+      - name: Freshness marks render correctly
+        run: pnpm --filter @dolarito/web run check:freshness

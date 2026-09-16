@@ -731,6 +731,14 @@ silenciosamente devuelve datos viejos durante semanas"* como **el** riesgo del
 proyecto, y está cubierto para las dos referencias y para ninguno de los ocho
 proveedores. `grep gross_rate silence.ts` devuelve cero.
 
+**Deuda anotada — tests de render para las páginas** *(después del 21)*
+Los módulos están cubiertos (`ranking`, `profile`, `freshness`, `trm`, `auth`) y
+`check:bundle` y `check:freshness` miran el HTML renderizado para lo suyo. **Pero
+nada comprueba que las 8 fichas, `/` y `/trm` sigan respondiendo 200** tras un
+cambio: eso se verificó a mano el 2026-09-15. Cuesta ~1 h y se integra con
+`verify.yml`. Decidido posponerlo al 2026-09-15 para no competir con el cierre
+de la ventana.
+
 **T030 — Dominio y decisión de apertura**
 Apuntar dominio. Decidir si se quita la contraseña.
 *Terminado cuando:* el sitio responde en su dominio.

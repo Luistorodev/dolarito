@@ -10,6 +10,7 @@
 
 import { PROVIDERS } from '../lib/providers.ts';
 import { createServiceRoleClient } from '../lib/supabase.ts';
+import { longestStillStreaks, type PriceSighting } from '../silence.ts';
 
 type QuoteRow = {
   run_id: string;
@@ -67,15 +68,42 @@ async function main(): Promise<void> {
     .order('started_at', { ascending: true });
   if (runError) throw new Error(`could not read runs: ${runError.message}`);
 
-  const { data: quoteData, error: quoteError } = await supabase
-    .from('quotes')
-    .select(
-      'run_id, provider_id, direction, bracket_usd, payment_method, status, limit_reason, amount_in, amount_out, currency_out, gross_rate, captured_at',
-    );
-  if (quoteError) throw new Error(`could not read quotes: ${quoteError.message}`);
+  // Paginated, and it was not.
+  //
+  // Until 2026-09-15 this read `quotes` with no range and no limit. PostgREST
+  // caps a result at 1000, so with ~9.300 rows in the window the whole report
+  // was computed over **the oldest 1.000** — 11% of the data, and the first 13
+  // of 126 runs. Every one of the six points would have been a real number
+  // measured over a biased slice, with nothing anywhere saying so.
+  //
+  // Same cap that produced the false red on 2026-09-15. It is worth noticing
+  // that it landed twice in two different scripts: an unpaginated select is not
+  // an unusual mistake, it is the default one.
+  const PAGE = 1000;
+  const MAX_PAGES = 40;
+  const quotes: QuoteRow[] = [];
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { data, error } = await supabase
+      .from('quotes')
+      .select(
+        'run_id, provider_id, direction, bracket_usd, payment_method, status, limit_reason, amount_in, amount_out, currency_out, gross_rate, captured_at',
+      )
+      .order('captured_at')
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (error) throw new Error(`could not read quotes: ${error.message}`);
+    if (data === null || data.length === 0) break;
+    quotes.push(...(data as QuoteRow[]));
+    if (data.length < PAGE) break;
+    if (page === MAX_PAGES - 1) {
+      throw new Error(
+        `read ${quotes.length} quotes and there are more: raise MAX_PAGES rather ` +
+          'than analysing a slice of the window',
+      );
+    }
+  }
 
   const runs = (runData ?? []) as RunRow[];
-  const quotes = (quoteData ?? []) as QuoteRow[];
 
   const first = runs[0];
   const last = runs[runs.length - 1];
@@ -93,6 +121,35 @@ async function main(): Promise<void> {
   if (runs.length < 20) {
     console.log('');
     console.log('NOTE: too few runs for any of this to be conclusive. Shapes only.');
+  }
+
+  // How long each provider held one price, per lane. Measured once and used by
+  // points 3 and 5, because a conclusion about stability drawn over a frozen
+  // stretch is a real number describing the wrong thing.
+  const stillness = longestStillStreaks(
+    quotes.map(
+      (quote): PriceSighting => ({
+        provider_id: quote.provider_id,
+        direction: quote.direction,
+        bracket_usd: quote.bracket_usd,
+        payment_method: quote.payment_method,
+        gross_rate: quote.gross_rate,
+        captured_at: quote.captured_at,
+      }),
+    ),
+  );
+
+  const frozenAny = stillness.filter((streak) => streak.hours >= 2);
+  if (frozenAny.length > 0) {
+    console.log('');
+    console.log('⚠ PRICES THAT SAT STILL INSIDE THIS WINDOW');
+    console.log('  Conclusions about stability are only as good as whether anything moved.');
+    for (const streak of frozenAny) {
+      console.log(
+        `  ${streak.providerId.padEnd(15)} ${streak.hours.toFixed(1).padStart(5)}h  ` +
+          `${String(streak.runs).padStart(4)} runs  at ${streak.value}  (${streak.lane})`,
+      );
+    }
   }
 
   // ── 1 ──────────────────────────────────────────────────────────────────
@@ -229,6 +286,22 @@ async function main(): Promise<void> {
     }
   }
   console.log('');
+
+  // A provider whose price sat still is not evidence that its methods agree —
+  // it is evidence that nothing moved. Saying "the methods collapse" over a
+  // frozen stretch is the wrong conclusion drawn from a real number.
+  const eldoradoStill = stillness.find((streak) => streak.providerId === 'eldorado');
+  if (eldoradoStill !== undefined && eldoradoStill.hours >= 1) {
+    console.log(
+      `  ⚠ CAUTION: eldorado held one price for ${eldoradoStill.hours.toFixed(1)}h ` +
+        `across ${eldoradoStill.runs} runs (${eldoradoStill.lane}).`,
+    );
+    console.log('    Identical methods over a still stretch says nothing about whether');
+    console.log('    they agree — only that nothing moved. Weigh this before cutting');
+    console.log('    the method list.');
+    console.log('');
+  }
+
   console.log('  VERDICT: if these stay identical across a week, the method list can');
   console.log('  be cut and the §7.1 risk drops with it.');
 
@@ -373,6 +446,22 @@ async function main(): Promise<void> {
   }
 
   console.log('');
+  // A leader that never changes can mean the market is settled, or that the
+  // leader's price never moved. The second is not a product finding.
+  const stillLeaders = stillness.filter((streak) => streak.hours >= 2);
+  if (stillLeaders.length > 0) {
+    console.log('  ⚠ CAUTION: some providers held one price for hours inside this window:');
+    for (const streak of stillLeaders.slice(0, 4)) {
+      console.log(
+        `    ${streak.providerId.padEnd(15)} ${streak.hours.toFixed(1)}h across ` +
+          `${streak.runs} runs (${streak.lane})`,
+      );
+    }
+    console.log('    A leader that does not change may be a settled market or a price');
+    console.log('    that never moved. Check the two before reading this as a finding.');
+    console.log('');
+  }
+
   console.log('  VERDICT: if the leader never changes, the bracket selector earns little');
   console.log('  and that is worth knowing before building it. If it changes, it is the');
   console.log('  central argument of the product.');

@@ -255,6 +255,37 @@ La regla generalizable: **una cita no es una verificación.** Cuando algo dice
 "(T015)" o "(medido)", o se comprueba contra lo que esa fuente dice, o se
 borra la cita.
 
+### CI: qué corre y dónde
+
+Tres workflows, con propósitos que no se mezclan:
+
+| Workflow | Cuándo | Qué mira |
+|---|---|---|
+| `verify.yml` | push a las dos ramas, y todo PR | **el código** |
+| `ingest.yml` | `pg_cron` cada 15 min | captura |
+| `silence.yml` | diario 13:38Z | **el estado del mundo** |
+
+**`verify.yml` existe desde el 2026-09-15, y hasta entonces no había nada.** Los
+397 tests, el lint, el typecheck y los dos chequeos de interfaz se corrían a
+mano cada sesión: la única red era acordarse. Corre lint, typecheck de los dos
+paquetes, los dos suites, `check:docs`, `check:bundle` y `check:freshness`.
+
+**No usa secretos**, a propósito: así corre igual en un PR desde cualquier lado.
+Lo que necesita datos vivos —`check:silence`— se queda en el diario, porque mide
+el estado del mundo y no el del código.
+
+**Ningún paso puede tragar un fallo.** Nada de `continue-on-error`, `|| true` ni
+`if: always()` sobre un paso cuyo resultado es el punto. Un workflow de
+verificación que pasa en verde con algo roto es peor que no tenerlo: convierte
+"nadie revisó" en "alguien revisó y estaba bien".
+
+**`verify.yml` estrena `pnpm/action-setup@v6` a propósito.** `ingest.yml` y
+`silence.yml` siguen en `@v4`, que avisa por Node 20. v6 corre en node24 y tiene
+**inputs idénticos a v4** —comprobado contra su `action.yml`— así que el bump se
+ve seguro; el de `setup-node@v5` también se veía seguro y costó un día. Acá un
+fallo cuesta un tilde rojo; en `ingest.yml` costaría la ventana de T020. **Se
+mueve a los otros dos cuando este haya corrido verde.**
+
 ### Tests negativos
 
 **Un test negativo que solo comprueba "falló" no prueba nada.** Tiene que
@@ -1365,11 +1396,12 @@ de T029, y revisar `site_url`/`notes` del catálogo.
   de decir menos es hacer repetir trabajo ya hecho.
 
 
-- **Los secretos del repo de T002 siguen sin ponerse, pero ya hay dónde.**
-  El remoto existe: `origin` apunta a `https://github.com/Luistorodev/dolarito.git`
-  y `origin/001-dolarito` está en el commit de T002. La nota anterior de este
-  archivo decía que no había repositorio; quedó obsoleta durante la sesión del
-  2026-09-13. Falta cargar los tres secretos en el repo. **Bloquea T018.**
+- **✅ Los secretos del repo están cargados.** Esta nota decía *"siguen sin
+  ponerse"* y *"bloquea T018"*, y era falsa desde hacía días: T018 está cerrada
+  y `pg_cron` despacha el workflow cada 15 minutos con éxito. Si faltara
+  cualquiera de los cuatro secretos, cada corrida fallaría. **El sistema
+  funcionando es la prueba**, y la nota sobrevivió igual — tercer caso en dos
+  días de prosa que dejó de coincidir con el repo.
 - **El proyecto de Supabase arranca en frío.** La primera corrida del script en
   T002 devolvió `504 Gateway Timeout` en `/rest/v1/`; sin llave el mismo endpoint
   daba 401 estable, así que el gateway estaba arriba y lo que tardaba era la
