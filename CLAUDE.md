@@ -1276,18 +1276,17 @@ de punta a punta.
 de este archivo). No es una formalidad: existe para que no se diseñe interfaz
 sobre datos que todavía no se sabe cómo se comportan.
 
-**Estado al 2026-09-15T05:15Z: 46 corridas, 3.404 filas, 30,8 h de ventana.**
-8 de 8 fuentes en todas, cero fallos.
+**Estado al 2026-09-16T01:15Z: 132 corridas, 9.768 filas, 50,8 h de ventana.**
+La última con 8 de 8 fuentes y `sources_failed` vacío.
 
 | Disparador | Corridas |
 |---|---|
-| `pg_cron` | **37** |
-| `github_schedule` | 3 |
+| `pg_cron` | **117** |
+| `github_schedule` | 9 |
 | sin etiqueta (antes de la columna) | 6 |
 
-Acumula sola y a cadencia: 25 corridas en las últimas 6 h, que es `*/15`
-exacto. **El planificador de GitHub sigue en 3** — degradado, no muerto; es el
-número con el que se decide si se retira su cron (ver "SEGUIMIENTO ABIERTO").
+**`pg_cron` no se saltó un solo ciclo**: 117 corridas en los 117 ciclos de 15
+minutos de sus 29,0 h, medido ciclo por ciclo. Cero huecos.
 
 La primera lectura de los seis puntos, medida el 2026-09-14 con 3 corridas,
 sigue más abajo: es la línea base contra la que se compara el 21.
@@ -1460,10 +1459,40 @@ de T029, y revisar `site_url`/`notes` del catálogo.
   `7,22,37,52` y `pg_cron` despacha en `*/15`. Mientras convivan, `trigger_src`
   cuenta cuánto aporta cada una.
 
-  Al 2026-09-14 el planificador de GitHub llevaba **1 corrida**, contra las ~4
-  por hora que le tocarían. No está muerto: está degradado.
+  **Medido el 2026-09-16, y el número contesta la pregunta:**
 
-  **En unos días se decide si retirarlo y dejar `pg_cron` como única ruta.**
+  | | |
+  |---|---|
+  | Ciclos de 15 min con `pg_cron` en la ventana | **117** |
+  | Ciclos que `pg_cron` se saltó | **0** |
+  | Corridas de `github_schedule` | **9** |
+  | De ésas, en un ciclo que `pg_cron` **ya** había cubierto | **9 de 9** |
+  | De ésas, en un ciclo que `pg_cron` **no** cubrió | **0** |
+
+  **Nunca, ni una vez, cubrió algo.** Las 9 cayeron entre 0,7 y 13,5 minutos
+  después de una corrida de `pg_cron` del mismo ciclo, así que las ocho fuentes
+  recibieron dos visitas en menos de 15 minutos en cada una.
+
+  Y sigue igual de degradado: 9 corridas en 28,4 h contra los ~114 ciclos que le
+  tocaban, o sea **7,9 %**. Que subiera de 3 a 9 no lo mejora como respaldo —
+  un respaldo que cubre 1 de cada 13 ciclos no es un respaldo.
+
+  **El costo, en la unidad que importa (§7.1):** El Dorado recibe **32 POST por
+  corrida** — 4 métodos × 4 brackets × 2 direcciones, uno por celda, y es el
+  único proveedor con una consulta por celda. Las 9 corridas duplicadas le
+  costaron **288 POST que no compraron ni una fila nueva**, un 7,1 % de más
+  sobre los 4.032 de la ventana. Eso es exactamente lo que el Art. V.3 pide no
+  hacer: tráfico que no responde ninguna pregunta.
+
+  **El argumento de "respaldo gratis" ya no se sostiene, y es medible:** no es
+  gratis — cuesta 32 POST a El Dorado cada vez que dispara — y no es respaldo
+  — nunca cubrió un ciclo que `pg_cron` fallara, entre otras cosas porque
+  `pg_cron` no falló ninguno.
+
+  **Pendiente: la decisión es del humano.** Lo que la cambiaría es que
+  `pg_cron` empezara a saltarse ciclos; hasta entonces el conteo apunta a
+  retirar el `schedule:` de `ingest.yml` y dejar `workflow_dispatch` solo, que
+  es lo que `pg_cron` usa. Retirarlo **no** toca la ruta de `pg_cron`.
 
   ```sql
   select trigger_src, count(*), min(started_at), max(started_at)
