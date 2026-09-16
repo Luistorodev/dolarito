@@ -16,6 +16,8 @@ import {
   betterIsHigher,
   comparableAmount,
   limitReasonLabel,
+  modeHint,
+  modeLabel,
   rank,
   select,
 } from './ranking.ts';
@@ -213,24 +215,66 @@ describe('Eldorado is set aside, not quietly included', () => {
 });
 
 describe('the selector', () => {
+  // Deliberately holds a local and a remesa row at the SAME direction and
+  // bracket. The old fixture could not: its only remesa row sat at a different
+  // bracket, so the mode filter it claimed to test was never exercised — the
+  // bracket did the excluding and the test passed for the wrong reason.
   const mixed = [
-    quote({ mode: 'local', direction: 'usd_to_cop', bracket_usd: 100 }),
-    quote({ mode: 'local', direction: 'cop_to_usd', bracket_usd: 100, fixed_side: 'out' }),
-    quote({ mode: 'remesa', direction: 'usd_to_cop', bracket_usd: 500 }),
+    quote({ provider_id: 'bitso', mode: 'local', direction: 'usd_to_cop', bracket_usd: 100 }),
+    quote({ provider_id: 'wise', mode: 'remesa', direction: 'usd_to_cop', bracket_usd: 100 }),
+    quote({
+      provider_id: 'buda',
+      mode: 'local',
+      direction: 'cop_to_usd',
+      bracket_usd: 100,
+      fixed_side: 'out',
+    }),
+    quote({ provider_id: 'instarem', mode: 'remesa', direction: 'usd_to_cop', bracket_usd: 500 }),
   ];
 
-  it('filters to one mode, direction and bracket', () => {
-    const picked = select(mixed, { mode: 'local', direction: 'usd_to_cop', bracket: 100 });
-    assert.equal(picked.length, 1);
-    assert.equal(picked[0]?.mode, 'local');
+  it('filters to one direction and bracket, and keeps both modes together', () => {
+    const picked = select(mixed, { direction: 'usd_to_cop', bracket: 100 });
+    assert.equal(picked.length, 2, 'the local and the remesa row are one list now');
+    assert.deepEqual(
+      picked.map((q) => q.mode).sort(),
+      ['local', 'remesa'],
+      'merging the modes is the point: neither is filtered away',
+    );
+  });
+
+  it('still separates by direction and by bracket', () => {
+    assert.equal(select(mixed, { direction: 'cop_to_usd', bracket: 100 }).length, 1);
+    assert.equal(select(mixed, { direction: 'usd_to_cop', bracket: 500 }).length, 1);
   });
 
   it('lists only combinations the data actually has', () => {
-    // Remesa is one direction only: Wise sends dollars and delivers pesos.
-    // Offering "Compro · Remesa" would be a selector that leads nowhere.
     const available = availableSelections(mixed);
+    // usd_to_cop@100, cop_to_usd@100, usd_to_cop@500 — the two rows sharing
+    // direction and bracket collapse into one selection rather than two.
     assert.equal(available.length, 3);
-    assert.ok(!available.some((s) => s.mode === 'remesa' && s.direction === 'cop_to_usd'));
+  });
+
+  it('offers no direction the data cannot answer', () => {
+    // Remittances run one way: dollars are sent, pesos are delivered. With only
+    // remesa rows there is no "Compro dólares" to offer, and a selector leading
+    // to an empty list is worse than one option fewer.
+    const onlyRemesa = mixed.filter((q) => q.mode === 'remesa');
+    const available = availableSelections(onlyRemesa);
+    assert.ok(!available.some((s) => s.direction === 'cop_to_usd'));
+  });
+});
+
+describe('the tag that replaced the Local/Remesa selector', () => {
+  it('names what you end up holding, for every mode', () => {
+    assert.equal(modeLabel('remesa'), 'Remesa');
+    assert.equal(modeLabel('local'), 'Local');
+  });
+
+  it('carries an explanation, because a tag alone is not one', () => {
+    // Art. III.2 allows the two to share a list only if each row stays
+    // distinguishable. A label nobody understands does not distinguish them.
+    assert.match(modeHint('remesa'), /cuenta bancaria/);
+    assert.notEqual(modeHint('local'), modeHint('remesa'));
   });
 });
 

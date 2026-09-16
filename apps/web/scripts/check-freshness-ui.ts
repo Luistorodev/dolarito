@@ -78,6 +78,18 @@ const ADVERTISED_MARK = 'data-advertised="true"';
 let charged: Record<string, { gross: number; effective: number; amountOut: number }> = {};
 
 /**
+ * Which providers are remittances in a scenario.
+ *
+ * The Local/Remesa selector was removed on 2026-09-16 and all eight providers
+ * share one list. That makes the per-row tag **load-bearing**: it is the only
+ * thing left saying a remittance and an exchange are not the same product,
+ * which is the condition Art. III.2 attaches to showing them together. Lose the
+ * tag and the page quietly claims they are interchangeable — and it would still
+ * render, still typecheck, and still look fine.
+ */
+let remittances: Set<string> = new Set();
+
+/**
  * A three-day TRM window that contains today in Bogotá.
  *
  * Fixed dates do not work here: a window that ended yesterday is correctly
@@ -96,7 +108,7 @@ function row(providerId: string, minutes: number): Record<string, unknown> {
   const window = trmWindow();
   return {
     provider_id: providerId,
-    mode: 'local',
+    mode: remittances.has(providerId) ? 'remesa' : 'local',
     asset: 'usdt',
     channel: 'exchange',
     direction: 'usd_to_cop',
@@ -189,6 +201,9 @@ async function main(): Promise<void> {
     checks.push(expect('capture times are shown anyway', html.includes('hace 3 min')));
     checks.push(expect('the rate per dollar is shown', html.includes('COP por dólar')));
     checks.push(
+      expect('every provider is in one list, tagged', html.includes('data-mode="local"')),
+    );
+    checks.push(
       // When the two rates round to the same figure, printing both is noise.
       expect('no advertised rate when it matches', !html.includes(ADVERTISED_MARK)),
     );
@@ -236,6 +251,24 @@ async function main(): Promise<void> {
       // 3101 x 100 = 310.100. If this ever appears, the headline switched to
       // the advertised rate and the ranking now contradicts its own numbers.
       expect('the advertised rate never becomes the headline', !html.includes('310.100')),
+    );
+
+    // ---------------------------------------------------------------------
+    console.log('\n6. one list for both products, tagged per row (Art. III.2)');
+    ages = { bitso: 3, buda: 5, dolarapp: 8 };
+    charged = {};
+    remittances = new Set(['dolarapp']);
+    html = await render();
+    checks.push(expect('the remittance is in the same list', html.includes('data-mode="remesa"')));
+    checks.push(expect('and so is the exchange', html.includes('data-mode="local"')));
+    checks.push(
+      // The tag has to read as something, not just exist as an attribute.
+      expect('the tag says Remesa in words', html.includes('>Remesa<')),
+    );
+    checks.push(
+      // There is no Local/Remesa control any more; if one comes back, this
+      // scenario is the wrong shape and should be revisited rather than patched.
+      expect('no mode selector remains', !html.includes('name="modo"')),
     );
   } finally {
     stub.close();

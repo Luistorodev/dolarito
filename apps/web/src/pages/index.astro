@@ -21,13 +21,32 @@
  * The narrow case is the default in the markup, so with no JavaScript the page
  * still shows a working ranking.
  *
+ * ## One list, not two (2026-09-16)
+ *
+ * There used to be a Local/Remesa selector, and its cost was that **three of
+ * the eight providers were invisible**: the control said "Local | Remesa" and
+ * nothing on the page said Wise was behind the second one. Somebody who did not
+ * already know Wise is a remittance service had no reason to press it.
+ *
+ * Art. III.2 allows the merge and names its price: *"Pueden verse juntos, pero
+ * cada fila declara su `asset` y su `channel` de forma visible."* So every row
+ * now carries a mode tag as well. **Removing the control does not remove the
+ * distinction it carried** — it moves into the row.
+ *
+ * What this costs, said plainly rather than discovered later: a remittance and
+ * an exchange are not the same product, and now they sit in one ordered list.
+ * The order is still Art. III.1's — most pesos received, or fewest paid — which
+ * is a fair question to ask of both. The tag is what stops the list from
+ * implying they are interchangeable.
+ *
  * ## What the 2026-09-16 restyle did NOT touch
  *
- * The three controls kept their structure and their weight relative to each
- * other. **How prominent the amount selector is, is decision #2 of the T020
- * barrier** (`BracketEmphasis`), so featuring it here would have taken that
- * decision by accident — which is the exact failure working rule 4 exists to
- * prevent. Restyling all three consistently is not choosing between them.
+ * The remaining controls kept their structure and their weight relative to
+ * each other. **How prominent the amount selector is, is decision #2 of the
+ * T020 barrier** (`BracketEmphasis`), so featuring it here would have taken
+ * that decision by accident — which is the exact failure working rule 4 exists
+ * to prevent. Restyling them alike is not choosing between them, and neither is
+ * removing a third control that was about something else entirely.
  */
 import AvisoFrescura from '../components/AvisoFrescura.astro';
 import BloqueTrm from '../components/BloqueTrm.astro';
@@ -58,22 +77,15 @@ const trmSource = quotes.find((q) => q.trm !== null);
 const ELDORADO_POLICY = undefined;
 
 const selections = availableSelections(quotes);
-const modes = [...new Set(selections.map((s) => s.mode))];
 const directions = [...new Set(selections.map((s) => s.direction))];
 const brackets = [...new Set(selections.map((s) => s.bracket))].sort((a, b) => a - b);
 
 const defaults = {
-  mode: (modes.includes('local') ? 'local' : modes[0]) as LatestQuote['mode'],
   direction: 'usd_to_cop' as LatestQuote['direction'],
   bracket: brackets.includes(100) ? 100 : (brackets[0] ?? 100),
 };
 
-const MODE_LABEL: Record<LatestQuote['mode'], string> = {
-  local: 'Local',
-  remesa: 'Remesa',
-};
-
-/** One look for all three groups, so none of them claims more weight. */
+/** One look for both groups, so neither claims more weight. */
 const GROUP = 'border-border bg-card flex gap-0.5 rounded-lg border p-0.5 shadow-xs';
 const OPTION =
   'block cursor-pointer rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors peer-checked:bg-accent peer-checked:text-accent-foreground peer-checked:font-semibold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-ring hover:text-foreground';
@@ -138,22 +150,6 @@ const OPTION =
           id="selector"
           aria-label="Qué comparar"
         >
-          <fieldset class={`m-0 ${GROUP}`}>
-            <legend class="sr-only">Modo</legend>
-            {modes.map((mode) => (
-              <label class="relative flex">
-                <input
-                  type="radio"
-                  name="modo"
-                  value={mode}
-                  checked={mode === defaults.mode}
-                  class="peer absolute inset-0 cursor-pointer opacity-0"
-                />
-                <span class={OPTION}>{MODE_LABEL[mode]}</span>
-              </label>
-            ))}
-          </fieldset>
-
           <fieldset class={`m-0 lg:hidden ${GROUP}`}>
             <legend class="sr-only">Dirección</legend>
             {directions.map((direction) => (
@@ -191,12 +187,9 @@ const OPTION =
           {selections.map((selection) => (
             <div
               class="panel"
-              data-modo={selection.mode}
               data-dir={selection.direction}
               data-monto={String(selection.bracket)}
-              hidden={
-                selection.mode !== defaults.mode || selection.bracket !== defaults.bracket
-              }
+              hidden={selection.bracket !== defaults.bracket}
               data-dir-oculta={selection.direction !== defaults.direction ? '' : undefined}
             >
               <Ranking
@@ -229,13 +222,12 @@ const OPTION =
   if (form && tablero) {
     const apply = (): void => {
       const data = new FormData(form);
-      const modo = String(data.get('modo'));
       const direccion = String(data.get('direccion'));
       const monto = String(data.get('monto'));
 
       for (const panel of tablero.querySelectorAll<HTMLElement>('.panel')) {
-        // Mode and amount hide the panel outright, at any width.
-        panel.hidden = panel.dataset['modo'] !== modo || panel.dataset['monto'] !== monto;
+        // The amount hides the panel outright, at any width.
+        panel.hidden = panel.dataset['monto'] !== monto;
 
         // Direction only hides it on a narrow screen. A media query lets the
         // other one back in when there is room for both, so the decision of

@@ -1,6 +1,10 @@
 ---
 /**
- * One ranking: a mode, a direction and a bracket (T025, partial).
+ * One ranking: a direction and a bracket (T025, partial).
+ *
+ * **Not a mode.** Local and Remesa shared one list from 2026-09-16; each row
+ * carries a mode tag instead, which is what Art. III.2 requires of a list that
+ * mixes products.
  *
  * Order comes from `rank()`, which follows Art. III.1. Nothing here sorts.
  *
@@ -36,6 +40,8 @@ import {
   channelLabel,
   directionLabel,
   limitReasonLabel,
+  modeHint,
+  modeLabel,
   rank,
   UNDECIDED_PROVIDER,
 } from '../lib/ranking.ts';
@@ -182,10 +188,24 @@ const rate = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
                     {quote.payment_method}
                   </span>
                 )}
-                {/* T025: every row declares its asset. Somebody comparing a
-                    bank transfer against USDT should see that it is USDT. */}
-                <span class="text-faint text-xs">
-                  {assetLabel(quote.asset)} · {channelLabel(quote.channel)}
+                {/* Art. III.2: every row declares what it is, because the list
+                    mixes products. The mode tag is what the Local/Remesa
+                    selector used to say — removing the control moved the
+                    distinction here, it did not delete it. Asset and channel
+                    were already required by T025: somebody comparing a bank
+                    transfer against USDT should see that it is USDT. */}
+                <span class="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant={quote.mode === 'remesa' ? 'outline' : 'secondary'}
+                    class="px-1.5 py-0 text-[0.7rem] font-medium"
+                    data-mode={quote.mode}
+                    title={modeHint(quote.mode)}
+                  >
+                    {modeLabel(quote.mode)}
+                  </Badge>
+                  <span class="text-faint text-xs">
+                    {assetLabel(quote.asset)} · {channelLabel(quote.channel)}
+                  </span>
                 </span>
               </span>
 

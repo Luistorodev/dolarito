@@ -113,18 +113,32 @@ export function rank(
   return { rows, outOfRange, deferred };
 }
 
+/**
+ * What a ranking is scoped to.
+ *
+ * **`mode` is deliberately not part of it, since 2026-09-16.** Local and Remesa
+ * used to be two separate rankings behind a selector, and the cost was that
+ * three of the eight providers were invisible unless you knew to look for them
+ * — the selector said "Local | Remesa" and nothing said Wise was behind the
+ * second one.
+ *
+ * Art. III.2 permits the merge and sets its price: *"Pueden verse juntos, pero
+ * cada fila declara su `asset` y su `channel` de forma visible."* So every row
+ * carries its asset, its channel and now its mode as well. **Removing the
+ * selector must not remove the distinction it carried** — it moves into the
+ * row, it does not disappear.
+ *
+ * Art. III.3 is unaffected: the comparison is still at a declared fixed amount.
+ * What changed is which offers are in the same list, not what is being compared.
+ */
 export type Selection = {
-  mode: LatestQuote['mode'];
   direction: LatestQuote['direction'];
   bracket: number;
 };
 
 export function select(quotes: readonly LatestQuote[], selection: Selection): LatestQuote[] {
   return quotes.filter(
-    (quote) =>
-      quote.mode === selection.mode &&
-      quote.direction === selection.direction &&
-      quote.bracket_usd === selection.bracket,
+    (quote) => quote.direction === selection.direction && quote.bracket_usd === selection.bracket,
   );
 }
 
@@ -132,10 +146,9 @@ export function select(quotes: readonly LatestQuote[], selection: Selection): La
 export function availableSelections(quotes: readonly LatestQuote[]): Selection[] {
   const seen = new Map<string, Selection>();
   for (const quote of quotes) {
-    const key = `${quote.mode}|${quote.direction}|${quote.bracket_usd}`;
+    const key = `${quote.direction}|${quote.bracket_usd}`;
     if (!seen.has(key)) {
       seen.set(key, {
-        mode: quote.mode,
         direction: quote.direction,
         bracket: quote.bracket_usd,
       });
@@ -147,6 +160,27 @@ export function availableSelections(quotes: readonly LatestQuote[]): Selection[]
 /** What the person hands over and receives, said in words rather than in a code. */
 export function directionLabel(direction: LatestQuote['direction']): string {
   return direction === 'usd_to_cop' ? 'Vendo dólares' : 'Compro dólares';
+}
+
+/**
+ * The tag that replaced the Local/Remesa selector.
+ *
+ * It says what you end up holding, not what the category is called internally,
+ * because "Local" and "Remesa" only mean something to us. A remittance puts
+ * pesos in a Colombian bank account; the local providers hand you a stablecoin
+ * balance or a fintech balance. Those are different products that happen to be
+ * comparable at a fixed amount, and the tag is what keeps them distinguishable
+ * now that they share one list (Art. III.2).
+ */
+export function modeLabel(mode: LatestQuote['mode']): string {
+  return mode === 'remesa' ? 'Remesa' : 'Local';
+}
+
+/** The longer form, for the tag's tooltip: the tag alone is not an explanation. */
+export function modeHint(mode: LatestQuote['mode']): string {
+  return mode === 'remesa'
+    ? 'Giro internacional: los pesos llegan a una cuenta bancaria en Colombia.'
+    : 'Comprás o vendés dentro de Colombia y quedás con el saldo en la plataforma.';
 }
 
 /**
