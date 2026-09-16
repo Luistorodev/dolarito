@@ -20,6 +20,14 @@
  *
  * The narrow case is the default in the markup, so with no JavaScript the page
  * still shows a working ranking.
+ *
+ * ## What the 2026-09-16 restyle did NOT touch
+ *
+ * The three controls kept their structure and their weight relative to each
+ * other. **How prominent the amount selector is, is decision #2 of the T020
+ * barrier** (`BracketEmphasis`), so featuring it here would have taken that
+ * decision by accident — which is the exact failure working rule 4 exists to
+ * prevent. Restyling all three consistently is not choosing between them.
  */
 import AvisoFrescura from '../components/AvisoFrescura.astro';
 import BloqueTrm from '../components/BloqueTrm.astro';
@@ -64,15 +72,26 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
   local: 'Local',
   remesa: 'Remesa',
 };
+
+/** One look for all three groups, so none of them claims more weight. */
+const GROUP = 'border-border bg-card flex gap-0.5 rounded-lg border p-0.5 shadow-xs';
+const OPTION =
+  'block cursor-pointer rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors peer-checked:bg-accent peer-checked:text-accent-foreground peer-checked:font-semibold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-ring hover:text-foreground';
 ---
 
 <Base
   title="Dolarito"
   description="Comparador de precios de compra y venta de dólares para Colombia."
 >
-  <header class="cabecera">
-    <h1>Dolarito</h1>
-    <p class="muted">
+  <header class="mb-6">
+    <div class="flex items-baseline gap-2">
+      <h1 class="m-0 text-2xl font-bold tracking-tight sm:text-3xl">Dolarito</h1>
+      <span aria-hidden="true" class="bg-primary/70 h-1.5 w-1.5 shrink-0 rounded-full"></span>
+      <span class="text-faint text-xs font-medium tracking-wide uppercase">
+        USD · COP
+      </span>
+    </div>
+    <p class="text-muted-foreground m-0 mt-2 max-w-measure text-sm">
       Cuántos pesos recibís por tus dólares, y cuántos te cuesta comprarlos.
       Comparado a monto fijo, entre ocho proveedores.
     </p>
@@ -80,10 +99,13 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
 
   {
     result.kind === 'failed' && (
-      <section class="aviso" role="alert">
-        <h2>No se pudieron leer los precios</h2>
-        <p class="muted">{result.reason}</p>
-        <p class="faint">
+      <section
+        role="alert"
+        class="border-border-strong bg-warn-soft rounded-lg border p-4"
+      >
+        <h2 class="m-0 mb-2 text-base font-semibold">No se pudieron leer los precios</h2>
+        <p class="text-muted-foreground m-0 text-sm">{result.reason}</p>
+        <p class="text-faint m-0 mt-2 text-xs">
           La captura sigue corriendo cada 15 minutos: esto es un problema de
           lectura, no de datos.
         </p>
@@ -93,9 +115,11 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
 
   {
     result.kind === 'empty' && (
-      <section class="aviso">
-        <h2>No hay precios de las últimas 24 horas</h2>
-        <p class="faint">
+      <section class="border-border-strong bg-warn-soft rounded-lg border p-4">
+        <h2 class="m-0 mb-2 text-base font-semibold">
+          No hay precios de las últimas 24 horas
+        </h2>
+        <p class="text-faint m-0 text-xs">
           La vista solo muestra capturas recientes. Si esto persiste, algo dejó
           de capturar.
         </p>
@@ -109,54 +133,61 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
         <BloqueTrm source={trmSource} now={now} />
         <AvisoFrescura freshness={freshness} missing={missing} />
 
-        <form class="selector" id="selector" aria-label="Qué comparar">
-          <fieldset>
+        <form
+          class="my-6 flex flex-wrap gap-3"
+          id="selector"
+          aria-label="Qué comparar"
+        >
+          <fieldset class={`m-0 ${GROUP}`}>
             <legend class="sr-only">Modo</legend>
             {modes.map((mode) => (
-              <label>
+              <label class="relative flex">
                 <input
                   type="radio"
                   name="modo"
                   value={mode}
                   checked={mode === defaults.mode}
+                  class="peer absolute inset-0 cursor-pointer opacity-0"
                 />
-                <span>{MODE_LABEL[mode]}</span>
+                <span class={OPTION}>{MODE_LABEL[mode]}</span>
               </label>
             ))}
           </fieldset>
 
-          <fieldset class="solo-angosto">
+          <fieldset class={`m-0 lg:hidden ${GROUP}`}>
             <legend class="sr-only">Dirección</legend>
             {directions.map((direction) => (
-              <label>
+              <label class="relative flex">
                 <input
                   type="radio"
                   name="direccion"
                   value={direction}
                   checked={direction === defaults.direction}
+                  class="peer absolute inset-0 cursor-pointer opacity-0"
                 />
-                <span>{directionLabel(direction)}</span>
+                <span class={OPTION}>{directionLabel(direction)}</span>
               </label>
             ))}
           </fieldset>
 
-          <fieldset>
+          <fieldset class={`m-0 ${GROUP}`}>
             <legend class="sr-only">Monto</legend>
             {brackets.map((bracket) => (
-              <label>
+              <label class="relative flex">
                 <input
                   type="radio"
                   name="monto"
                   value={bracket}
                   checked={bracket === defaults.bracket}
+                  class="peer absolute inset-0 cursor-pointer opacity-0"
                 />
-                <span>{bracket} USD</span>
+                <span class={`amount ${OPTION}`}>{bracket} USD</span>
               </label>
             ))}
           </fieldset>
         </form>
 
-        <div class="tablero" id="tablero">
+        <div class="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-10" id="tablero">
           {selections.map((selection) => (
             <div
               class="panel"
@@ -179,7 +210,7 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
           ))}
         </div>
 
-        <p class="faint nota">
+        <p class="text-faint border-border mt-8 border-t pt-4 text-xs">
           Cómo se muestra El Dorado —el único con varios métodos de pago— se
           decide el {DECIDE_ON}, con una semana de datos medidos. Hasta entonces
           sus precios se ven aparte y no entran en el orden.
@@ -221,98 +252,21 @@ const MODE_LABEL: Record<LatestQuote['mode'], string> = {
 </script>
 
 <style>
-  .cabecera {
-    margin-bottom: var(--space-5);
-  }
+  /* Narrow: one direction at a time, chosen by the selector.
+     Wide: both side by side, and the direction selector goes away because
+     there is nothing left for it to choose.
 
-  .aviso {
-    padding: var(--space-4);
-    border: 1px solid var(--c-border-strong);
-    border-radius: var(--radius);
-    background: var(--c-warn-soft);
-  }
-
-  .selector {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin-block: var(--space-5);
-  }
-
-  .selector fieldset {
-    display: flex;
-    gap: 2px;
-    margin: 0;
-    padding: 2px;
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius);
-    background: var(--c-surface);
-  }
-
-  .selector label {
-    position: relative;
-  }
-
-  .selector input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .selector span {
-    display: block;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    color: var(--c-text-soft);
-    font-size: var(--size-sm);
-    white-space: nowrap;
-  }
-
-  .selector input:checked + span {
-    background: var(--c-accent-soft);
-    color: var(--c-accent);
-    font-weight: 600;
-  }
-
-  .selector input:focus-visible + span {
-    outline: 2px solid var(--c-accent);
-    outline-offset: 1px;
-  }
-
-  .tablero {
-    display: grid;
-    gap: var(--space-6);
-  }
-
-  /* Narrow: one direction at a time, chosen by the selector. */
+     This stays a media query rather than a `matchMedia` check in the script
+     above on purpose: if the decision of "one ranking or two" lived in both,
+     the two could disagree. The script only marks the attribute; the
+     stylesheet decides whether the attribute hides anything. */
   .panel[data-dir-oculta] {
     display: none;
   }
 
-  @media (min-width: 62rem) {
-    /* Wide: both directions side by side, and the direction selector goes
-       away because there is nothing left for it to choose. This is the fix for
-       the desktop layout — the page used to be a narrow column against the
-       left edge with half the screen empty. */
+  @media (min-width: 64rem) {
     .panel[data-dir-oculta] {
       display: block;
     }
-
-    .solo-angosto {
-      display: none;
-    }
-
-    .tablero {
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-8);
-      align-items: start;
-    }
-  }
-
-  .nota {
-    margin-top: var(--space-6);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--c-border);
   }
 </style>

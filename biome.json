@@ -13,7 +13,8 @@
       "!**/.astro",
       "!**/.vercel",
       "!**/fixtures",
-      "!**/*.astro"
+      "!**/*.astro",
+      "!apps/web/src/styles/*.css"
     ]
   },
   "formatter": {

@@ -32,19 +32,28 @@ const WEB_PORT = 4402;
 const PASSWORD = 'clave-de-verificacion';
 
 /**
- * The rendered mark, not the word.
+ * The rendered mark, as a contract rather than as a class name.
  *
- * `desactualizado` also appears inside the page's inlined <style>, as the
- * content of a ::before rule, so searching for the word matches a healthy page
- * too. The class on the element is what actually distinguishes them — and this
- * check failed the first time for exactly that reason.
+ * Two attempts got this wrong before it got it right, and both are worth
+ * keeping written down because they are opposite failures:
  *
- * It is coupled to a class name, which is the price of checking rendered
- * output: T025 renamed the row markup and this went red before the page did
- * anything wrong. That is the check doing its job loudly rather than quietly
- * matching nothing.
+ *  1. **Searching for the word `desactualizado`** matched a healthy page too,
+ *     because the word also sat inside the inlined <style> as the content of a
+ *     ::before rule. A check that matches everything reports nothing.
+ *  2. **Searching for the class `edad vieja`** worked, right up until the
+ *     styling changed. It went red on 2026-09-16 when the ranking moved to
+ *     utility classes and the row stopped being called that — the page was
+ *     correct and the check was wrong. That is the check doing its job loudly
+ *     rather than quietly matching nothing, but it is still a false red, and a
+ *     false red teaches people to ignore the alarm.
+ *
+ * So the hook is now a `data-` attribute the component sets on purpose. A
+ * class name is a styling decision and will change again; `data-stale` is a
+ * statement about the row that only changes when the meaning does. It is
+ * rendered only when the row is actually stale, so the negative case — "no
+ * stale mark on a healthy page" — stays just as strong.
  */
-const STALE_MARK = 'edad vieja';
+const STALE_MARK = 'data-stale="true"';
 
 /** Minutes of age per provider, swapped between scenarios. */
 let ages: Record<string, number> = {};

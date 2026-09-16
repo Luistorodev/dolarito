@@ -3,7 +3,30 @@
  * One ranking: a mode, a direction and a bracket (T025, partial).
  *
  * Order comes from `rank()`, which follows Art. III.1. Nothing here sorts.
+ *
+ * ## What the 2026-09-16 redesign changed, and what it deliberately did not
+ *
+ * Changed: the amount is now the loudest thing on the row, at a size the eye
+ * lands on first. That is the identity of this product — the numbers are the
+ * brand, set in tabular mono so two rows line up and can be compared without
+ * being read. The leader gets a surface of its own instead of a thin rule.
+ *
+ * **Not changed: anything the T020 barrier reserves.** The bracket control's
+ * prominence is decision #2 (`BracketEmphasis`), El Dorado's representation is
+ * #1, and the Binance cross is #3. Restyling a control is not deciding it, so
+ * the selectors kept their structure and their weight relative to each other.
+ *
+ * Still true from before, and re-checked rather than assumed:
+ *  - **No colour by price.** A ranking that paints rows cheap-green and
+ *    expensive-red tells the reader what to think before they read the number.
+ *    The leader is marked by size, weight and a surface — three things that
+ *    survive a screenshot and a colour-blind reader; colour alone survives
+ *    neither.
+ *  - **The margin stays quiet.** The amount is what the person receives or
+ *    pays; the margin is context for it. Equal weight would invite ranking by
+ *    the wrong one.
  */
+import { Badge } from '@/components/ui/badge';
 import { providerName } from '../lib/catalogue.ts';
 import { ageLabel, minutesSince, STALE_MINUTES } from '../lib/freshness.ts';
 import type { EldoradoPolicy } from '../lib/pending.ts';
@@ -50,67 +73,115 @@ const pct = new Intl.NumberFormat('es-CO', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
+
+const receives = direction === 'usd_to_cop';
 ---
 
-<article class="ranking">
-  <header>
-    <h3>
-      {directionLabel(direction)}
-      <span class="monto">{cop.format(bracket)} USD</span>
-    </h3>
-    <p class="faint criterio">
-      Ordenado por {direction === 'usd_to_cop' ? 'lo que recibís' : 'lo que pagás'}, no
-      por la tasa anunciada.
+<article class="min-w-0">
+  <header class="mb-4">
+    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      <h3 class="m-0 text-lg font-semibold tracking-tight">{directionLabel(direction)}</h3>
+      <span class="amount text-muted-foreground text-sm font-medium">
+        {cop.format(bracket)} USD
+      </span>
+    </div>
+    <p class="text-faint m-0 mt-1 text-xs">
+      Ordenado por {receives ? 'lo que recibís' : 'lo que pagás'}, no por la tasa
+      anunciada.
     </p>
   </header>
 
   {
     rows.length === 0 && outOfRange.length === 0 && deferred.length === 0 && (
-      <p class="muted">Sin datos para este monto.</p>
+      <p class="text-muted-foreground text-sm">Sin datos para este monto.</p>
     )
   }
 
   {
     rows.length > 0 && (
-      <ol class="filas">
+      <ol class="m-0 list-none space-y-1 p-0">
         {rows.map(({ quote, position, behindBy }) => {
           const age = minutesSince(quote.captured_at, now);
           const stale = age > STALE_MINUTES;
           const amount = quote.fixed_side === 'in' ? quote.amount_out : quote.amount_in;
+          const leader = position === 1;
           return (
-            <li class={position === 1 ? 'fila lider' : 'fila'}>
-              <span class="pos">{position}</span>
-              <span class="quien">
-                <strong>
-                  <a href={`/proveedores/${quote.provider_id}`}>
-                    {providerName(quote.provider_id)}
-                  </a>
-                </strong>
+            <li
+              class:list={[
+                'grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-x-3 gap-y-1 rounded-lg px-2 py-3 transition-colors',
+                leader
+                  ? 'bg-accent ring-primary/25 -mx-2 shadow-xs ring-1'
+                  : 'border-border border-b',
+              ]}
+              data-stale={stale ? 'true' : undefined}
+            >
+              <span
+                class:list={[
+                  'amount text-xs',
+                  leader ? 'text-primary font-bold' : 'text-faint',
+                ]}
+              >
+                {position}
+              </span>
+
+              <span class="flex min-w-0 flex-col gap-0.5">
+                <a
+                  href={`/proveedores/${quote.provider_id}`}
+                  class:list={[
+                    'truncate no-underline hover:underline',
+                    leader ? 'text-foreground font-semibold' : 'text-foreground font-medium',
+                  ]}
+                >
+                  {providerName(quote.provider_id)}
+                </a>
                 {quote.payment_method !== null && (
-                  <span class="faint"> · {quote.payment_method}</span>
+                  <span class="text-muted-foreground truncate text-xs">
+                    {quote.payment_method}
+                  </span>
                 )}
                 {/* T025: every row declares its asset. Somebody comparing a
                     bank transfer against USDT should see that it is USDT. */}
-                <span class="faint tipo">
+                <span class="text-faint text-xs">
                   {assetLabel(quote.asset)} · {channelLabel(quote.channel)}
                 </span>
               </span>
-              <span class="cuanto">
-                <span class="amount">{amount === null ? '—' : cop.format(amount)}</span>
-                <span class="faint moneda">COP</span>
+
+              <span class="flex flex-col items-end gap-0.5 text-right">
+                <span class="flex items-baseline gap-1">
+                  <span
+                    class:list={[
+                      'amount font-semibold tracking-tight',
+                      leader ? 'text-2xl' : 'text-lg',
+                    ]}
+                  >
+                    {amount === null ? '—' : cop.format(amount)}
+                  </span>
+                  <span class="text-faint text-xs">COP</span>
+                </span>
                 {behindBy > 0 && (
-                  <span class="faint diferencia">
-                    {direction === 'usd_to_cop' ? '−' : '+'}
+                  <span class="text-faint amount text-xs">
+                    {receives ? '−' : '+'}
                     {cop.format(behindBy)}
                   </span>
                 )}
                 {quote.markup_vs_mid !== null && (
-                  <span class="faint margen">
+                  <span class="text-faint text-xs whitespace-nowrap">
                     {pct.format(quote.markup_vs_mid)} sobre el mercado
                   </span>
                 )}
               </span>
-              <span class={stale ? 'edad vieja' : 'edad'}>{ageLabel(age)}</span>
+
+              <span class="col-start-2 col-end-[-1] flex items-center gap-2">
+                {stale ? (
+                  <Badge
+                    variant="outline"
+                    class="border-warn/40 bg-warn-soft text-warn gap-1 px-1.5 py-0 text-[0.7rem] font-semibold"
+                  >
+                    desactualizado
+                  </Badge>
+                ) : null}
+                <span class="text-faint text-xs">{ageLabel(age)}</span>
+              </span>
             </li>
           );
         })}
@@ -120,13 +191,13 @@ const pct = new Intl.NumberFormat('es-CO', {
 
   {
     outOfRange.length > 0 && (
-      <div class="fuera">
-        <h4 class="faint">No disponibles a este monto</h4>
-        <ul>
+      <div class="border-border mt-4 border-t pt-3">
+        <h4 class="text-faint m-0 mb-1 text-xs font-medium">No disponibles a este monto</h4>
+        <ul class="m-0 list-none space-y-0.5 p-0 text-sm">
           {outOfRange.map((quote) => (
-            <li>
-              <strong>{providerName(quote.provider_id)}</strong>
-              <span class="faint"> · {limitReasonLabel(quote.limit_reason)}</span>
+            <li class="flex flex-wrap items-baseline gap-x-2">
+              <span class="font-medium">{providerName(quote.provider_id)}</span>
+              <span class="text-faint text-xs">{limitReasonLabel(quote.limit_reason)}</span>
             </li>
           ))}
         </ul>
@@ -136,23 +207,25 @@ const pct = new Intl.NumberFormat('es-CO', {
 
   {
     deferred.length > 0 && (
-      <div class="pendiente">
-        <h4>
+      <div class="border-border-strong mt-4 rounded-lg border border-dashed p-3">
+        <h4 class="m-0 mb-2 text-sm font-semibold">
           {providerName(UNDECIDED_PROVIDER)}: {deferred.length} precios, sin comparar
           todavía
         </h4>
-        <ul>
+        <ul class="m-0 mb-2 list-none space-y-0.5 p-0 text-sm">
           {deferred.map((quote) => {
             const amount = quote.fixed_side === 'in' ? quote.amount_out : quote.amount_in;
             return (
-              <li>
-                <span class="faint">{quote.payment_method}</span>
-                <span class="amount">{amount === null ? '—' : cop.format(amount)}</span>
+              <li class="flex justify-between gap-3 py-0.5">
+                <span class="text-muted-foreground truncate">{quote.payment_method}</span>
+                <span class="amount font-medium">
+                  {amount === null ? '—' : cop.format(amount)}
+                </span>
               </li>
             );
           })}
         </ul>
-        <p class="faint">
+        <p class="text-faint m-0 text-xs">
           Es el único proveedor que cotiza varios métodos de pago. Compararlo por
           su mejor método contra proveedores que tienen uno solo lo favorecería,
           así que cómo se muestra está sin decidir y sus precios quedan fuera del
@@ -162,145 +235,3 @@ const pct = new Intl.NumberFormat('es-CO', {
     )
   }
 </article>
-
-<style>
-  .ranking {
-    min-width: 0;
-  }
-
-  .ranking h3 {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-2);
-    margin-bottom: var(--space-1);
-  }
-
-  .monto {
-    color: var(--c-text-soft);
-    font-size: var(--size-sm);
-    font-weight: 500;
-  }
-
-  .criterio {
-    margin-bottom: var(--space-3);
-  }
-
-  .filas {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    counter-reset: none;
-  }
-
-  .fila {
-    display: grid;
-    grid-template-columns: 1.5rem 1fr auto;
-    gap: var(--space-1) var(--space-3);
-    align-items: baseline;
-    padding-block: var(--space-3);
-    border-bottom: 1px solid var(--c-border);
-  }
-
-  /* The leader is marked by weight and a rule, not by colour alone: colour is
-     invisible to a good share of readers and does not survive a screenshot. */
-  .lider {
-    border-left: 3px solid var(--c-accent);
-    margin-left: calc(var(--space-2) * -1);
-    padding-left: var(--space-2);
-  }
-
-  .pos {
-    color: var(--c-text-faint);
-    font-size: var(--size-sm);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .quien {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .tipo {
-    font-size: var(--size-xs);
-  }
-
-  .cuanto {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-  }
-
-  .cuanto .amount {
-    font-size: var(--size-lg);
-    font-weight: 600;
-  }
-
-  .moneda,
-  .diferencia,
-  .margen {
-    font-size: var(--size-xs);
-  }
-
-  /* The margin is deliberately quiet next to the amount. The amount is what
-     the person receives or pays; the margin is context for it, and giving them
-     the same weight would invite ranking by the wrong one. */
-  .margen {
-    white-space: nowrap;
-  }
-
-  .edad {
-    grid-column: 2 / -1;
-    color: var(--c-text-faint);
-    font-size: var(--size-xs);
-  }
-
-  .edad.vieja {
-    color: var(--c-warn);
-    font-weight: 600;
-  }
-
-  .edad.vieja::before {
-    content: 'desactualizado · ';
-  }
-
-  .fuera,
-  .pendiente {
-    margin-top: var(--space-4);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--c-border);
-  }
-
-  .fuera ul,
-  .pendiente ul {
-    margin: 0 0 var(--space-2);
-    padding: 0;
-    list-style: none;
-    font-size: var(--size-sm);
-  }
-
-  .pendiente {
-    padding: var(--space-3);
-    border: 1px dashed var(--c-border-strong);
-    border-radius: var(--radius);
-  }
-
-  .pendiente h4 {
-    margin-bottom: var(--space-2);
-    font-size: var(--size-sm);
-  }
-
-  .pendiente li {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding-block: 2px;
-  }
-
-  .pendiente p {
-    margin: var(--space-2) 0 0;
-  }
-</style>

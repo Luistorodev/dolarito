@@ -1,5 +1,7 @@
 // @ts-check
+
 import vercel from '@astrojs/vercel';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 
 // Server output, not static.
@@ -22,6 +24,9 @@ export default defineConfig({
   adapter: vercel(),
   // The interface is in Spanish (CLAUDE.md); the code is not.
   site: 'https://dolarito.example',
+  // Tailwind v4 has no config file: it is a Vite plugin plus an @theme block
+  // in global.css. The design tokens live there, not here.
+  vite: { plugins: [tailwindcss()] },
   build: {
     // Keep the server entry out of the client graph by default.
     inlineStylesheets: 'auto',

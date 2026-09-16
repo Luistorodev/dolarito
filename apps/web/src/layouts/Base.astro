@@ -6,8 +6,9 @@
  * the rankings (T025), freshness (T026) — arrives as a component inside the
  * slot, so none of it is wired into the shell before it is measured.
  */
-import '../styles/tokens.css';
-import '../styles/base.css';
+// One stylesheet, and it owns every token. Tailwind v4 has no config file:
+// the theme is the @theme block in here (2026-09-16).
+import '../styles/global.css';
 
 interface Props {
   title: string;

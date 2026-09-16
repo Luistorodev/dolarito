@@ -3,7 +3,9 @@
   "compilerOptions": {
     "noEmit": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["astro/client"]
+    "types": ["astro/client"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": [".astro/types.d.ts", "src/**/*", "astro.config.mjs"],
   "exclude": ["dist", "node_modules", ".vercel"]

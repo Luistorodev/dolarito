@@ -1,0 +1,305 @@
+/*
+ * Tailwind v4 + bejamas/ui, on our tokens.
+ *
+ * ## What this file is, and what it is not
+ *
+ * It is NOT the palette bejamas ships. `bejamas init` writes a `stone` scale in
+ * oklch, a webfont, and a `.dark` class variant. All three were replaced here,
+ * on purpose, and the reasons are below. **Our tokens are the source; the
+ * shadcn names are the interface the copied components consume.** If the two
+ * ever disagree, this file is what decides.
+ *
+ * The values come straight from `tokens.css` (T021), which stays as the single
+ * place a colour is chosen. Two definitions of one colour drift — the same
+ * reason `computeAmounts()` is the only place money is derived.
+ *
+ * ## Three deliberate departures from what bejamas generated
+ *
+ * 1. **No webfont.** `init` installs `@fontsource-variable/inter` and sets it
+ *    as the family. That contradicts a measured decision: a system stack means
+ *    no font round-trip on a phone connection and no layout shift while it
+ *    loads. It is 49 KB that buys nothing the product needs. Not installed.
+ *
+ * 2. **Dark mode follows the device, not a class.** bejamas writes
+ *    `@custom-variant dark (&:is(.dark *))`, which needs a toggle and a script.
+ *    We decided the interface follows the OS: no toggle in v1, because it is
+ *    one more control to explain on a screen whose job is to compare four
+ *    numbers. The variant below is the media query instead, so `dark:`
+ *    utilities and the variables agree.
+ *
+ * 3. **`destructive` is amber, not red.** There is no destructive action on
+ *    this site — nothing is deleted — so the slot is only ever a warning. Red
+ *    is kept out of the palette entirely on purpose: a ranking that colours
+ *    rows by price tells the reader what to think before they have read the
+ *    number. State may be coloured; judgement may not.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./bejamas-variants.css";
+
+/* The device decides. See departure 2 above. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/*
+ * The names the copied components reference. Every one resolves to a token
+ * below, so a component never names a colour of its own.
+ */
+@theme inline {
+  --color-background: var(--c-bg);
+  --color-foreground: var(--c-text);
+
+  --color-card: var(--c-surface);
+  --color-card-foreground: var(--c-text);
+  --color-popover: var(--c-surface);
+  --color-popover-foreground: var(--c-text);
+
+  --color-primary: var(--c-accent);
+  --color-primary-foreground: var(--c-on-accent);
+  --color-secondary: var(--c-subtle);
+  --color-secondary-foreground: var(--c-text);
+
+  --color-muted: var(--c-subtle);
+  --color-muted-foreground: var(--c-text-soft);
+  --color-accent: var(--c-accent-soft);
+  --color-accent-foreground: var(--c-accent);
+
+  --color-destructive: var(--c-warn);
+  --color-border: var(--c-border);
+  --color-input: var(--c-border-strong);
+  --color-ring: var(--c-accent);
+
+  /* Ours, not shadcn's: the stale mark and anything else that reports state. */
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-faint: var(--c-text-faint);
+
+  --font-sans: var(--font-stack-sans);
+  --font-mono: var(--font-stack-mono);
+  --font-heading: var(--font-stack-sans);
+
+  /* A ranking row is provider + amount + difference. Wider than `measure` and
+     the eye stops being able to compare two rows without moving. `page` holds
+     two rankings side by side, which is what the desktop layout needs. */
+  --container-measure: 34rem;
+  --container-page: 72rem;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  /* Neutral ground. The product compares prices; the numbers carry the
+     colour, not the furniture. */
+  --c-bg: #fbfbfa;
+  --c-surface: #ffffff;
+  --c-subtle: #f2f1ee;
+  --c-border: #e4e3df;
+  --c-border-strong: #c9c7c0;
+
+  --c-text: #1b1b19;
+  --c-text-soft: #5d5b55;
+  --c-text-faint: #8a8880;
+
+  --c-accent: #1f5f4f;
+  --c-accent-soft: #e8f1ee;
+  --c-on-accent: #f7fbfa;
+
+  --c-warn: #8a5a12;
+  --c-warn-soft: #fbf1df;
+
+  /* System stack: no webfont round-trip on a phone connection, and no layout
+     shift while it loads. See departure 1. */
+  --font-stack-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Money is read in columns and compared digit by digit. */
+  --font-stack-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --radius: 0.625rem;
+
+  /*
+   * ---- The migration bridge -------------------------------------------
+   *
+   * Spacing, size and leading steps, kept because the components not yet
+   * converted to utilities still write `var(--space-4)` in their scoped
+   * `<style>` blocks. Tailwind covers the same ground for converted markup.
+   *
+   * They are here rather than in a second file so that **one file owns every
+   * token**: `tokens.css` and `base.css` were deleted when this arrived, and a
+   * colour defined in two places drifts.
+   *
+   * These go away as the remaining components convert. Anything still reading
+   * them is a component that has not been done yet, which makes this block a
+   * to-do list you can grep for.
+   */
+  --size-xs: 0.75rem;
+  --size-sm: 0.875rem;
+  --size-base: 1rem;
+  --size-lg: 1.125rem;
+  --size-xl: 1.375rem;
+  --size-2xl: 1.75rem;
+  --size-3xl: 2.25rem;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.55;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  --radius-token-sm: 4px;
+  --gutter: var(--space-4);
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --gutter: var(--space-6);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg: #16171a;
+    --c-surface: #1e1f23;
+    --c-subtle: #26272c;
+    --c-border: #32343a;
+    --c-border-strong: #4a4d55;
+
+    --c-text: #f0efec;
+    --c-text-soft: #b4b2ab;
+    --c-text-faint: #85837c;
+
+    --c-accent: #6fd3b4;
+    --c-accent-soft: #17332c;
+    /* The accent is light in dark mode, so what sits on it has to be dark. */
+    --c-on-accent: #10231e;
+
+    --c-warn: #e0b060;
+    --c-warn-soft: #33270f;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+    /* Respects the reader's own font size instead of overriding it. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    font-size: var(--size-base);
+    line-height: var(--leading-normal);
+    /* Avoids the horizontal scroll a wide table can cause on a phone; tables
+       that must be wider get their own scroll container. */
+    overflow-wrap: break-word;
+  }
+
+  /* A visible focus ring, always. The site is keyboard-navigable and the ring
+     is the only thing that says where you are. */
+  :focus-visible {
+    @apply outline-ring rounded-sm outline-2 outline-offset-2;
+  }
+}
+
+@layer components {
+  /* Every amount on the site goes through this: same width per digit, so two
+     rows of a ranking line up and can be compared without reading them. It is
+     a class rather than a utility pair because it is a rule about money, not a
+     styling choice a page gets to make differently. */
+  .amount {
+    @apply font-mono tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /*
+   * The rest of this layer is the other half of the bridge: the shared classes
+   * the not-yet-converted pages use. Same to-do list as the token block above.
+   */
+  .page {
+    max-width: var(--container-page);
+    margin-inline: auto;
+    padding: var(--space-5) var(--gutter) var(--space-8);
+  }
+
+  .muted {
+    @apply text-muted-foreground;
+    font-size: var(--size-sm);
+  }
+
+  .faint {
+    @apply text-faint;
+    font-size: var(--size-xs);
+  }
+
+  /* Visible only to screen readers. Used for labels the layout carries
+     visually but that a reader needs spoken. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    margin: 0 0 var(--space-3);
+    line-height: var(--leading-tight);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-size: var(--size-2xl);
+  }
+  h2 {
+    font-size: var(--size-xl);
+  }
+  h3 {
+    font-size: var(--size-lg);
+  }
+
+  p {
+    margin: 0 0 var(--space-4);
+  }
+
+  a {
+    @apply text-primary;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  button,
+  input {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
