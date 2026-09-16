@@ -327,84 +327,82 @@ trabajo.** El que estaba mal era otro — ver "Tests negativos", más abajo.
 
 **3. El test del aborto se canceló, y no se pudo reproducir.** Ver abajo.
 
-#### CI corre node 22; acá corre node 24. Y hay tres "node 24" distintos
+#### Node: CI y esta máquina corren 24, y el piso es `>=24.12.0`
 
-Los tres workflows fijan `node-version: '22'`, así que **el node que corre
-nuestro código en CI es 22.x**, no 24. Esta máquina tiene 24.13.1. Conviene
-separar tres cosas que se llaman igual y no lo son:
+**Decidido el 2026-09-16.** Los tres workflows fijan `node-version: '24'` y
+`package.json` declara `"node": ">=24.12.0"`. Antes eran `'22'` y `>=22.18.0`.
 
-| Cuál | Qué es | Hoy |
-|---|---|---|
-| `setup-node` | el node que ejecuta **nuestros scripts y tests** | **v22.23.2** |
-| El runtime de `pnpm/action-setup@v6` | el node en que corre **la action**, no nuestro código | node24 |
-| Esta máquina | el node del desarrollo local | v24.13.1 |
+**El razonamiento, que es sobre a quién le promete `engines`:** ese campo le
+promete algo a alguien externo, y hoy no hay nadie externo — CI y una máquina de
+desarrollo, las dos en 24. Sostener una matriz para verificar un soporte que
+nadie usa no se paga.
 
-**El segundo no dice nada sobre el primero**, y es el que confunde: que la
-action corra en node24 no cambia con qué node se ejecuta `pnpm test`. Fue de
-donde salió la idea de que CI corría 24.
+**Y el matiz medido lo decide.** El *type stripping* pasa a estable en v24.12.0
+/ v25.2.0, y **ninguna rama 22.x lo va a marcar estable nunca**: ese salto es de
+la 24. Como todo el repo corre TypeScript sin paso de compilación (T002), la
+madurez de esa función no es un detalle — es el cimiento de esa decisión.
+Quedarse en 22 era apoyar el repo entero en una función que, en esa rama,
+nunca dejará de ser experimental.
 
-**Las dos primeras ya no se infieren: `verify.yml` las imprime.** El paso
-*"Versions that actually ran"* devolvió **v22.23.2** y **pnpm 10.18.0** el
-2026-09-16. Antes de eso la única fuente era el `'22'` del YAML, que dice qué se
-pidió y no qué se instaló.
-
-De paso confirmó algo que el comentario de los workflows **afirmaba sin
-comprobar**: que `action-setup` toma la versión de pnpm del campo
-`packageManager`. Declarado `pnpm@10.18.0`, corrió 10.18.0. Ahora es una
-afirmación verificada y no una razonable.
-
-**Ningún verde local es evidencia sobre la versión que corre en CI**, ni al
-revés — la misma forma de la lección del `@v5`.
-
-##### El `>=22` de `package.json` era falso, y ahora es `>=22.18.0`
-
-No es cosmético. `packages/ingest` corre TypeScript directo con el *type
-stripping* nativo, sin paso de compilación (decisión de T002), así que **todo
-script y `node --test` dependen de que `node archivo.ts` funcione sin bandera**.
-Verificado contra la documentación de Node, no de memoria:
+Verificado contra la fuente, no contra la memoria:
 
 > **v23.6.0, v22.18.0** — Type stripping is enabled by default.
 > **v25.2.0, v24.12.0** — Type stripping is now stable.
 >
 > — `nodejs.org/api/typescript.html`, tabla de historia
 
-Con `>=22`, un node 22.0 a 22.17 satisface el campo y **no puede correr ni un
-solo script del repo**. El piso declarado decía menos de lo que el repo exige.
-`'22'` en el workflow resuelve al 22.x vigente, que está por encima del piso, así
-que CI nunca lo pisó — pero el campo existe justamente para quien no es CI.
+**Efecto lateral que cierra una deuda en vez de abrir otra:** `@types/node` está
+en 24.13.4 y hasta ayer eso no coincidía con el runtime de CI — un API que solo
+existiera en 24 habría pasado `tsc` y reventado allá. **Ahora los tipos y el
+runtime son la misma major.** La deuda se cerró moviendo el runtime, no los
+tipos.
 
-**Anotado y NO cambiado:** `@types/node` está en **24.13.4** mientras CI corre
-22.x. Un API que exista solo en 24 pasaría `tsc` y reventaría en CI. No se tocó
-porque bajarlo a `^22` puede mover el typecheck y eso merece su propia
-verificación, no ir de colado en el commit del bump.
+##### Qué revertiría esto
 
-**El piso quedó confirmado contra lo que corre, no contra lo declarado:**
-22.23.2 ≥ 22.18.0, así que CI ejecuta el *type stripping* sin bandera y el
-campo `engines` describe la realidad. Eso era lo que faltaba comprobar.
+**La condición: que aparezca alguien externo que necesite correr el repo en 22.**
+Un colaborador con 22 fijado, un host que no ofrezca 24, un consumidor del
+paquete. Mientras los únicos que lo corren sean CI y esta máquina, no hay a
+quién prometerle nada.
 
-**Y apareció un matiz que no estaba buscado.** El *type stripping* pasa a
-**estable** en v24.12.0 / v25.2.0. CI corre **22.23.2**, donde está *activo por
-defecto pero todavía no estable*; esta máquina corre 24.13.1, donde sí lo está.
-Así que **las dos puntas ejercitan en distinto grado de madurez la función
-sobre la que se apoya la decisión de no tener paso de compilación** (T002).
-Ninguna rama 22.x va a marcarlo estable nunca: ese salto es de la 24.
+**Qué se repone, las dos cosas juntas:** una matriz en `verify.yml` sobre
+`[22, 24]` **y** el piso de vuelta a `>=22.18.0`. Una sin la otra reintroduce
+justo el defecto que se corrigió: prometer una versión que nadie verifica.
 
-No cambia nada hoy — 412 tests en verde en las dos versiones lo dicen — pero
-es el dato con el que se decide lo de abajo.
+**Lo que NO haría falta es arreglar código.** El soporte de 22 no es hipotético:
+el 2026-09-16 los **412 tests corrieron en verde sobre v22.23.2** en CI. Lo que
+se abandona es la *verificación continua* de esa rama, no un soporte que se
+sepa roto. Si vuelve, vuelve con evidencia previa a favor.
 
-**Lo que queda abierto, ahora con los números:** nada verifica 22.23.2 y 24.13.1
-a la vez. Dos salidas, y conviene no confundirlas:
+##### Tres cosas se llaman "node 24" y solo una es la de CI
 
-- **Una matriz en `verify.yml`** con las dos. Barata — el job tarda 42 s — y es
-  lo único que vuelve *probada* la afirmación `>=22.18.0` en vez de declarada.
-- **Subir `setup-node` a `'24'`**, que alinea CI con el desarrollo local y pone
-  el *type stripping* en su forma estable en los dos lados. Más simple, pero
-  entonces **nada** prueba el 22 que `engines` sigue prometiendo, y habría que
-  subir el piso a `>=24.12.0` para no volver a prometer lo que no se verifica.
+Vale conservarlo, porque fue de donde salió la confusión de creer que CI ya
+corría 24 cuando corría 22:
 
-Decisión del humano. Lo que no es opción es dejar `>=22.18.0` escrito y dejar de
-correr 22: eso es exactamente la afirmación sin verificar que este archivo
-persigue en todas las demás secciones.
+| Cuál | Qué es | Hoy |
+|---|---|---|
+| `setup-node` | el node que ejecuta **nuestros scripts y tests** | **24.x** |
+| El runtime de `pnpm/action-setup@v6` | el node en que corre **la action**, no nuestro código | node24 |
+| Esta máquina | el node del desarrollo local | v24.13.1 |
+
+**El segundo no dice nada sobre el primero:** que la action corra en node24 no
+cambia con qué node se ejecuta `pnpm test`. Ahora coinciden, pero por decisión,
+no porque lo uno implique lo otro.
+
+##### Las versiones se imprimen, no se infieren
+
+`verify.yml` corre un paso **"Versions that actually ran"**. Lo que dice el YAML
+es qué se pidió; lo que imprime el paso es qué se instaló, y **un verde es
+evidencia solo sobre lo que corrió** — la lección que cobró un día con el `@v5`.
+
+La medición del 2026-09-16, con el `'22'` todavía puesto, devolvió **v22.23.2**
+y **pnpm 10.18.0**. De paso confirmó algo que los comentarios de los workflows
+**afirmaban sin comprobar**: que `action-setup` toma la versión de pnpm del
+campo `packageManager`. Declarado `pnpm@10.18.0`, corrió 10.18.0. Pasó de
+afirmación razonable a afirmación verificada.
+
+**La próxima corrida vuelve a imprimirlo, y ahí se lee el 24.x real.** Hasta
+entonces `>=24.12.0` está satisfecho por la máquina local (24.13.1) y **no**
+todavía por una corrida de CI observada.
 
 **`pnpm/action-setup@v6` ya está en los tres workflows** (2026-09-15). Estrenó
 en `verify.yml` solo, y se movió a `ingest.yml` y `silence.yml` **después** de

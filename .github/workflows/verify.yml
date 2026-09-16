@@ -46,14 +46,18 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: '24'
 
-      # Printed because it was being guessed. `node-version: '22'` resolves to
-      # whatever 22.x is current, and the version that ran is the only thing a
-      # green tick is evidence about — the lesson the @v5 bump charged a day
-      # for. It also pins the floor: `node file.ts` needs no flag from 22.18.0
-      # (nodejs.org/api/typescript.html history: "v23.6.0, v22.18.0 — Type
-      # stripping is enabled by default"), which is what package.json declares.
+      # Printed because it was being guessed, and it is worth keeping printed:
+      # `node-version: '24'` resolves to whatever 24.x is current, and the
+      # version that ran is the only thing a green tick is evidence about — the
+      # lesson the @v5 bump charged a day for.
+      #
+      # The floor in package.json is `>=24.12.0`, which is where type stripping
+      # stops being experimental (nodejs.org/api/typescript.html history:
+      # "v25.2.0, v24.12.0 — Type stripping is now stable"). The whole repo runs
+      # TypeScript with no build step, so that feature's maturity is not a
+      # detail here — it is the decision from T002.
       - name: Versions that actually ran
         run: |
           node --version

@@ -49,7 +49,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: '24'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # Runs after the silence check, and with if:always() so a damaged

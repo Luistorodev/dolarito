@@ -5,7 +5,7 @@
   "description": "Comparador de precios de compra y venta USD/COP para el mercado colombiano",
   "packageManager": "pnpm@10.18.0",
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=24.12.0"
   },
   "scripts": {
     "typecheck": "pnpm -r --if-present run typecheck",
