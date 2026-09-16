@@ -266,7 +266,7 @@ Tres workflows, con propósitos que no se mezclan:
 | `silence.yml` | diario 13:38Z | **el estado del mundo** |
 
 **`verify.yml` existe desde el 2026-09-15, y hasta entonces no había nada.** Los
-397 tests, el lint, el typecheck y los dos chequeos de interfaz se corrían a
+412 tests, el lint, el typecheck y los dos chequeos de interfaz se corrían a
 mano cada sesión: la única red era acordarse. Corre lint, typecheck de los dos
 paquetes, los dos suites, `check:docs`, `check:bundle` y `check:freshness`.
 
@@ -278,6 +278,42 @@ el estado del mundo y no el del código.
 `if: always()` sobre un paso cuyo resultado es el punto. Un workflow de
 verificación que pasa en verde con algo roto es peor que no tenerlo: convierte
 "nadie revisó" en "alguien revisó y estaba bien".
+
+#### La primera corrida fue roja, y encontró tres cosas distintas
+
+Que es para lo que se escribió. Ninguna de las tres era visible en local.
+
+**1. La identidad se exigía aunque no saliera nada a la red.** `httpRequest`
+leía `INGEST_USER_AGENT` **antes de cualquier fetch**, así que un test con su
+propio transporte igual pedía una identidad real. En local llegaba del `.env` de
+la raíz y nadie lo veía; en CI no hay archivo y **25 tests de adapter murieron
+por la variable faltante**.
+
+La salida **no** fue poner la variable en el workflow: eso deja los tests
+dependiendo de que alguien la ponga. `HttpOptions` ahora lleva `userAgent`, el
+seam explícito que viaja junto a `fetchImpl`, y la validación del Art. V.4 se
+extrajo a `validateUserAgent()` para que **el valor de un test pase por la misma
+puerta** que el del entorno. El seam le compra a un test su identidad, nunca una
+exención: hay un test que lo prueba, y **un chequeo estructural que lee los
+fuentes de `adapters/`, `references/` y `scripts/`** y falla si producción usa el
+seam. Mutado en las dos direcciones.
+
+**2. Tres tests reportaron "no coincide el mensaje" y tenían razón.** Esperaban
+`/no ticker/`, `/did not report success/` y `/no quote/`, recibieron el error de
+variable faltante y lo dijeron. **No estaban rotos: hicieron exactamente su
+trabajo.** El que estaba mal era otro — ver "Tests negativos", más abajo.
+
+**3. El test del aborto se canceló, y no se pudo reproducir.** Ver abajo.
+
+#### CI corre node 22; acá corre node 24
+
+`package.json` declara `>=22`, el workflow fija `'22'` y esta máquina tiene
+**24.13.1**. Así que **ningún verde local es evidencia sobre la versión que corre
+en CI**, que es la misma forma de la lección del bump a `@v5`: un verde es
+evidencia sobre lo que corrió y sobre nada más.
+
+No se cambió ninguna de las dos. Vale saberlo antes de diagnosticar el próximo
+fallo que solo pasa en CI.
 
 **`verify.yml` estrena `pnpm/action-setup@v6` a propósito.** `ingest.yml` y
 `silence.yml` siguen en `@v4`, que avisa por Node 20. v6 corre en node24 y tiene
@@ -345,6 +381,23 @@ nosotros sanos**, y algo nuestro. Una fuente vieja **no** es incidente hasta las
 adapter nuestro que cachea **se ven idénticos** — así que en vez de adivinar la
 causa, escala por duración. Y cuando falta `sources_ok` no puede probar que
 estábamos sanos: **ahí yerra fuerte, no callado.**
+**Cuarta vez, y esta la encontró CI por accidente (2026-09-15).** Buscando por
+qué tres tests reportaban un mensaje que no coincidía, salió que **había una
+aserción negativa sin matcher en todo el paquete**: `trm.test.ts`, cuyo nombre
+prometía *"propagates a transport failure instead of inventing a rate"* mientras
+solo comprobaba que **algo** lanzara. Una credencial rota, un typo o una variable
+faltante lo habrían pasado en verde igual — que es la regla de esta sección,
+escrita acá desde hace días, y escrita igual sin cumplir.
+
+Los tres que fallaron sí llevaban matcher y por eso hablaron. **El que estaba
+mal fue el único que se quedó callado.**
+
+Así que la regla dejó de depender de que alguien se acuerde:
+`negative-assertions.test.ts` lee los fuentes de los tests, cuenta las 58
+llamadas a `assert.rejects`/`assert.throws` y falla nombrando archivo y línea si
+alguna no lleva segundo argumento. Fija además **cuántas encuentra**, porque un
+chequeo que pasa en verde sobre cero llamadas ya mordió una vez en T027.
+
 **Y la versión positiva: una suite en verde no es evidencia hasta que se la vio
 fallar.** Antes de dar por cerrada una tarea con tests, romper la implementación
 a propósito y confirmar que caen los tests correctos. Restaurar con `cmp`, no a
@@ -358,7 +411,7 @@ probado. Lo destapó una mutación, no el verde.
 ## Estado actual
 
 **Fase 5 completa salvo la decisión del 21.** Última actualización: 2026-09-15.
-**397 tests en verde** —104 en `apps/web`, 293 en `packages/ingest`—, lint y
+**412 tests en verde** —104 en `apps/web`, 308 en `packages/ingest`—, lint y
 typecheck limpios, todo pusheado a las dos ramas.
 
 | Fase | Estado |
@@ -700,6 +753,26 @@ columnas.
   qué números. Las otras seis: backoff lineal, 5xx fuera de reintentables,
   ignorar `Retry-After`, reintentar el 404, quitar el User-Agent, y desconectar
   el timeout de la señal.
+
+  **Y en 2026-09-15 ese mismo test se canceló en CI, y NO se pudo reproducir.**
+  Vale separar lo medido de lo supuesto, porque es fácil confundirlos acá:
+
+  - **Medido:** `AbortSignal.timeout()` usa un timer *unref*'d y **no sostiene
+    el bucle de eventos**. Una sonda cuyo único pendiente es esa señal sale
+    *antes* de que dispare el aborto, con "unsettled top-level await" y código
+    13. El mecanismo existe.
+  - **No medido, y no se afirma:** que ese sea el mecanismo que rompió CI. Bajo
+    `node --test` **el runner sostiene el bucle**, así que quitar el andamiaje
+    sigue pasando en verde acá. Y local es node 24 contra el 22 de CI.
+
+  Así que en vez de apostar al diagnóstico, el test **se volvió incapaz de
+  colgarse**: corre contra un plazo con timer *referenciado*, que sostiene el
+  bucle lo sostenga quien lo sostenga, y que **rechaza con una frase** en vez de
+  dejar la promesa pendiente. Mutado con una señal que existe y nunca dispara:
+  cae en 512 ms como **fallo con nombre**, `cancelled 0`.
+
+  La diferencia importa: un test cancelado se lee como ruido de infraestructura
+  y se ignora; uno rojo que dice *"the abort signal never fired"* se atiende.
 
   **La séptima encontró un defecto en mi propio test.** Con el timeout
   desconectado, el test de aborto no fallaba: **colgaba el suite entero**. Un

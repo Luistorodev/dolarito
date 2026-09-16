@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { HttpError, TEST_USER_AGENT } from '../http.ts';
 import { createTrmAdapter, parseTrm, TRM_URL, type TrmRecord } from './trm.ts';
 
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../../fixtures');
@@ -148,7 +149,7 @@ describe('the adapter itself', () => {
 
   it('resolves a Reference through the shared HTTP client', async () => {
     const { impl, calls } = stubFetch(WEEKEND);
-    const adapter = createTrmAdapter({ fetchImpl: impl });
+    const adapter = createTrmAdapter({ fetchImpl: impl, userAgent: TEST_USER_AGENT });
 
     assert.equal(adapter.kind, 'reference');
     assert.equal(adapter.id, 'trm');
@@ -159,12 +160,31 @@ describe('the adapter itself', () => {
     assert.deepEqual(calls, [TRM_URL], 'one request, to the documented URL');
   });
 
+  // Until 2026-09-15 this asserted only that *something* threw, which is the
+  // defect this repo keeps writing down and kept writing anyway: a missing
+  // variable, a bad key and a typo all throw too, and every one of them would
+  // have passed a test whose name promises something much narrower. It was the
+  // one negative assertion in the package carrying no matcher, and CI found it
+  // by throwing a different error at it.
   it('propagates a transport failure instead of inventing a rate', async () => {
     const impl = (async () => {
       throw new Error('network down');
     }) as unknown as typeof fetch;
 
-    const adapter = createTrmAdapter({ fetchImpl: impl, maxAttempts: 1, sleep: async () => {} });
-    await assert.rejects(() => adapter.fetchReference());
+    const adapter = createTrmAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      maxAttempts: 1,
+      sleep: async () => {},
+    });
+    await assert.rejects(
+      () => adapter.fetchReference(),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpError, `expected an HttpError, got ${String(error)}`);
+        assert.match(error.message, /network down/, 'the transport cause reaches the caller');
+        assert.equal(error.status, undefined, 'a transport failure carries no HTTP status');
+        return true;
+      },
+    );
   });
 });

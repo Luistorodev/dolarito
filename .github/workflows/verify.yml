@@ -1,6 +1,6 @@
 # Verification — everything that can fail without touching the network.
 #
-# Until this existed, nothing ran the 397 tests on a push. They were run by hand
+# Until this existed, nothing ran the 412 tests on a push. They were run by hand
 # each session, which means the only safety net was somebody remembering. A
 # change landing without that would have been unverified and looked fine.
 #

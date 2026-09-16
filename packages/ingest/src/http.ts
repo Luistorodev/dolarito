@@ -50,7 +50,7 @@
  * is nothing there to compare it to.
  */
 
-import { readIngestUserAgent } from './lib/env.ts';
+import { readIngestUserAgent, validateUserAgent } from './lib/env.ts';
 
 /** Art. V.4: 10 seconds, per attempt, not per call. */
 export const DEFAULT_TIMEOUT_MS = 10_000;
@@ -78,11 +78,39 @@ export type HttpOptions = {
 
   // --- Seams for tests. Production never passes these.
   fetchImpl?: typeof fetch;
+  /**
+   * The outbound identity. Production leaves it unset and the value comes from
+   * `INGEST_USER_AGENT`.
+   *
+   * It exists because the identity is read **before any fetch**, so a test that
+   * supplied its own transport still demanded a real identity from the
+   * environment. Locally that arrived from the repo's `.env` and nobody saw it;
+   * in CI there is no file, and on 2026-09-15 twenty-five adapter tests died on
+   * the missing variable. A fake transport should not need a real identity.
+   *
+   * Whatever is passed goes through the same Art. V.4 gate as the environment
+   * value: the seam buys a test its own identity, never a contactless one.
+   */
+  userAgent?: string;
   /** Receives the delay actually chosen, so a test can assert the schedule. */
   sleep?: (ms: number) => Promise<void>;
   /** Jitter source, in [0, 1). 0.5 means no jitter. */
   random?: () => number;
 };
+
+/**
+ * The identity the test suite sends through the real client.
+ *
+ * It carries a reachable contact on purpose: the `.env.example` placeholder is
+ * refused by the same gate, so it could not have been used here either.
+ * Nothing built on this constant reaches the network — every caller also
+ * supplies a `fetchImpl` — but it still has to be an identity we would be
+ * willing to send.
+ *
+ * `http.test.ts` deliberately does NOT use it: that file tests the environment
+ * path itself, so it sets `INGEST_USER_AGENT` and leaves this seam alone.
+ */
+export const TEST_USER_AGENT = 'dolarito-tests/0.1 (+https://github.com/Luistorodev/dolarito)';
 
 export class HttpError extends Error {
   readonly url: string;
@@ -161,8 +189,15 @@ export async function httpRequest(url: string, options: HttpOptions = {}): Promi
   const method = options.method ?? 'GET';
   const body = options.json === undefined ? undefined : JSON.stringify(options.json);
 
+  // Production reads the environment; a test hands in its own identity. Both
+  // go through `validateUserAgent`, so neither can carry a contactless value.
+  const userAgent =
+    options.userAgent === undefined
+      ? readIngestUserAgent()
+      : validateUserAgent(options.userAgent, 'The userAgent option');
+
   const headers: Record<string, string> = {
-    'User-Agent': readIngestUserAgent(),
+    'User-Agent': userAgent,
     Accept: 'application/json',
     ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,

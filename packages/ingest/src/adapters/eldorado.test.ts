@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   createEldoradoAdapter,
   ELDORADO_METHODS,
@@ -261,9 +262,11 @@ describe('the adapter, and the row count that is not eight', () => {
       });
     }) as unknown as typeof fetch;
 
-    const rows = await createEldoradoAdapter({ fetchImpl: impl, now: () => CAPTURED }).fetchQuotes([
-      1, 100, 500, 1000,
-    ]);
+    const rows = await createEldoradoAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes([1, 100, 500, 1000]);
 
     assert.equal(rows.length, 32, 'not 8 — this is the one that multiplies by method');
     assert.equal(calls.length, 32, 'one POST per row');
@@ -292,6 +295,7 @@ describe('the adapter, and the row count that is not eight', () => {
 
     const rows = await createEldoradoAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
       methods: ['bank_bancolombia'],
     }).fetchQuotes([100]);
@@ -317,6 +321,7 @@ describe('the adapter, and the row count that is not eight', () => {
 
     const adapter = createEldoradoAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       maxAttempts: 1,
       methods: ['bank_bancolombia'],
     });

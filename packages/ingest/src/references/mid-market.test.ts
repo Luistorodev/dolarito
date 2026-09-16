@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   createMidMarketAdapter,
   ER_API_URL,
@@ -159,7 +160,11 @@ describe('er-api, the fallback', () => {
 describe('mid_market_src always says which one answered', () => {
   it('reports yahoo when the primary works, and never calls the fallback', async () => {
     const { impl, calls } = router({ [YAHOO_URL]: () => ok(YAHOO) });
-    const adapter = createMidMarketAdapter({ fetchImpl: impl, ...NO_WAITING });
+    const adapter = createMidMarketAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      ...NO_WAITING,
+    });
 
     const reference = await adapter.fetchReference();
 
@@ -176,6 +181,7 @@ describe('mid_market_src always says which one answered', () => {
     const fellBack: string[] = [];
     const adapter = createMidMarketAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       onFallback: (error) => fellBack.push(error.message),
       ...NO_WAITING,
     });
@@ -195,7 +201,11 @@ describe('mid_market_src always says which one answered', () => {
       [YAHOO_URL]: () => ok({ chart: { result: [{ meta: {} }] } }),
       [ER_API_URL]: () => ok(ER_API),
     });
-    const adapter = createMidMarketAdapter({ fetchImpl: impl, ...NO_WAITING });
+    const adapter = createMidMarketAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      ...NO_WAITING,
+    });
 
     assert.equal((await adapter.fetchReference()).source, 'er_api');
   });
@@ -205,7 +215,11 @@ describe('mid_market_src always says which one answered', () => {
       [YAHOO_URL]: () => new Response('nope', { status: 500 }),
       [ER_API_URL]: () => new Response('also nope', { status: 500 }),
     });
-    const adapter = createMidMarketAdapter({ fetchImpl: impl, ...NO_WAITING });
+    const adapter = createMidMarketAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      ...NO_WAITING,
+    });
 
     await assert.rejects(() => adapter.fetchReference(), /both sources failed/);
     await assert.rejects(() => adapter.fetchReference(), /yahoo:.*er_api:/s);

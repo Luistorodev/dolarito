@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   BINANCE_P2P_URL,
   type BinanceResponse,
@@ -268,6 +269,7 @@ describe('the adapter', () => {
     const { impl, sent } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([1, 100, 500, 1000]);
 
@@ -288,6 +290,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100, 500, 1000]);
 
@@ -318,6 +321,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100, 500, 1000]);
 
@@ -353,6 +357,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100]);
 
@@ -372,6 +377,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100]);
 
@@ -384,6 +390,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([1, 100, 500, 1000]);
 
@@ -403,6 +410,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100, 500, 1000]);
 
@@ -429,6 +437,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100]);
 
@@ -444,6 +453,7 @@ describe('the adapter', () => {
     const { impl } = router();
     const rows = await createBinanceP2pAdapter({
       fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
       now: () => CAPTURED,
     }).fetchQuotes([100, 1000]);
 

@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   BITSO_URL,
   type BitsoResponse,
@@ -244,7 +245,11 @@ describe('the adapter', () => {
 
   it('fetches once and returns eight rows', async () => {
     const { impl, calls } = stubFetch(TICKER);
-    const adapter = createBitsoAdapter({ fetchImpl: impl, now: () => CAPTURED });
+    const adapter = createBitsoAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    });
 
     const rows = await adapter.fetchQuotes(BRACKETS);
 
@@ -254,7 +259,11 @@ describe('the adapter', () => {
 
   it('returns only the brackets it was asked for', async () => {
     const { impl } = stubFetch(TICKER);
-    const adapter = createBitsoAdapter({ fetchImpl: impl, now: () => CAPTURED });
+    const adapter = createBitsoAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    });
 
     const rows = await adapter.fetchQuotes([100, 1000]);
     assert.equal(rows.length, 4);
@@ -262,7 +271,11 @@ describe('the adapter', () => {
 
   it('throws instead of returning rows when the source cannot be read', async () => {
     const { impl } = stubFetch({ success: false });
-    const adapter = createBitsoAdapter({ fetchImpl: impl, ...{ maxAttempts: 1 } });
+    const adapter = createBitsoAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      ...{ maxAttempts: 1 },
+    });
 
     // Art. I.2: no row of any kind from a source we could not read.
     await assert.rejects(() => adapter.fetchQuotes(BRACKETS), /did not report success/);

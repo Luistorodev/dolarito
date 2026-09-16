@@ -16,7 +16,10 @@
  */
 
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   backoffDelay,
   DEFAULT_MAX_ATTEMPTS,
@@ -26,6 +29,7 @@ import {
   httpRequest,
   isRetryableStatus,
   parseRetryAfter,
+  TEST_USER_AGENT,
 } from './http.ts';
 
 const URL_UNDER_TEST = 'https://example.test/quotes';
@@ -225,6 +229,29 @@ describe('identity and timeout', () => {
     assert.equal(calls.length, 0);
   });
 
+  it('sends an explicitly supplied identity instead of the environment', async () => {
+    delete process.env['INGEST_USER_AGENT'];
+    const { impl, calls } = stubFetch([json(200, { ok: true })]);
+
+    await httpRequest(URL_UNDER_TEST, { fetchImpl: impl, userAgent: TEST_USER_AGENT });
+
+    const headers = calls[0]?.init?.headers as Record<string, string>;
+    assert.equal(headers['User-Agent'], TEST_USER_AGENT);
+  });
+
+  // The seam buys a test its own identity. It must not buy it an exemption:
+  // if the explicit path skipped the Art. V.4 gate, every adapter test would be
+  // exercising a client that no longer enforces it.
+  it('holds an explicitly supplied identity to the same Art. V.4 gate', async () => {
+    const { impl, calls } = stubFetch([json(200, { ok: true })]);
+
+    await assert.rejects(
+      () => httpRequest(URL_UNDER_TEST, { fetchImpl: impl, userAgent: 'dolarito/0.1' }),
+      /Art\. V\.4/,
+    );
+    assert.equal(calls.length, 0, 'the seam is not a way around the identity rule');
+  });
+
   it('defaults to a 10 second timeout', () => {
     assert.equal(DEFAULT_TIMEOUT_MS, 10_000);
   });
@@ -234,18 +261,59 @@ describe('identity and timeout', () => {
   // rather than a red test. A mutation probe that unwires the signal proved it:
   // the run stopped dead instead of reporting. 1s is far above the 20ms this
   // needs and far below anything that would wedge CI.
+  //
+  // ## Why it races an explicit deadline (2026-09-15)
+  //
+  // This test died in CI as `cancelled`, its promise left unsettled, and had
+  // never failed here. What is measured: **`AbortSignal.timeout()` uses an
+  // unref'd timer**, so it does not hold the event loop open. A probe whose
+  // only pending work is such a signal exits *before* the abort fires, with
+  // "unsettled top-level await" and code 13.
+  //
+  // What is NOT measured, and is not claimed: that this is what CI hit. It
+  // cannot be reproduced here, because under `node --test` the runner itself
+  // holds the loop open — removing the scaffolding below still passes locally.
+  // Local node is 24 and CI pins 22, so a local green is evidence about node 24
+  // and about nothing else, which is the same lesson the @v5 bump taught.
+  //
+  // So rather than bet on the diagnosis, the test is made unable to hang at
+  // all. The deadline is a *ref'd* timer, which holds the loop open whoever
+  // else does not — and it rejects with a sentence instead of leaving the
+  // promise pending, so "the signal never fired" arrives as a red test naming
+  // the cause rather than as a cancellation that reads like CI noise.
   it('passes an abort signal that actually fires', { timeout: 1_000 }, async () => {
     const impl = (async (_url: string | URL | Request, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => {
+        const signal = init?.signal;
+        if (signal === undefined || signal === null) {
+          // Without this the unwired-signal mutation hangs instead of failing.
+          reject(new Error('no signal was passed'));
+          return;
+        }
+        signal.addEventListener('abort', () => {
           reject(new Error('aborted by signal'));
         });
       })) as unknown as typeof fetch;
 
-    await assert.rejects(
-      () => httpRequest(URL_UNDER_TEST, { fetchImpl: impl, timeoutMs: 20, maxAttempts: 1 }),
-      /aborted by signal/,
-    );
+    let deadline: NodeJS.Timeout | undefined;
+    const neverFired = new Promise<never>((_resolve, reject) => {
+      deadline = setTimeout(() => {
+        reject(new Error('the abort signal never fired'));
+      }, 500);
+    });
+
+    try {
+      await assert.rejects(
+        () =>
+          Promise.race([
+            httpRequest(URL_UNDER_TEST, { fetchImpl: impl, timeoutMs: 20, maxAttempts: 1 }),
+            neverFired,
+          ]),
+        /aborted by signal/,
+      );
+    } finally {
+      clearTimeout(deadline);
+    }
   });
 });
 
@@ -254,5 +322,55 @@ describe('httpJson', () => {
     const { impl } = stubFetch([json(200, { valor: '4012.34' })]);
     const body = await httpJson<{ valor: string }>(URL_UNDER_TEST, { fetchImpl: impl });
     assert.deepEqual(body, { valor: '4012.34' });
+  });
+});
+
+/**
+ * The seam is for tests, and saying so in a comment does not make it true.
+ *
+ * If production code ever passed `userAgent`, a source would receive an
+ * identity that never came from `INGEST_USER_AGENT` — which is how the one
+ * place that must hold the real contact stops being the one place. Same shape
+ * as the T009 check that reads `orchestrator.ts` rather than asserting a
+ * property that would quietly stop being true.
+ */
+describe('the identity seam stays out of production', () => {
+  const SRC = dirname(fileURLToPath(import.meta.url));
+
+  function sourcesUnder(dir: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(resolve(SRC, dir), { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        found.push(...sourcesUnder(`${dir}/${entry.name}`));
+        continue;
+      }
+      if (!entry.name.endsWith('.ts')) continue;
+      if (entry.name.endsWith('.test.ts')) continue;
+      found.push(`${dir}/${entry.name}`);
+    }
+    return found;
+  }
+
+  it('no adapter, reference or script supplies its own identity', () => {
+    const files = [
+      ...sourcesUnder('adapters'),
+      ...sourcesUnder('references'),
+      ...sourcesUnder('scripts'),
+      'orchestrator.ts',
+      'db.ts',
+      'registry.ts',
+    ];
+    assert.ok(files.length > 15, `expected the whole surface, got ${files.length} files`);
+
+    const offenders = files.filter((file) => {
+      const source = readFileSync(resolve(SRC, file), 'utf8');
+      return source.includes('userAgent') || source.includes('TEST_USER_AGENT');
+    });
+
+    assert.deepEqual(
+      offenders,
+      [],
+      'production reads INGEST_USER_AGENT; only tests may hand in an identity',
+    );
   });
 });

@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   buildQuotes,
   createWiseAdapter,
@@ -219,9 +220,11 @@ describe('the adapter', () => {
 
   it('makes one call per bracket and returns up to twelve rows', async () => {
     const { impl, calls } = stub();
-    const rows = await createWiseAdapter({ fetchImpl: impl, now: () => CAPTURED }).fetchQuotes([
-      1, 100, 500, 1000,
-    ]);
+    const rows = await createWiseAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes([1, 100, 500, 1000]);
 
     assert.equal(calls.length, 4, 'one call per bracket, three providers each');
     // Ten, not twelve: bracket 1 returned a single provider.
@@ -232,7 +235,11 @@ describe('the adapter', () => {
 
   it('sends the bracket as sendAmount', async () => {
     const { impl, calls } = stub();
-    await createWiseAdapter({ fetchImpl: impl, now: () => CAPTURED }).fetchQuotes([500]);
+    await createWiseAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes([500]);
     assert.match(calls[0] ?? '', /sendAmount=500/);
     assert.match(calls[0] ?? '', /sourceCurrency=USD&targetCurrency=COP/);
   });

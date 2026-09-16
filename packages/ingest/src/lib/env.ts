@@ -94,13 +94,33 @@ export function readIngestUserAgent(): string {
     throw new MissingEnvError(['INGEST_USER_AGENT']);
   }
 
+  return validateUserAgent(value, 'INGEST_USER_AGENT');
+}
+
+/**
+ * The Art. V.4 gate, applied to an identity whatever its origin.
+ *
+ * Split out of `readIngestUserAgent` on 2026-09-15 so that a value a test
+ * supplies passes through **exactly** the same checks as the one production
+ * reads from the environment. A seam that skipped validation would let a test
+ * go green carrying an identity no source would ever accept — which is the
+ * very shape of a test passing for the wrong reason.
+ *
+ * `origin` names where the value came from, so the message points at the thing
+ * that needs fixing rather than at a variable the caller never set.
+ */
+export function validateUserAgent(value: string, origin: string): string {
   const agent = value.trim();
+
+  if (agent === '') {
+    throw new Error(`${origin} is empty, and Art. V.4 requires an identity.`);
+  }
 
   // A contact is the whole point: a URL or an email address someone can use.
   const hasContact = /https?:\/\/\S+|[^\s@]+@[^\s@]+\.[^\s@]+/.test(agent);
   if (!hasContact) {
     throw new Error(
-      `INGEST_USER_AGENT must carry a way to reach us — a URL or an email ` +
+      `${origin} must carry a way to reach us — a URL or an email ` +
         `address (constitution Art. V.4). Got: ${agent}`,
     );
   }
@@ -109,7 +129,7 @@ export function readIngestUserAgent(): string {
   // Letting it out would put an unreachable contact in front of every source.
   if (/\.invalid\b/i.test(agent)) {
     throw new Error(
-      `INGEST_USER_AGENT still holds the .env.example placeholder, whose ` +
+      `${origin} still holds the .env.example placeholder, whose ` +
         `contact does not resolve. Replace it with a real URL or email before ` +
         `any request reaches a source (constitution Art. V.4). Got: ${agent}`,
     );

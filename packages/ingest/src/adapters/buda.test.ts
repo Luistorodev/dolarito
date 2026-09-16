@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { TEST_USER_AGENT } from '../http.ts';
 import {
   BUDA_URL,
   type BudaResponse,
@@ -182,16 +183,22 @@ describe('the adapter', () => {
 
   it('fetches once for all eight rows', async () => {
     const { impl, calls } = stubFetch(TICKER);
-    const rows = await createBudaAdapter({ fetchImpl: impl, now: () => CAPTURED }).fetchQuotes(
-      BRACKETS,
-    );
+    const rows = await createBudaAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      now: () => CAPTURED,
+    }).fetchQuotes(BRACKETS);
     assert.equal(rows.length, 8);
     assert.deepEqual(calls, [BUDA_URL]);
   });
 
   it('throws instead of returning rows when it cannot read the source', async () => {
     const { impl } = stubFetch({});
-    const adapter = createBudaAdapter({ fetchImpl: impl, maxAttempts: 1 });
+    const adapter = createBudaAdapter({
+      fetchImpl: impl,
+      userAgent: TEST_USER_AGENT,
+      maxAttempts: 1,
+    });
     await assert.rejects(() => adapter.fetchQuotes(BRACKETS), /no ticker/);
   });
 });
