@@ -79,11 +79,32 @@ async function main(): Promise<void> {
   // Same cap that produced the false red on 2026-09-15. It is worth noticing
   // that it landed twice in two different scripts: an unpaginated select is not
   // an unusual mistake, it is the default one.
+  // ## The page budget comes from the table, not from a constant
+  //
+  // It used to be `MAX_PAGES = 40`, and on 2026-09-22 the guard fired exactly
+  // as designed: 40.000 read of 60.226, and it threw rather than reporting on
+  // two thirds of the window. That is the right failure — but a hand-set cap
+  // needs raising again every week the window grows, and the week it is raised
+  // carelessly is the week it silently truncates instead.
+  //
+  // So the count is asked for first and the budget derived from it. There is no
+  // number here to keep bumping, and the assertion at the end is stronger than
+  // the old one: it compares what arrived against what the table says exists,
+  // rather than against a guess.
   const PAGE = 1000;
-  const MAX_PAGES = 40;
+
+  const { count: expected, error: countError } = await supabase
+    .from('quotes')
+    .select('id', { count: 'exact', head: true });
+  if (countError) throw new Error(`could not count quotes: ${countError.message}`);
+  if (expected === null) throw new Error('quotes count came back null');
+
+  // One spare page for rows inserted while this loop runs: the ingest fires
+  // every 15 minutes and does not stop because a report is reading.
+  const maxPages = Math.ceil(expected / PAGE) + 1;
   const quotes: QuoteRow[] = [];
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  for (let page = 0; page < maxPages; page += 1) {
     const { data, error } = await supabase
       .from('quotes')
       .select(
@@ -95,13 +116,17 @@ async function main(): Promise<void> {
     if (data === null || data.length === 0) break;
     quotes.push(...(data as QuoteRow[]));
     if (data.length < PAGE) break;
-    if (page === MAX_PAGES - 1) {
-      throw new Error(
-        `read ${quotes.length} quotes and there are more: raise MAX_PAGES rather ` +
-          'than analysing a slice of the window',
-      );
-    }
   }
+
+  // Never analyse a slice without saying so. A shortfall means the read lost
+  // rows; a surplus means the ingest landed a run mid-read, which is harmless.
+  if (quotes.length < expected) {
+    throw new Error(
+      `read ${quotes.length} quotes but the table holds ${expected}: ` +
+        'the report would be measuring a slice of the window',
+    );
+  }
+  console.log(`read ${quotes.length} quotes (table reported ${expected})`);
 
   const runs = (runData ?? []) as RunRow[];
 
@@ -171,12 +196,44 @@ async function main(): Promise<void> {
   }
 
   const failureCounts = new Map<string, number>();
-  const failureSamples = new Map<string, string>();
+  const failureSamples = new Map<string, Set<string>>();
+  /**
+   * `sources_failed` holds `{ kind, message, status, attempts }` since
+   * 2026-09-14, and this printed it with template interpolation — so every
+   * sample read `[object Object]` and the one column that says *why* a source
+   * failed was the only unreadable thing in the report.
+   *
+   * Found on 2026-09-22 by reading the report it produced: 14 TRM failures over
+   * the week, cause unprintable. The capture was changed precisely so a 504
+   * could be told apart from a format change; the reader was never updated to
+   * match, which is the same prose-outliving-the-repo shape this project keeps
+   * finding, in code instead of in a document.
+   */
+  function describeFailure(value: unknown): string {
+    if (value === null || value === undefined) return '(empty)';
+    if (typeof value === 'string') return value;
+    if (typeof value !== 'object') return String(value);
+
+    const f = value as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof f['kind'] === 'string') parts.push(f['kind']);
+    if (f['status'] !== undefined && f['status'] !== null)
+      parts.push(`HTTP ${String(f['status'])}`);
+    if (f['attempts'] !== undefined && f['attempts'] !== null) {
+      parts.push(`${String(f['attempts'])} attempt(s)`);
+    }
+    if (typeof f['message'] === 'string' && f['message'] !== '') parts.push(f['message']);
+    return parts.length > 0 ? parts.join(' · ') : JSON.stringify(value);
+  }
+
   for (const run of runs) {
-    for (const [adapter, message] of Object.entries(run.sources_failed)) {
+    for (const [adapter, failure] of Object.entries(run.sources_failed)) {
       const key = `${adapter}`;
       failureCounts.set(key, (failureCounts.get(key) ?? 0) + 1);
-      if (!failureSamples.has(key)) failureSamples.set(key, message);
+      const described = describeFailure(failure);
+      const seen = failureSamples.get(key) ?? new Set<string>();
+      seen.add(described);
+      failureSamples.set(key, seen);
     }
   }
 
@@ -186,11 +243,11 @@ async function main(): Promise<void> {
   } else {
     console.log('  failures by adapter:');
     for (const [adapter, count] of failureCounts) {
-      console.log(`    ${adapter.padEnd(15)} ${count}x   e.g. ${failureSamples.get(adapter)}`);
+      const causes = [...(failureSamples.get(adapter) ?? new Set<string>())];
+      console.log(`    ${adapter.padEnd(15)} ${count}x   ${causes.length} distinct cause(s)`);
+      for (const cause of causes.slice(0, 4)) console.log(`      - ${cause}`);
+      if (causes.length > 4) console.log(`      ... and ${causes.length - 4} more`);
     }
-    console.log('');
-    console.log('  NOTE: sources_failed stores a free-text message, not a cause.');
-    console.log('  Grouping "a 504" against "a format change" means matching strings.');
   }
 
   // ── 2 ──────────────────────────────────────────────────────────────────

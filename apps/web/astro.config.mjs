@@ -1,8 +1,30 @@
 // @ts-check
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import vercel from '@astrojs/vercel';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
+
+/**
+ * The repo keeps one .env at the root; Astro looks for one next to this file.
+ *
+ * Without this, `astro dev` here renders "No se pudieron leer los precios —
+ * SUPABASE_URL or SUPABASE_SERVER_READ_KEY is not set" on a machine where the
+ * keys are sitting right there, two directories up. It reads as the database
+ * being down and it is nothing of the sort.
+ *
+ * Same mechanism the ingest package uses (lib/env.ts): Node reads the file,
+ * not Vite. Vite would only expose VITE_-prefixed values anyway, and these
+ * secrets must never reach a bundle — which is why the code reads process.env
+ * and env-discipline.test.ts keeps it that way.
+ *
+ * In production there is no file and the platform supplies the variables, so
+ * this is a no-op there. loadEnvFile does not overwrite a variable that is
+ * already set, so a real environment always wins over the file.
+ */
+const rootEnv = fileURLToPath(new URL('../../.env', import.meta.url));
+if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 // Server output, not static.
 //
