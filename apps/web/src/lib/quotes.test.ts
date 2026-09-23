@@ -139,6 +139,50 @@ describe('the states a page has to survive', () => {
     assert.match(result.reason, /SUPABASE_URL/);
   });
 
+  /**
+   * Naming **which** variable is missing, which the old message did not.
+   *
+   * It said "SUPABASE_URL or SUPABASE_SERVER_READ_KEY is not set" whichever one
+   * was absent, and the previous test passed on that wording because it only
+   * looked for the first name — it would have passed with the key missing and
+   * the URL present, reporting the wrong variable. The sentence on the page is
+   * the entire diagnosis available on a deployed site, where nobody can print
+   * the environment.
+   */
+  it('names the variable that is actually missing, not both', async () => {
+    configure();
+    process.env['SUPABASE_SERVER_READ_KEY'] = '';
+
+    const result = await fetchLatestQuotes();
+    assert.ok(result.kind === 'failed');
+    assert.match(result.reason, /SUPABASE_SERVER_READ_KEY/);
+    assert.doesNotMatch(
+      result.reason,
+      /SUPABASE_URL/,
+      'the URL is set, so naming it sends the reader to the wrong place',
+    );
+  });
+
+  it('names both when both are missing', async () => {
+    process.env['SUPABASE_URL'] = '';
+    process.env['SUPABASE_SERVER_READ_KEY'] = '';
+
+    const result = await fetchLatestQuotes();
+    assert.ok(result.kind === 'failed');
+    assert.match(result.reason, /SUPABASE_URL/);
+    assert.match(result.reason, /SUPABASE_SERVER_READ_KEY/);
+  });
+
+  it('says the capture is unaffected, because the page cannot show that', async () => {
+    // A visitor seeing "no prices" has no way to tell a read problem from a
+    // dead pipeline, and the two need very different reactions.
+    process.env['SUPABASE_URL'] = '';
+    process.env['SUPABASE_SERVER_READ_KEY'] = '';
+    const result = await fetchLatestQuotes();
+    assert.ok(result.kind === 'failed');
+    assert.match(result.reason, /captura/);
+  });
+
   it('reports an HTTP error rather than returning an empty list', async () => {
     // Returning [] on a 500 would render as "no quotes", which reads to a
     // visitor as a market with no prices rather than as a broken page.

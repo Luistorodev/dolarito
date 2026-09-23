@@ -128,15 +128,36 @@ export type QuoteFetch =
   | { kind: 'empty' }
   | { kind: 'failed'; reason: string };
 
-function readConfig(): { url: string; key: string } | undefined {
+/** The variables the page needs, so a failure can name the one that is absent. */
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVER_READ_KEY'] as const;
+
+/**
+ * Returns the config, or the names of the variables that are missing.
+ *
+ * It used to return `undefined` and the page said *"SUPABASE_URL **or**
+ * SUPABASE_SERVER_READ_KEY is not set"* — an error that does not say which one,
+ * which is the difference between a two-minute fix and an afternoon. The ingest
+ * package has reported **every** missing variable by name since T002
+ * (`MissingEnvError`); this side never caught up.
+ *
+ * It matters most exactly where it is hardest to debug: on the deployed site,
+ * where nobody can print the environment and the only diagnosis anyone gets is
+ * the sentence on the page.
+ */
+function readConfig(): { url: string; key: string } | { missing: string[] } {
   // process.env, never import.meta.env: the latter is substituted at build
   // time and would bake this key into the deployed artefact. Measured
   // 2026-09-15; env-discipline.test.ts keeps it that way.
-  const url = process.env['SUPABASE_URL'];
-  const key = process.env['SUPABASE_SERVER_READ_KEY'];
-  return url !== undefined && url !== '' && key !== undefined && key !== ''
-    ? { url, key }
-    : undefined;
+  const missing = REQUIRED_ENV.filter((name) => {
+    const value = process.env[name];
+    return value === undefined || value === '';
+  });
+  if (missing.length > 0) return { missing: [...missing] };
+
+  // Safe after the check above, and narrowed for the type rather than asserted.
+  const url = process.env['SUPABASE_URL'] ?? '';
+  const key = process.env['SUPABASE_SERVER_READ_KEY'] ?? '';
+  return { url, key };
 }
 
 /**
@@ -148,10 +169,13 @@ function readConfig(): { url: string; key: string } | undefined {
  */
 export async function fetchLatestQuotes(signal?: AbortSignal): Promise<QuoteFetch> {
   const config = readConfig();
-  if (config === undefined) {
+  if ('missing' in config) {
+    const names = config.missing.join(', ');
     return {
       kind: 'failed',
-      reason: 'SUPABASE_URL or SUPABASE_SERVER_READ_KEY is not set',
+      reason:
+        `Falta configurar ${names} en el entorno del servidor. ` +
+        'La captura no depende de esto: los precios se siguen guardando.',
     };
   }
 

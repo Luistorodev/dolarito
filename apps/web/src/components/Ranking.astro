@@ -15,10 +15,17 @@
  * brand, set in tabular mono so two rows line up and can be compared without
  * being read. The leader gets a surface of its own instead of a thin rule.
  *
- * **Not changed: anything the T020 barrier reserves.** The bracket control's
- * prominence is decision #2 (`BracketEmphasis`), El Dorado's representation is
- * #1, and the Binance cross is #3. Restyling a control is not deciding it, so
- * the selectors kept their structure and their weight relative to each other.
+ * ## The three T020 decisions, taken 2026-09-21 with the measured week
+ *
+ * They are no longer reserved, and each one is a number rather than a taste:
+ *
+ *  - **#1 El Dorado → `best-method`.** The four methods priced differently in
+ *    3.710 of 6.512 cells, spreads to 4,38 %. One row, method named.
+ *  - **#2 Amount selector → `featured`.** Buying, the leader changes with the
+ *    bracket in 772 of 814 runs — 95 %. It is the product's central question.
+ *  - **#3 The Binance cross → `explain`.** 572 of 2.386 comparable cells, 24 %,
+ *    spread evenly across brackets. Frequent enough that a reader who meets it
+ *    unexplained concludes the comparator is broken.
  *
  * Still true from before, and re-checked rather than assumed:
  *  - **No colour by price.** A ranking that paints rows cheap-green and
@@ -33,11 +40,12 @@
 import { Badge } from '@/components/ui/badge';
 import { providerName } from '../lib/catalogue.ts';
 import { ageLabel, minutesSince, STALE_MINUTES } from '../lib/freshness.ts';
-import type { EldoradoPolicy } from '../lib/pending.ts';
+import type { CrossExplanation, EldoradoPolicy } from '../lib/pending.ts';
 import type { LatestQuote } from '../lib/quotes.ts';
 import {
   assetLabel,
   channelLabel,
+  type Cross,
   directionLabel,
   limitReasonLabel,
   modeHint,
@@ -54,9 +62,21 @@ interface Props {
   now: Date;
   /** Required, and `undefined` means the T025 decision is still open. */
   eldorado: EldoradoPolicy | undefined;
+  /**
+   * The Binance P2P cross at this bracket, if it is crossed right now.
+   *
+   * Passed in rather than computed here because a cross spans both directions
+   * and this component only ever holds one. Rendered on the selling panel
+   * alone, so the desktop layout — which shows both at once — says it once.
+   */
+  cross: Cross | undefined;
+  /** Decision #3, taken 2026-09-21: `explain`. */
+  crossPolicy: CrossExplanation;
 }
 
-const { quotes, direction, bracket, now, eldorado } = Astro.props;
+const { quotes, direction, bracket, now, eldorado, cross, crossPolicy } = Astro.props;
+const showCross =
+  crossPolicy === 'explain' && cross !== undefined && direction === 'usd_to_cop';
 const { rows, outOfRange, deferred } = rank(quotes, eldorado);
 
 const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
@@ -129,6 +149,25 @@ const rate = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
       anunciada.
     </p>
   </header>
+
+  {
+    showCross && cross !== undefined && (
+      <aside
+        class="border-border bg-card mb-4 rounded-lg border p-3"
+        data-cross="true"
+      >
+        <p class="m-0 text-sm font-semibold">
+          En Binance P2P, vender rinde más de lo que cuesta comprar
+        </p>
+        <p class="text-muted-foreground m-0 mt-1 text-xs">
+          A {cop.format(bracket)} USD: vendés por {cop.format(cross.selling)} COP y
+          comprar te cuesta {cop.format(cross.buying)}. No es un error del
+          comparador: en un mercado entre personas cada quien publica su propio
+          aviso, y nada obliga a que un lado sea más barato que el otro.
+        </p>
+      </aside>
+    )
+  }
 
   {
     rows.length === 0 && outOfRange.length === 0 && deferred.length === 0 && (

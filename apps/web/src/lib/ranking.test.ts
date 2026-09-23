@@ -18,6 +18,7 @@ import {
   availableSelections,
   betterIsHigher,
   comparableAmount,
+  crossAtBracket,
   limitReasonLabel,
   modeHint,
   modeLabel,
@@ -216,6 +217,197 @@ describe('Eldorado is set aside, not quietly included', () => {
     assert.equal(deferred.length, 0);
     assert.equal(rows.length, 3);
     assert.equal(rows[0]?.quote.provider_id, 'eldorado');
+  });
+});
+
+describe('the Eldorado policy, decided 2026-09-21 as best-method', () => {
+  /**
+   * The week said the four methods do NOT collapse: 3.710 of 6.512 cells
+   * priced differently, spreads up to 4,38 %. So the policy had to be one that
+   * does not pretend they are one number, and `best-method` names the method on
+   * the row instead of averaging four that are four percent apart.
+   *
+   * These tests pin the behaviour AND the reason, because a policy that only
+   * pins behaviour survives being swapped for another that behaves the same on
+   * the fixture — the lesson the FROZEN_PRICE_HOURS mutation taught in T029.
+   */
+  const selling = [
+    quote({ provider_id: 'bitso', amount_out: 306_550 }),
+    quote({ provider_id: 'eldorado', payment_method: 'bank_bancolombia', amount_out: 312_000 }),
+    quote({ provider_id: 'eldorado', payment_method: 'app_nequi_co', amount_out: 299_000 }),
+    quote({ provider_id: 'eldorado', payment_method: 'app_llave_co', amount_out: 305_000 }),
+  ];
+
+  it('collapses the four methods to one row', () => {
+    const { rows, deferred } = rank(selling, 'best-method');
+
+    assert.equal(deferred.length, 0, 'the decision is taken; nothing is deferred now');
+    assert.equal(
+      rows.filter((r) => r.quote.provider_id === 'eldorado').length,
+      1,
+      'four of eleven positions for one provider is what all-methods would do',
+    );
+  });
+
+  it('keeps the best-priced method, judged by the amount and not by the rate', () => {
+    const { rows } = rank(selling, 'best-method');
+    const mine = rows.find((r) => r.quote.provider_id === 'eldorado');
+
+    assert.equal(mine?.quote.payment_method, 'bank_bancolombia');
+    assert.equal(mine?.quote.amount_out, 312_000);
+  });
+
+  it('names the method, so the number is attributable', () => {
+    const { rows } = rank(selling, 'best-method');
+    const mine = rows.find((r) => r.quote.provider_id === 'eldorado');
+    assert.ok(mine?.quote.payment_method, 'a row with no method named is not attributable');
+  });
+
+  it('best means fewest pesos when buying, not most', () => {
+    // The direction flips what "best" means, and a policy that hard-coded
+    // "highest amount" would silently pick the worst method on half the site.
+    const buying = [
+      quote({ provider_id: 'bitso', fixed_side: 'out', amount_in: 310_000, amount_out: 100 }),
+      quote({
+        provider_id: 'eldorado',
+        payment_method: 'bank_bancolombia',
+        fixed_side: 'out',
+        amount_in: 320_000,
+        amount_out: 100,
+      }),
+      quote({
+        provider_id: 'eldorado',
+        payment_method: 'app_nequi_co',
+        fixed_side: 'out',
+        amount_in: 305_000,
+        amount_out: 100,
+      }),
+    ];
+
+    const { rows } = rank(buying, 'best-method');
+    const mine = rows.find((r) => r.quote.provider_id === 'eldorado');
+    assert.equal(mine?.quote.payment_method, 'app_nequi_co');
+    assert.equal(mine?.quote.amount_in, 305_000);
+  });
+
+  it('all-methods still keeps every one, for when the choice is revisited', () => {
+    const { rows } = rank(selling, 'all-methods');
+    assert.equal(rows.filter((r) => r.quote.provider_id === 'eldorado').length, 3);
+  });
+
+  it('fixed-method refuses instead of picking a method nobody chose', () => {
+    // Rule 4: mark what is undecided, never fill it with a provisional value.
+    // Which method it would be was never decided, so selecting this policy is
+    // an error rather than a silent default.
+    assert.throws(() => rank(selling, 'fixed-method'), /method chosen first/);
+  });
+
+  it('shows every method as unavailable rather than hiding the provider', () => {
+    // All four out of range at this bracket: HU-04 says "no alcanza el mínimo"
+    // is an answer, and collapsing to one row must not turn it into absence.
+    const none = [
+      quote({ provider_id: 'bitso', amount_out: 306_550 }),
+      quote({
+        provider_id: 'eldorado',
+        payment_method: 'bank_bancolombia',
+        status: 'out_of_range',
+        limit_reason: 'below_minimum',
+        amount_in: null,
+        amount_out: null,
+      }),
+      quote({
+        provider_id: 'eldorado',
+        payment_method: 'app_nequi_co',
+        status: 'out_of_range',
+        limit_reason: 'below_minimum',
+        amount_in: null,
+        amount_out: null,
+      }),
+    ];
+
+    const { rows, outOfRange } = rank(none, 'best-method');
+    assert.equal(rows.length, 1, 'only bitso can be ranked');
+    assert.equal(outOfRange.length, 2, 'both unavailable methods stay visible');
+  });
+});
+
+describe('the Binance P2P cross, explained since 2026-09-21', () => {
+  /**
+   * The cross is: at the same bracket, selling the dollars pays more pesos than
+   * buying them costs. Measured over the closing week at **572 of 2.386
+   * comparable cells, 24 %**, spread evenly across brackets — 23 %, 23 %, 26 %.
+   * Three runs on 2026-09-14 had suggested it was concentrated in the large
+   * brackets; a week says otherwise.
+   *
+   * It is a real property of a peer-to-peer book, not a defect of ours, and at
+   * 24 % a reader meets it often enough that leaving it unexplained reads as
+   * the comparator being broken. Hence decision #3, `explain`.
+   */
+  const sell = (amountOut: number) =>
+    quote({
+      provider_id: 'binance_p2p',
+      direction: 'usd_to_cop',
+      fixed_side: 'in',
+      amount_in: 100,
+      amount_out: amountOut,
+    });
+
+  const buy = (amountIn: number) =>
+    quote({
+      provider_id: 'binance_p2p',
+      direction: 'cop_to_usd',
+      fixed_side: 'out',
+      amount_in: amountIn,
+      amount_out: 100,
+    });
+
+  it('finds the cross when selling pays more than buying costs', () => {
+    const found = crossAtBracket([sell(318_000), buy(310_000)], 100);
+    assert.deepEqual(found, { selling: 318_000, buying: 310_000 });
+  });
+
+  it('says nothing in the ordinary case, which is most of the time', () => {
+    // Buying costing more than selling pays is the normal shape of a book.
+    // Explaining that would be noise on three quarters of the page loads.
+    assert.equal(crossAtBracket([sell(318_000), buy(318_800)], 100), undefined);
+  });
+
+  it('equal is not a cross', () => {
+    assert.equal(crossAtBracket([sell(318_000), buy(318_000)], 100), undefined);
+  });
+
+  it('needs both directions before it claims anything', () => {
+    // One side missing is not evidence of a cross; it is evidence of one side.
+    assert.equal(crossAtBracket([sell(318_000)], 100), undefined);
+    assert.equal(crossAtBracket([buy(310_000)], 100), undefined);
+  });
+
+  it('does not mix brackets', () => {
+    const other = quote({
+      provider_id: 'binance_p2p',
+      direction: 'cop_to_usd',
+      bracket_usd: 500,
+      fixed_side: 'out',
+      amount_in: 100,
+      amount_out: 100,
+    });
+    // A cheap buy at 500 must not make 100 look crossed.
+    assert.equal(crossAtBracket([sell(318_000), other], 100), undefined);
+  });
+
+  it('only looks at the provider that actually crosses', () => {
+    // Every provider is compared the same way elsewhere; this note names
+    // Binance because Binance is where it was measured. A bitso pair that
+    // happened to cross would be a different finding needing its own measuring.
+    const bitsoSell = quote({ provider_id: 'bitso', amount_out: 318_000 });
+    const bitsoBuy = quote({
+      provider_id: 'bitso',
+      direction: 'cop_to_usd',
+      fixed_side: 'out',
+      amount_in: 310_000,
+      amount_out: 100,
+    });
+    assert.equal(crossAtBracket([bitsoSell, bitsoBuy], 100), undefined);
   });
 });
 

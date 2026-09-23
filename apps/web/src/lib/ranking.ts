@@ -72,6 +72,114 @@ export function betterIsHigher(fixedSide: LatestQuote['fixed_side']): boolean {
   return fixedSide === 'in';
 }
 
+/**
+ * Applies the Eldorado policy, decided 2026-09-21 with the measured week.
+ *
+ * The measurement that decided it: across 6.512 cells the four methods **priced
+ * differently in 3.710**, with spreads up to 4,38 % buying at 1 USD and 1,52 %
+ * selling at 1000. They do not collapse, so averaging them would blend numbers
+ * that are genuinely four percent apart, and `all-methods` would hand Eldorado
+ * four of every eleven rows for being the only provider with a method
+ * dimension. The chosen policy is `best-method`, with the method named on the
+ * row so the number is attributable.
+ *
+ * It costs something and the cost is worth stating: the spread between methods
+ * stops being visible in the ranking. It lives on the provider page, which is
+ * where a 4 % difference between four ways of paying actually belongs.
+ *
+ * The three policies produced **identical** leader statistics over the week,
+ * because Eldorado never led a single cell. So this choice does not move the
+ * ranking and was taken on legibility, which is the honest reason.
+ */
+function applyEldoradoPolicy(rows: readonly LatestQuote[], policy: EldoradoPolicy): LatestQuote[] {
+  const mine = rows.filter((q) => q.provider_id === UNDECIDED_PROVIDER);
+  const others = rows.filter((q) => q.provider_id !== UNDECIDED_PROVIDER);
+  if (mine.length === 0) return [...others];
+
+  if (policy === 'all-methods') return [...rows];
+
+  if (policy === 'fixed-method') {
+    // Reachable only if somebody selects it, and nobody has: which method it
+    // would be is a decision that was never taken. Rule 4 says mark what is
+    // undecided rather than fill it with a provisional value, so this refuses
+    // instead of quietly picking one.
+    throw new Error(
+      "EldoradoPolicy 'fixed-method' needs the method chosen first; " +
+        'no method was ever selected, and picking one here would be a ' +
+        'provisional value pretending to be a decision.',
+    );
+  }
+
+  // 'best-method': one row, the best-priced, judged the same way the ranking
+  // judges everything else — never by the advertised rate (Art. III.1).
+  let best: LatestQuote | undefined;
+  let bestAmount: number | undefined;
+  for (const quote of mine) {
+    const amount = comparableAmount(quote);
+    if (amount === undefined) continue;
+    if (bestAmount === undefined || best === undefined) {
+      best = quote;
+      bestAmount = amount;
+      continue;
+    }
+    const higherWins = betterIsHigher(quote.fixed_side);
+    if (higherWins ? amount > bestAmount : amount < bestAmount) {
+      best = quote;
+      bestAmount = amount;
+    }
+  }
+
+  // Every method out of range at this bracket: keep them so the provider reads
+  // as unavailable here rather than absent (HU-04), same as any other row.
+  if (best === undefined) return [...others, ...mine];
+  return [...others, best];
+}
+
+/** The provider whose book crosses, and the only one measured doing it. */
+export const CROSSING_PROVIDER = 'binance_p2p';
+
+export type Cross = {
+  /** Pesos received for the bracket when selling. */
+  readonly selling: number;
+  /** Pesos paid for the same bracket when buying. */
+  readonly buying: number;
+};
+
+/**
+ * Whether the Binance P2P book crosses at a bracket: selling the dollars yields
+ * more pesos than buying them costs.
+ *
+ * Measured over the closing week: **572 of 2.386 comparable cells, 24 %**, and
+ * spread evenly — 23 % at 100, 23 % at 500, 26 % at 1000. The three-run reading
+ * from 2026-09-14 had suggested it was concentrated in the large brackets; a
+ * week says it is not, which is the kind of correction the window existed for.
+ *
+ * At 24 % it is not a curiosity, so RF-11c stops being hypothetical and the
+ * interface explains it (decision #3, `explain`, taken 2026-09-21).
+ *
+ * It is a real property of a peer-to-peer book, not an error of ours: buyers
+ * and sellers post their own ads, and nothing forces one side to be cheaper.
+ * Saying so is the point — a reader who spots it unexplained will assume the
+ * comparator is broken.
+ */
+export function crossAtBracket(quotes: readonly LatestQuote[], bracket: number): Cross | undefined {
+  const rows = quotes.filter(
+    (q) => q.provider_id === CROSSING_PROVIDER && q.bracket_usd === bracket,
+  );
+
+  const sell = rows.find((q) => q.direction === 'usd_to_cop');
+  const buy = rows.find((q) => q.direction === 'cop_to_usd');
+  if (sell === undefined || buy === undefined) return undefined;
+
+  const selling = comparableAmount(sell);
+  const buying = comparableAmount(buy);
+  if (selling === undefined || buying === undefined) return undefined;
+
+  // Crossed only when selling pays more than buying costs. Equal is not a
+  // cross, and the ordinary case — buying costs more — is not either.
+  return selling > buying ? { selling, buying } : undefined;
+}
+
 export function rank(
   quotes: readonly LatestQuote[],
   eldorado: EldoradoPolicy | undefined,
@@ -80,7 +188,9 @@ export function rank(
   const outOfRange: LatestQuote[] = [];
   const rankable: Array<{ quote: LatestQuote; amount: number }> = [];
 
-  for (const quote of quotes) {
+  const considered = eldorado === undefined ? quotes : applyEldoradoPolicy(quotes, eldorado);
+
+  for (const quote of considered) {
     if (eldorado === undefined && quote.provider_id === UNDECIDED_PROVIDER) {
       deferred.push(quote);
       continue;

@@ -54,9 +54,18 @@ import Ranking from '../components/Ranking.astro';
 import Base from '../layouts/Base.astro';
 import { PROVIDER_IDS } from '../lib/catalogue.ts';
 import { describeFreshness, findMissing } from '../lib/freshness.ts';
-import { DECIDE_ON } from '../lib/pending.ts';
+import type {
+  BracketEmphasis,
+  CrossExplanation,
+  EldoradoPolicy,
+} from '../lib/pending.ts';
 import { fetchLatestQuotes, type LatestQuote } from '../lib/quotes.ts';
-import { availableSelections, directionLabel, select } from '../lib/ranking.ts';
+import {
+  availableSelections,
+  crossAtBracket,
+  directionLabel,
+  select,
+} from '../lib/ranking.ts';
 
 const now = new Date();
 const result = await fetchLatestQuotes();
@@ -67,14 +76,30 @@ const missing = quotes.length === 0 ? [] : findMissing(PROVIDER_IDS, quotes);
 const trmSource = quotes.find((q) => q.trm !== null);
 
 /**
- * The Eldorado policy, deliberately not chosen.
+ * The three T020 decisions, taken 2026-09-21 on 814 runs and 60.226 rows.
  *
- * `undefined` is the open state: its rows are set aside instead of being
- * ranked. Writing a policy here would take one of the three T025 decisions by
- * accident, which is what working rule 4 exists to stop. It gets decided on
- * 2026-09-21 with the measured week.
+ * They sat as unions with no default member for a week so that nobody could
+ * take them by accident (working rule 4). Each is now a measured answer:
+ *
+ *  - **El Dorado → `best-method`.** The four payment methods priced
+ *    differently in 3.710 of 6.512 cells, with spreads to 4,38 % buying at
+ *    1 USD. They do not collapse, so averaging would blend numbers four
+ *    percent apart, and `all-methods` would give one provider four of every
+ *    eleven rows. One row, best-priced, with the method named.
+ *  - **Amount → `featured`.** Buying, the ranking leader changes with the
+ *    bracket in **772 of 814 runs (95 %)**; selling, in 99 (12 %). The
+ *    three-run reading of 2026-09-14 had it backwards, which is exactly what
+ *    the window was for.
+ *  - **The Binance cross → `explain`.** 572 of 2.386 comparable cells, 24 %,
+ *    and spread evenly across brackets rather than concentrated in the large
+ *    ones as three runs had suggested.
+ *
+ * Kept as named constants rather than inlined: the page is where somebody
+ * chose, and these are the lines that say so.
  */
-const ELDORADO_POLICY = undefined;
+const ELDORADO_POLICY: EldoradoPolicy = 'best-method';
+const BRACKET_EMPHASIS: BracketEmphasis = 'featured';
+const CROSS_POLICY: CrossExplanation = 'explain';
 
 const selections = availableSelections(quotes);
 const directions = [...new Set(selections.map((s) => s.direction))];
@@ -85,7 +110,9 @@ const defaults = {
   bracket: brackets.includes(100) ? 100 : (brackets[0] ?? 100),
 };
 
-/** One look for both groups, so neither claims more weight. */
+const featured = BRACKET_EMPHASIS === 'featured';
+
+/** The shared look. The amount group adds to it, because decision #2 says so. */
 const GROUP = 'border-border bg-card flex gap-0.5 rounded-lg border p-0.5 shadow-xs';
 const OPTION =
   'block cursor-pointer rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors peer-checked:bg-accent peer-checked:text-accent-foreground peer-checked:font-semibold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-ring hover:text-foreground';
@@ -179,8 +206,24 @@ const OPTION =
             ))}
           </fieldset>
 
-          <fieldset class={`m-0 ${GROUP}`}>
-            <legend class="sr-only">Monto</legend>
+          {/*
+            Decision #2 is `featured`, and this is what featuring it means: a
+            visible label instead of a screen-reader-only one, and a control
+            that reads as the question rather than as a filter. It earns it —
+            buying, the leader changes with the amount in 95 % of runs, so this
+            is the control that changes the answer.
+          */}
+          <fieldset
+            class:list={[
+              'm-0',
+              GROUP,
+              featured && 'ring-primary/20 shadow-sm ring-1',
+            ]}
+            data-emphasis={BRACKET_EMPHASIS}
+          >
+            <legend class={featured ? 'text-faint px-1 text-xs font-medium' : 'sr-only'}>
+              Monto
+            </legend>
             {brackets.map((bracket) => (
               <label class="relative flex">
                 <input
@@ -190,7 +233,9 @@ const OPTION =
                   checked={bracket === defaults.bracket}
                   class="peer absolute inset-0 cursor-pointer opacity-0"
                 />
-                <span class={`amount ${OPTION}`}>{bracket} USD</span>
+                <span class:list={['amount', OPTION, featured && 'px-4 py-2']}>
+                  {bracket} USD
+                </span>
               </label>
             ))}
           </fieldset>
@@ -211,15 +256,17 @@ const OPTION =
                 bracket={selection.bracket}
                 now={now}
                 eldorado={ELDORADO_POLICY}
+                cross={crossAtBracket(quotes, selection.bracket)}
+                crossPolicy={CROSS_POLICY}
               />
             </div>
           ))}
         </div>
 
         <p class="text-faint border-border mt-8 border-t pt-4 text-xs">
-          Cómo se muestra El Dorado —el único con varios métodos de pago— se
-          decide el {DECIDE_ON}, con una semana de datos medidos. Hasta entonces
-          sus precios se ven aparte y no entran en el orden.
+          El Dorado cotiza cuatro métodos de pago y acá se muestra el mejor, con
+          el método a la vista. Entre métodos llega a haber 4 % de diferencia, y
+          eso se ve entero en su ficha.
         </p>
       </>
     )
