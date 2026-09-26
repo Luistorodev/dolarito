@@ -94,13 +94,48 @@ describe('de dónde sale la regla de monto libre', () => {
 });
 
 describe('convertir un monto que no es un bracket', () => {
+  /**
+   * Comisión fija: la tasa efectiva **sube** con el monto porque la comisión se
+   * diluye. Medido sobre la ventana: wise y western_union, monótonas en 1.152
+   * de 1.152 corridas. Por eso se pueden acotar.
+   */
+  const withFixedFee = (id: string, rate: number, fee: number) =>
+    [1, 100, 500, 1000].map((b) =>
+      quote({
+        provider_id: id,
+        bracket_usd: b,
+        gross_rate: rate,
+        fee_fixed_usd: fee,
+        amount_in: b,
+        amount_out: Math.max(0, (b - fee) * rate),
+      }),
+    );
+
+  /**
+   * Un libro de órdenes: a más monto, peor tasa, y **no** de forma monótona en
+   * la dirección que haría válida una cota. La forma de binance_p2p.
+   */
+  const orderBook = (id: string) =>
+    [
+      [1, 3200],
+      [100, 3180],
+      [500, 3210],
+      [1000, 3150],
+    ].map(([b, rate]) =>
+      quote({
+        provider_id: id,
+        bracket_usd: b as number,
+        gross_rate: rate as number,
+        amount_in: b as number,
+        amount_out: (b as number) * (rate as number),
+      }),
+    );
+
   const quotes = [
     ...ticker('bitso', 3200),
     ...ticker('buda', 3150),
-    // Con comisión: solo puede contestar a sus brackets medidos.
-    ...ticker('wise', 3100).map((q) =>
-      quote({ ...q, fee_fixed_usd: 5, amount_out: q.bracket_usd * 3100 - 15_500 }),
-    ),
+    ...withFixedFee('wise', 3100, 5),
+    ...orderBook('binance_p2p'),
   ];
 
   it('calcula exacto a quien lo admite, y lo dice', () => {
@@ -112,27 +147,56 @@ describe('convertir un monto que no es un bracket', () => {
     assert.equal(mine?.exact, true);
   });
 
-  it('a quien no lo admite le muestra su bracket, nunca un interpolado', () => {
-    const { measured } = convert(quotes, 250, 'usd_to_cop');
-    const mine = measured.find((r) => r.quote.provider_id === 'wise');
+  it('a quien cobra comisión lo acota entre dos mediciones, sin interpolar', () => {
+    const { bounded } = convert(quotes, 250, 'usd_to_cop');
+    const mine = bounded.find((b) => b.quote.provider_id === 'wise');
 
-    assert.ok(mine, 'no desaparece por no poder calcularse');
-    assert.equal(mine?.exact, false);
-    assert.notEqual(mine?.usd, 250, 'la cifra NO es del monto pedido');
-    assert.ok(
-      mine !== undefined && [100, 500].includes(mine.usd),
-      'es uno de los brackets medidos, el más cercano',
-    );
+    assert.ok(mine, 'no desaparece por no poder calcularse exacto');
+    assert.equal(mine?.lower.usd, 100, 'el bracket medido por debajo');
+    assert.equal(mine?.upper.usd, 500, 'el bracket medido por encima');
+    // Los dos extremos son observaciones reales, no un punto inventado.
+    assert.equal(mine?.lower.pesos, (100 - 5) * 3100);
+    assert.equal(mine?.upper.pesos, (500 - 5) * 3100);
   });
 
-  it('las dos listas van separadas, porque no son comparables', () => {
+  it('no acota cuando la corrida no es monótona', () => {
+    // Un libro de órdenes puede mejorar y empeorar según la profundidad. Una
+    // cota apoyada en monotonía que no existe parece información y no lo es.
+    const { bounded, measured } = convert(quotes, 250, 'usd_to_cop');
+    assert.ok(!bounded.some((b) => b.quote.provider_id === 'binance_p2p'));
+    const mine = measured.find((r) => r.quote.provider_id === 'binance_p2p');
+    assert.ok(mine, 'cae al bracket medido más cercano');
+    assert.equal(mine?.exact, false);
+    assert.ok(mine !== undefined && [100, 500].includes(mine.usd));
+  });
+
+  it('no acota fuera del rango medido, porque eso sería extrapolar', () => {
+    const { bounded, measured } = convert(quotes, 5000, 'usd_to_cop');
+    assert.ok(!bounded.some((b) => b.quote.provider_id === 'wise'));
+    assert.ok(measured.some((r) => r.quote.provider_id === 'wise'));
+  });
+
+  it('las listas van separadas, porque no son comparables entre sí', () => {
     // Ordenar juntas una cifra de 250 USD con otra de 100 sería comparar dos
     // montos como si fueran uno: el Art. III.3 existe por esto.
-    const { exact, measured } = convert(quotes, 250, 'usd_to_cop');
+    const { exact, bounded, measured } = convert(quotes, 250, 'usd_to_cop');
     assert.equal(exact.length, 2, 'bitso y buda');
-    assert.equal(measured.length, 1, 'wise');
+    assert.equal(bounded.length, 1, 'wise');
+    assert.equal(measured.length, 1, 'binance_p2p');
     assert.ok(exact.every((r) => r.exact));
     assert.ok(measured.every((r) => !r.exact));
+  });
+
+  it('una comisión de CERO no es una comisión', () => {
+    // instarem publica una sola tasa y cobra 0 — medido: un único valor
+    // fee_fixed_usd = 0 en 4.608 filas. La primera versión preguntaba si el
+    // campo era no-nulo y lo mandaba al grupo aproximado teniendo la respuesta
+    // exacta. Es la misma familia de error que confundir "no medido" con cero.
+    const free = withFixedFee('instarem', 3100, 0);
+    const { exact } = convert(free, 250, 'usd_to_cop');
+    const mine = exact.find((r) => r.quote.provider_id === 'instarem');
+    assert.equal(mine?.pesos, 250 * 3100);
+    assert.equal(mine?.usd, 250);
   });
 
   it('vendiendo gana quien entrega más pesos', () => {
@@ -197,9 +261,14 @@ describe('la decisión de El Dorado rige acá también', () => {
    */
   const methods = ['bank_bancolombia', 'app_nequi_co', 'app_llave_co', 'app_daviplata_co'];
 
+  // Tres brackets en zigzag: con solo dos, cualquier par es monotono en
+  // alguna direccion y el fixture caeria en el grupo acotado por accidente.
+  // El eldorado real no es monotono y el fixture tiene que parecerse a eso.
+  const bump = (b: number): number => (b === 500 ? 0 : b === 100 ? 40 : 60);
+
   const eldorado = (direction: LatestQuote['direction']) =>
     methods.flatMap((method, i) =>
-      [100, 500].map((b) =>
+      [100, 500, 1000].map((b) =>
         quote({
           provider_id: 'eldorado',
           payment_method: method,
@@ -207,8 +276,10 @@ describe('la decisión de El Dorado rige acá también', () => {
           fixed_side: direction === 'usd_to_cop' ? 'in' : 'out',
           bracket_usd: b,
           fee_pct: 0.0099,
-          amount_in: direction === 'usd_to_cop' ? b : b * (3000 + i * 10),
-          amount_out: direction === 'usd_to_cop' ? b * (3000 + i * 10) : b,
+          // Tasa distinta por bracket y sin orden: el eldorado real no es
+          // monótono, así que cae al bracket medido y no se acota.
+          amount_in: direction === 'usd_to_cop' ? b : b * (3000 + i * 10 + bump(b)),
+          amount_out: direction === 'usd_to_cop' ? b * (3000 + i * 10 + bump(b)) : b,
         }),
       ),
     );

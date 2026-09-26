@@ -43,9 +43,35 @@ export type ConvertedRow = {
   readonly exact: boolean;
 };
 
+/**
+ * Una cota: el monto pedido cae entre dos brackets medidos.
+ *
+ * No es una interpolación. Los dos extremos son observaciones reales y lo que
+ * se afirma es que el valor verdadero está entre ellas — afirmación que solo se
+ * sostiene si la tasa efectiva es monótona en el monto, **y eso se comprueba en
+ * la propia corrida antes de ofrecerla**, no se da por supuesto.
+ *
+ * Medido sobre la ventana de T020: `wise` y `western_union` resultaron
+ * monótonas en **1.152 de 1.152 corridas**, lo cual es esperable —una comisión
+ * fija se diluye a más monto— pero el código no se apoya en esa expectativa. Se
+ * apoya en los brackets que tiene delante.
+ */
+export type Bound = {
+  readonly quote: LatestQuote;
+  /** Pesos en el bracket medido por debajo del monto pedido. */
+  readonly lower: { readonly pesos: number; readonly usd: number };
+  /** Pesos en el bracket medido por encima. */
+  readonly upper: { readonly pesos: number; readonly usd: number };
+  /** Pesos por dólar en cada extremo, que es lo comparable entre montos. */
+  readonly lowerRate: number;
+  readonly upperRate: number;
+};
+
 export type Conversion = {
   /** Calculadas al monto pedido. Comparables entre sí. */
   readonly exact: ConvertedRow[];
+  /** Acotadas entre dos brackets medidos, cuando la corrida lo permite. */
+  readonly bounded: Bound[];
   /** Al bracket medido más cercano. Comparables entre sí, no con las de arriba. */
   readonly measured: ConvertedRow[];
 };
@@ -66,11 +92,71 @@ export function acceptsFreeAmount(rows: readonly LatestQuote[]): boolean {
   const usable = rows.filter((r) => r.status === 'ok' && r.gross_rate !== null);
   if (usable.length < 2) return false;
 
-  const hasFee = usable.some((r) => r.fee_pct !== null || r.fee_fixed_usd !== null);
+  // **Cero no es una comisión.** La primera versión preguntaba si el campo era
+  // no-nulo y mandaba a `instarem` al grupo aproximado teniendo una sola tasa y
+  // cobrando 0 — medido: un único valor `fee_fixed_usd = 0` en 4.608 filas de
+  // toda la ventana. Preguntar por la existencia del campo en vez de por su
+  // valor es la misma familia de error que confundir "no medido" con "cero".
+  const hasFee = usable.some(
+    (r) => Number(r.fee_pct ?? 0) !== 0 || Number(r.fee_fixed_usd ?? 0) !== 0,
+  );
   if (hasFee) return false;
 
   const rates = new Set(usable.map((r) => Number(r.gross_rate)));
   return rates.size === 1;
+}
+
+/**
+ * Los dos brackets que encierran el monto, si la corrida los tiene Y su tasa
+ * efectiva es monótona entre ellos.
+ *
+ * Devuelve `undefined` en cuanto falta cualquiera de las dos condiciones. Es
+ * deliberado que sea fácil de no cumplir: una cota mal fundada es peor que
+ * ninguna, porque parece información.
+ */
+function boundAround(
+  rows: readonly LatestQuote[],
+  amount: number,
+  receives: boolean,
+): Bound | undefined {
+  const priced = rows
+    .filter((r) => r.status === 'ok')
+    .map((r) => {
+      const pesos = pesosOf(r);
+      return pesos === undefined ? undefined : { quote: r, pesos, usd: r.bracket_usd };
+    })
+    .filter((x): x is { quote: LatestQuote; pesos: number; usd: number } => x !== undefined)
+    .sort((a, b) => a.usd - b.usd);
+
+  if (priced.length < 2) return undefined;
+
+  // Monotonía comprobada en esta corrida, sobre pesos por dólar. Al vender la
+  // tasa efectiva debe subir con el monto; al comprar, bajar.
+  for (let i = 1; i < priced.length; i += 1) {
+    const prev = priced[i - 1];
+    const cur = priced[i];
+    if (prev === undefined || cur === undefined) return undefined;
+    const before = prev.pesos / prev.usd;
+    const after = cur.pesos / cur.usd;
+    if (receives ? after < before : after > before) return undefined;
+  }
+
+  let lower: { quote: LatestQuote; pesos: number; usd: number } | undefined;
+  let upper: { quote: LatestQuote; pesos: number; usd: number } | undefined;
+  for (const row of priced) {
+    if (row.usd <= amount) lower = row;
+    if (row.usd >= amount && upper === undefined) upper = row;
+  }
+  // Fuera del rango medido no hay cota: extrapolar es justo lo que no se hace.
+  if (lower === undefined || upper === undefined || lower.usd === upper.usd) return undefined;
+
+  return {
+    quote: upper.quote,
+    lower: { pesos: lower.pesos, usd: lower.usd },
+    upper: { pesos: upper.pesos, usd: upper.usd },
+    lowerRate: lower.pesos / lower.usd,
+    upperRate: upper.pesos / upper.usd,
+  };
 }
 
 /** Al peso, mitad hacia arriba — la política de `money.ts`, no una nueva. */
@@ -110,9 +196,11 @@ export function convert(
   direction: LatestQuote['direction'],
 ): Conversion {
   const exact: ConvertedRow[] = [];
+  const bounded: Bound[] = [];
   const measured: ConvertedRow[] = [];
+  const receives = direction === 'usd_to_cop';
 
-  if (!Number.isFinite(amount) || amount <= 0) return { exact, measured };
+  if (!Number.isFinite(amount) || amount <= 0) return { exact, bounded, measured };
 
   const lanes = new Map<string, LatestQuote[]>();
   for (const quote of quotes) {
@@ -141,8 +229,17 @@ export function convert(
       }
     }
 
-    // Sin monto libre: el bracket medido más cercano, declarado como tal. No se
-    // interpola: un número entre dos brackets es una observación que nadie hizo.
+    // Segundo intento antes de rendirse: si el monto cae entre dos brackets
+    // medidos y la corrida es monótona, se puede acotar con los dos extremos.
+    const bound = boundAround(priced, amount, receives);
+    if (bound !== undefined) {
+      bounded.push(bound);
+      continue;
+    }
+
+    // Sin monto libre ni cota: el bracket medido más cercano, declarado como
+    // tal. No se interpola: un número entre dos brackets es una observación
+    // que nadie hizo.
     const nearest = nearestBracket(priced, amount);
     const pesos = nearest === undefined ? undefined : pesosOf(nearest);
     if (nearest !== undefined && pesos !== undefined) {
@@ -151,7 +248,6 @@ export function convert(
   }
 
   // Art. III.1: el orden sale del lado variable, no de la tasa anunciada.
-  const receives = direction === 'usd_to_cop';
 
   /**
    * La política de El Dorado vale acá también, y esto es un defecto corregido.
@@ -193,5 +289,13 @@ export function convert(
     return receives ? rb - ra : ra - rb;
   });
 
-  return { exact: exactRows, measured: measuredRows };
+  // Las cotas se ordenan por el extremo conservador: vendiendo, por lo menos
+  // que podrías recibir; comprando, por lo más que podrías pagar. Prometer por
+  // el extremo bueno es la forma amable de exagerar.
+  bounded.sort((a, b) =>
+    receives ? a.lowerRate - b.lowerRate || b.upperRate - a.upperRate : a.upperRate - b.upperRate,
+  );
+  if (receives) bounded.reverse();
+
+  return { exact: exactRows, bounded, measured: measuredRows };
 }

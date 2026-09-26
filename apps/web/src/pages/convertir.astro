@@ -43,7 +43,7 @@ const freshness = describeFreshness(quotes, now);
 const missing = quotes.length === 0 ? [] : findMissing(PROVIDER_IDS, quotes);
 
 const conversion =
-  amount === undefined ? { exact: [], measured: [] } : convert(quotes, amount, direction);
+  amount === undefined ? { exact: [], bounded: [], measured: [] } : convert(quotes, amount, direction);
 
 const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 const usd = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
@@ -179,16 +179,69 @@ const receives = direction === 'usd_to_cop';
           </section>
         )}
 
+        {amount !== undefined && conversion.bounded.length > 0 && (
+          <section class="mb-8">
+            <h2 class="m-0 mb-1 text-lg font-semibold tracking-tight">
+              Entre dos montos medidos
+            </h2>
+            <p class="text-faint m-0 mb-3 max-w-measure text-xs">
+              Acá la comisión se diluye a más monto, así que tus{' '}
+              {usd.format(amount)} USD caen entre dos mediciones reales. Los dos
+              extremos son observaciones, no un promedio: el valor está entre
+              ellos y no sabemos en qué punto exacto.
+            </p>
+            <ol class="m-0 list-none space-y-1 p-0" data-bounded="true">
+              {conversion.bounded.map((row) => {
+                const age = minutesSince(row.quote.captured_at, now);
+                const low = Math.round(row.lowerRate * amount);
+                const high = Math.round(row.upperRate * amount);
+                return (
+                  <li class="border-border grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 border-b px-2 py-3">
+                    <span class="flex min-w-0 flex-col gap-0.5">
+                      <a
+                        href={`/proveedores/${row.quote.provider_id}`}
+                        class="text-foreground truncate font-medium no-underline hover:underline"
+                      >
+                        {providerName(row.quote.provider_id)}
+                      </a>
+                      <span class="text-faint text-xs">
+                        {modeLabel(row.quote.mode)} · {assetLabel(row.quote.asset)} ·{' '}
+                        {channelLabel(row.quote.channel)}
+                      </span>
+                    </span>
+                    <span class="flex flex-col items-end gap-0.5 text-right">
+                      <span class="flex items-baseline gap-1">
+                        <span class="amount text-lg font-semibold tracking-tight">
+                          {cop.format(low)}
+                        </span>
+                        <span class="text-faint text-xs">a</span>
+                        <span class="amount text-lg font-semibold tracking-tight">
+                          {cop.format(high)}
+                        </span>
+                        <span class="text-faint text-xs">COP</span>
+                      </span>
+                      <span class="text-faint text-xs">
+                        medido a {usd.format(row.lower.usd)} y {usd.format(row.upper.usd)} USD
+                      </span>
+                      <span class="text-faint text-xs">{ageLabel(age)}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
+
         {amount !== undefined && conversion.measured.length > 0 && (
           <section>
             <h2 class="m-0 mb-1 text-lg font-semibold tracking-tight">
               Al monto medido más cercano
             </h2>
             <p class="text-faint m-0 mb-3 max-w-measure text-xs">
-              Acá el precio depende de la cantidad —cobran comisión, o su tasa
-              sale de un libro de órdenes—, así que estas cifras son del monto
-              que sí medimos, no de los {usd.format(amount)} USD que pediste.
-              Calcular el intermedio sería inventarlo.
+              Acá el precio sube y baja con la cantidad sin un patrón —un libro
+              de órdenes, o una comisión que cambia—, así que ni siquiera se
+              puede acotar. Estas cifras son del monto que sí medimos, no de los{' '}
+              {usd.format(amount)} USD que pediste.
             </p>
             <ol class="m-0 list-none space-y-1 p-0" data-measured="true">
               {conversion.measured.map((row) => {
