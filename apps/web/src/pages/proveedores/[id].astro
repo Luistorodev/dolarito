@@ -11,6 +11,7 @@
  * address resolves to something calling itself this provider. DolarApp's
  * redirects to a differently-named company and is withheld until reviewed.
  */
+import Volver from '../../components/Volver.astro';
 import Base from '../../layouts/Base.astro';
 import { linkable, PROVIDERS } from '../../lib/catalogue.ts';
 import { ageLabel, minutesSince } from '../../lib/freshness.ts';
@@ -29,7 +30,7 @@ const profile = buildProfile(provider.id, quotes);
 ---
 
 <Base title={provider.name} description={`Qué es ${provider.name} y qué precios da.`}>
-  <p class="faint"><a href="/">← Volver a la comparación</a></p>
+  <Volver />
 
   <header>
     <h1>{provider.name}</h1>

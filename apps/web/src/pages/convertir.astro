@@ -18,6 +18,7 @@
  * una lista escrita a mano — ver `convert.ts`.
  */
 import AvisoFrescura from '../components/AvisoFrescura.astro';
+import Volver from '../components/Volver.astro';
 import Base from '../layouts/Base.astro';
 import { PROVIDER_IDS } from '../lib/catalogue.ts';
 import { providerName } from '../lib/catalogue.ts';
@@ -54,12 +55,7 @@ const receives = direction === 'usd_to_cop';
   title="Conversor"
   description="Cuántos pesos son tus dólares, en cada proveedor y a tu monto."
 >
-  {/* Misma copia y misma posición que Texto.astro y la ficha de proveedor:
-      la vuelta ya tenía una forma en este sitio y esta página era la única
-      sin ella. Inventar una segunda manera de volver es peor que no tenerla. */}
-  <p class="text-faint m-0 mb-4 text-xs">
-    <a href="/">&larr; Volver a la comparación</a>
-  </p>
+  <Volver />
 
   <header class="mb-6">
     <h1 class="m-0 text-2xl font-bold tracking-tight sm:text-3xl">Conversor</h1>

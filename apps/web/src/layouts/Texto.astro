@@ -6,6 +6,7 @@
  * container exists to put two rankings side by side, and a line of prose that
  * runs the width of a monitor is unreadable.
  */
+import Volver from '../components/Volver.astro';
 import Base from './Base.astro';
 
 interface Props {
@@ -17,7 +18,7 @@ const { title, description } = Astro.props;
 ---
 
 <Base title={title} description={description}>
-  <p class="faint"><a href="/">← Volver a la comparación</a></p>
+  <Volver />
   <article class="texto">
     <slot />
   </article>

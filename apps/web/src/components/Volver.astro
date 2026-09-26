@@ -1,0 +1,29 @@
+---
+/**
+ * La vuelta a la comparación.
+ *
+ * Existe como componente porque estaba copiada en tres archivos y el día que
+ * una se arregló, las otras dos siguieron mal. Ahora hay un solo lugar.
+ *
+ * ## Por qué dejó de ser `.faint`
+ *
+ * Las tres la marcaban con `text-faint` a 0,75rem. Medido contra el fondo:
+ * **3,43:1**, por debajo del 4,5:1 que pide WCAG AA para texto chico. No era
+ * una cuestión de gusto — el enlace estaba ahí y no se veía, que es
+ * exactamente lo que reportó el humano.
+ *
+ * Ahora usa el color de enlace del sitio a 0,875rem: **7,22:1**. Y lleva
+ * subrayado permanente en vez de solo al pasar el mouse, porque en un teléfono
+ * no hay «al pasar el mouse»: si el color es lo único que lo distingue, para
+ * quien no distingue ese color no hay nada.
+ */
+---
+
+<p class="m-0 mb-5">
+  <a
+    href="/"
+    class="text-primary inline-flex items-center gap-1 text-sm font-medium underline decoration-1 underline-offset-2"
+  >
+    <span aria-hidden="true">&larr;</span> Volver a la comparación
+  </a>
+</p>
