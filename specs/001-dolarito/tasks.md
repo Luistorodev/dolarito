@@ -707,6 +707,44 @@ memoria sería exactamente lo que este proyecto no hace.
 
 
 
+## Fase 7 — Conversión y spread *(alcance nuevo, 2026-09-26)*
+
+Las dos salieron de una petición del humano después de cerrar la Fase 5. Ninguna
+estaba en el spec original; las dos entran por la puerta, no por un parche.
+
+### T031 — Conversor a monto libre *(amplía HU-04)*
+
+Un campo donde se escribe cuántos dólares se quieren comprar o vender, y la
+equivalencia en cada proveedor.
+
+**La regla de qué se puede calcular sale del dato**, no de una lista: `gross_rate`
+igual en los cuatro brackets **y** sin comisión. Ver la ampliación de HU-04.
+
+Criterio de terminado:
+- Un monto libre produce cifras exactas para los proveedores que lo admiten, y
+  el bracket medido más cercano **declarado como tal** para los que no.
+- Ningún número aparece sin decir a qué monto corresponde.
+- Un proveedor que empiece a cobrar comisión cae a modo bracket **sin tocar
+  código**, y hay un test que lo fija.
+- La identidad `monto × gross_rate` se verifica contra filas reales, no contra
+  sí misma.
+
+### T032 — Spread entre comprar y vender *(NECESITA DECISIÓN DEL HUMANO)*
+
+**Bloqueada por el §7 del spec**, que excluye explícitamente *"recomendaciones
+de inversión o de momento de compra"* y *"alertas de precio"*. Mostrar dónde
+comprar barato y dónde vender caro roza esa línea y **no se construye hasta que
+el humano enmiende el §7 a propósito o acote la forma**.
+
+Lo que el dato sostiene, medido sobre 1.152 corridas de la ventana de T020:
+diferencia positiva en el **86 %** de las corridas, mediana **0,37 %**, p90
+0,93 %, y casi siempre el mismo par `binance_p2p → bitso`.
+
+Lo que el dato **no** sostiene, y por eso la tarea no dice "ganancia": son dos
+proveedores distintos y **el costo de mover el USDT entre ellos no está en
+nuestros datos**; las dos capturas no son simultáneas; y un anuncio de P2P
+puede no existir cuando alguien llegue.
+
 ## Fase 6 — Cierre
 
 **T029 — Revisión contra el constitution** ✅ *cerrada el 2026-09-15*

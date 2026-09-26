@@ -1,0 +1,243 @@
+---
+/**
+ * Conversor a monto libre (T031, ampliación de HU-04).
+ *
+ * ## Un formulario GET, sin JavaScript
+ *
+ * El monto viaja en la URL y el servidor responde la página entera. No hace
+ * falta script, y sobre todo **no viaja ninguna tasa al navegador**: con N4 la
+ * lectura es de servidor y cuanto menos salga de acá, mejor. Además el
+ * resultado queda en una URL que se puede compartir o volver a abrir.
+ *
+ * ## Dos listas, no un ranking
+ *
+ * Para `bitso`, `buda` y `dolarapp` la cifra es del monto pedido. Para el resto
+ * es la del bracket medido más cercano, y se dice. Mezclarlas en un solo orden
+ * sería comparar 250 USD contra 100 como si fueran lo mismo, que es justo lo
+ * que el Art. III.3 prohíbe. La regla de quién cae en cuál sale del dato, no de
+ * una lista escrita a mano — ver `convert.ts`.
+ */
+import AvisoFrescura from '../components/AvisoFrescura.astro';
+import Base from '../layouts/Base.astro';
+import { PROVIDER_IDS } from '../lib/catalogue.ts';
+import { providerName } from '../lib/catalogue.ts';
+import { convert } from '../lib/convert.ts';
+import { ageLabel, describeFreshness, findMissing, minutesSince } from '../lib/freshness.ts';
+import { fetchLatestQuotes, type LatestQuote } from '../lib/quotes.ts';
+import { assetLabel, channelLabel, directionLabel, modeLabel } from '../lib/ranking.ts';
+
+const now = new Date();
+const params = Astro.url.searchParams;
+
+/** El monto pedido. Un valor imposible no se corrige en silencio: se ignora. */
+const raw = params.get('monto') ?? '';
+const parsed = Number(raw.replace(/[^\d.,]/g, '').replace(',', '.'));
+const amount = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+
+const direction: LatestQuote['direction'] =
+  params.get('dir') === 'cop_to_usd' ? 'cop_to_usd' : 'usd_to_cop';
+
+const result = await fetchLatestQuotes();
+const quotes = result.kind === 'ok' ? result.quotes : [];
+const freshness = describeFreshness(quotes, now);
+const missing = quotes.length === 0 ? [] : findMissing(PROVIDER_IDS, quotes);
+
+const conversion =
+  amount === undefined ? { exact: [], measured: [] } : convert(quotes, amount, direction);
+
+const cop = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+const usd = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
+const receives = direction === 'usd_to_cop';
+---
+
+<Base
+  title="Conversor"
+  description="Cuántos pesos son tus dólares, en cada proveedor y a tu monto."
+>
+  <header class="mb-6">
+    <h1 class="m-0 text-2xl font-bold tracking-tight sm:text-3xl">Conversor</h1>
+    <p class="text-muted-foreground m-0 mt-2 max-w-measure text-sm">
+      Escribí cuántos dólares querés {receives ? 'vender' : 'comprar'} y mirá qué
+      te da cada proveedor.
+    </p>
+  </header>
+
+  <form method="get" class="border-border bg-card mb-6 rounded-lg border p-4 shadow-xs">
+    <div class="flex flex-wrap items-end gap-4">
+      <label class="flex flex-col gap-1">
+        <span class="text-faint text-xs font-medium">Dólares</span>
+        <input
+          type="text"
+          inputmode="decimal"
+          name="monto"
+          value={raw}
+          placeholder="250"
+          class="amount border-border-strong bg-background focus-visible:outline-ring w-36 rounded-md border px-3 py-2 text-lg font-semibold focus-visible:outline-2"
+        />
+      </label>
+
+      <fieldset class="border-border bg-background m-0 flex gap-0.5 rounded-lg border p-0.5">
+        <legend class="sr-only">Dirección</legend>
+        {
+          (['usd_to_cop', 'cop_to_usd'] as const).map((d) => (
+            <label class="relative flex">
+              <input
+                type="radio"
+                name="dir"
+                value={d}
+                checked={d === direction}
+                class="peer absolute inset-0 cursor-pointer opacity-0"
+              />
+              <span class="peer-checked:bg-accent peer-checked:text-accent-foreground text-muted-foreground block cursor-pointer rounded-md px-3 py-2 text-sm whitespace-nowrap peer-checked:font-semibold">
+                {directionLabel(d)}
+              </span>
+            </label>
+          ))
+        }
+      </fieldset>
+
+      <button
+        type="submit"
+        class="bg-primary text-primary-foreground focus-visible:outline-ring rounded-md px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        Convertir
+      </button>
+    </div>
+  </form>
+
+  {
+    result.kind === 'failed' && (
+      <section role="alert" class="border-border-strong bg-warn-soft rounded-lg border p-4">
+        <h2 class="m-0 mb-2 text-base font-semibold">No se pudieron leer los precios</h2>
+        <p class="text-muted-foreground m-0 text-sm">{result.reason}</p>
+      </section>
+    )
+  }
+
+  {
+    result.kind === 'ok' && (
+      <>
+        <AvisoFrescura freshness={freshness} missing={missing} />
+
+        {amount === undefined && (
+          <p class="text-muted-foreground text-sm">
+            Escribí un monto arriba. Podés poner cualquier número: los que se
+            pueden calcular exacto se calculan, y los demás muestran el monto
+            medido más cercano, dicho.
+          </p>
+        )}
+
+        {amount !== undefined && conversion.exact.length > 0 && (
+          <section class="mb-8">
+            <h2 class="m-0 mb-1 text-lg font-semibold tracking-tight">
+              A tus {usd.format(amount)} USD
+            </h2>
+            <p class="text-faint m-0 mb-3 text-xs">
+              Cifras calculadas a tu monto exacto: su tasa no cambia con la
+              cantidad y no cobran comisión aparte.
+            </p>
+            <ol class="m-0 list-none space-y-1 p-0">
+              {conversion.exact.map((row, index) => {
+                const age = minutesSince(row.quote.captured_at, now);
+                const leader = index === 0;
+                return (
+                  <li
+                    class:list={[
+                      'grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-x-3 gap-y-1 rounded-lg px-2 py-3',
+                      leader ? 'bg-accent ring-primary/25 -mx-2 shadow-xs ring-1' : 'border-border border-b',
+                    ]}
+                    data-exact="true"
+                  >
+                    <span class:list={['amount text-xs', leader ? 'text-primary font-bold' : 'text-faint']}>
+                      {index + 1}
+                    </span>
+                    <span class="flex min-w-0 flex-col gap-0.5">
+                      <a
+                        href={`/proveedores/${row.quote.provider_id}`}
+                        class="text-foreground truncate font-medium no-underline hover:underline"
+                      >
+                        {providerName(row.quote.provider_id)}
+                      </a>
+                      <span class="text-faint text-xs">
+                        {modeLabel(row.quote.mode)} · {assetLabel(row.quote.asset)} ·{' '}
+                        {channelLabel(row.quote.channel)}
+                      </span>
+                    </span>
+                    <span class="flex flex-col items-end gap-0.5 text-right">
+                      <span class="flex items-baseline gap-1">
+                        <span class:list={['amount font-semibold tracking-tight', leader ? 'text-2xl' : 'text-lg']}>
+                          {cop.format(row.pesos)}
+                        </span>
+                        <span class="text-faint text-xs">COP</span>
+                      </span>
+                      <span class="text-faint text-xs">{ageLabel(age)}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
+
+        {amount !== undefined && conversion.measured.length > 0 && (
+          <section>
+            <h2 class="m-0 mb-1 text-lg font-semibold tracking-tight">
+              Al monto medido más cercano
+            </h2>
+            <p class="text-faint m-0 mb-3 max-w-measure text-xs">
+              Acá el precio depende de la cantidad —cobran comisión, o su tasa
+              sale de un libro de órdenes—, así que estas cifras son del monto
+              que sí medimos, no de los {usd.format(amount)} USD que pediste.
+              Calcular el intermedio sería inventarlo.
+            </p>
+            <ol class="m-0 list-none space-y-1 p-0" data-measured="true">
+              {conversion.measured.map((row) => {
+                const age = minutesSince(row.quote.captured_at, now);
+                return (
+                  <li class="border-border grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 border-b px-2 py-3">
+                    <span class="flex min-w-0 flex-col gap-0.5">
+                      <a
+                        href={`/proveedores/${row.quote.provider_id}`}
+                        class="text-foreground truncate font-medium no-underline hover:underline"
+                      >
+                        {providerName(row.quote.provider_id)}
+                        {row.quote.payment_method !== null && (
+                          <span class="text-muted-foreground font-normal">
+                            {' '}
+                            · {row.quote.payment_method}
+                          </span>
+                        )}
+                      </a>
+                      <span class="text-faint text-xs">
+                        {modeLabel(row.quote.mode)} · {assetLabel(row.quote.asset)} ·{' '}
+                        {channelLabel(row.quote.channel)}
+                      </span>
+                    </span>
+                    <span class="flex flex-col items-end gap-0.5 text-right">
+                      <span class="flex items-baseline gap-1">
+                        <span class="amount text-lg font-semibold tracking-tight">
+                          {cop.format(row.pesos)}
+                        </span>
+                        <span class="text-faint text-xs">COP</span>
+                      </span>
+                      <span class="text-warn text-xs font-medium" data-measured-at={String(row.usd)}>
+                        medido a {usd.format(row.usd)} USD
+                      </span>
+                      <span class="text-faint text-xs">{ageLabel(age)}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
+
+        <p class="text-faint border-border mt-8 border-t pt-4 max-w-measure text-xs">
+          Las dos listas no se ordenan juntas a propósito: una es de tu monto y
+          la otra de otro, y compararlas como si fueran lo mismo es exactamente
+          lo que hace que un comparador mienta sin decir una sola cifra falsa.
+        </p>
+      </>
+    )
+  }
+</Base>

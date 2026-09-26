@@ -118,6 +118,33 @@ Criterios de aceptación:
   proveedores aparezcan como no disponibles ahí, y esa es precisamente la
   información que aporta.
 
+**Ampliación del 2026-09-26 — monto libre donde el dato lo sostiene.**
+
+Los cuatro brackets eran el medio, no el fin: lo que esta historia pide es que
+la comparación *refleje mi monto*. Para una parte de los proveedores se puede
+responder a cualquier monto **sin inventar nada**, y para el resto no.
+
+- **Un proveedor admite monto libre si, y solo si, su `gross_rate` es el mismo
+  en los cuatro brackets y no reporta comisión.** Las dos condiciones se leen
+  del dato en cada corrida, **nunca de una lista de proveedores escrita a
+  mano**: si uno empieza a cobrar comisión o su tasa pasa a depender del monto,
+  cae solo a modo bracket, que es la dirección segura del fallo.
+- Medido el 2026-09-26: lo cumplen **bitso, buda y dolarapp** — un ticker es un
+  precio para todos. No lo cumplen `binance_p2p` (su ponderado depende de la
+  profundidad del libro), `eldorado` (comisión porcentual) ni `wise`,
+  `instarem` y `western_union` (comisión fija que **escala**: Wise cobra 3,29
+  USD a 100, 9,40 a 500 y 17,03 a 1000).
+- Para quien admite monto libre, la conversión es `monto × gross_rate`.
+  Verificado contra las filas guardadas: reproduce cada importe con un desvío
+  máximo de **0,44 COP**, que es el redondeo al peso que ya aplica `money.ts`.
+- **Quien no lo admite no desaparece ni se interpola.** Muestra el bracket
+  medido más cercano y **dice que ése es el monto medido, no el pedido**. Un
+  número interpolado sería una observación que nadie hizo (Art. I.1), y el
+  Art. III.3 existe justamente porque el precio depende del monto.
+
+Criterio de aceptación adicional: escribir un monto que no sea un bracket
+**nunca** produce una cifra sin decir de qué monto es.
+
 ### HU-05 — Entender la TRM sin que me confunda
 **Como** alguien que ve la TRM en las noticias,
 **quiero** entender por qué ninguna app me la ofrece,
